@@ -1,6 +1,16 @@
-import { symlinkSync, unlinkSync, mkdirSync, renameSync, existsSync, lstatSync } from "fs";
-import { join, basename } from "path";
-import type { Config, Skill } from "./types";
+import {
+  symlinkSync,
+  unlinkSync,
+  mkdirSync,
+  renameSync,
+  existsSync,
+  lstatSync,
+  rmSync,
+} from "fs";
+import { spawnSync } from "child_process";
+import { join, basename, resolve } from "path";
+import { findKitchenSource } from "./config";
+import type { Config, Skill, Source } from "./types";
 
 function ensureDir(dir: string): void {
   if (!existsSync(dir)) {
@@ -10,6 +20,131 @@ function ensureDir(dir: string): void {
 
 function getInstallDirName(skill: Skill): string {
   return skill.installName || basename(skill.sourcePath);
+}
+
+interface ParsedGitHubRepo {
+  owner: string;
+  repo: string;
+  canonicalUrl: string;
+  sourceName: string;
+}
+
+function parseGitHubRepoUrl(input: string): ParsedGitHubRepo | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const sshMatch = trimmed.match(/^git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?\/?$/i);
+  if (sshMatch) {
+    const owner = sshMatch[1];
+    const repo = sshMatch[2];
+    const canonicalRepo = repo.replace(/\.git$/i, "");
+    if (!owner || !canonicalRepo) return null;
+    return {
+      owner,
+      repo: canonicalRepo,
+      canonicalUrl: `https://github.com/${owner}/${canonicalRepo}`,
+      sourceName: `${canonicalRepo}@${owner}`,
+    };
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(trimmed);
+  } catch {
+    return null;
+  }
+
+  const host = parsedUrl.hostname.toLowerCase();
+  if (host !== "github.com" && host !== "www.github.com") return null;
+
+  const segments = parsedUrl.pathname
+    .replace(/^\/+|\/+$/g, "")
+    .split("/")
+    .filter(Boolean);
+  if (segments.length !== 2) return null;
+
+  const owner = segments[0];
+  const repo = segments[1].replace(/\.git$/i, "");
+  if (!owner || !repo) return null;
+
+  return {
+    owner,
+    repo,
+    canonicalUrl: `https://github.com/${owner}/${repo}`,
+    sourceName: `${repo}@${owner}`,
+  };
+}
+
+function normalizedGitHubUrl(value: string | undefined): string | null {
+  if (!value) return null;
+  const parsed = parseGitHubRepoUrl(value);
+  return parsed ? parsed.canonicalUrl.toLowerCase() : null;
+}
+
+function resolveKitchenRoot(config: Config): string {
+  const kitchenSource = findKitchenSource(config);
+  if (!kitchenSource) {
+    throw new Error("Kitchen source is not configured.");
+  }
+
+  return resolve(kitchenSource.path);
+}
+
+export function addGitHubSource(repoUrl: string, config: Config): Source {
+  const parsed = parseGitHubRepoUrl(repoUrl);
+  if (!parsed) {
+    throw new Error("Invalid GitHub repository URL.");
+  }
+
+  const sourceNameLower = parsed.sourceName.toLowerCase();
+  const canonicalUrlLower = parsed.canonicalUrl.toLowerCase();
+  const duplicate = config.sources.some(
+    (source) =>
+      source.name.toLowerCase() === sourceNameLower ||
+      normalizedGitHubUrl(source.url) === canonicalUrlLower,
+  );
+
+  if (duplicate) {
+    throw new Error("Source already added");
+  }
+
+  const kitchenRoot = resolveKitchenRoot(config);
+  ensureDir(kitchenRoot);
+  const clonePath = resolve(join(kitchenRoot, parsed.sourceName));
+
+  if (existsSync(clonePath)) {
+    throw new Error("Source already added");
+  }
+
+  const cloneResult = spawnSync(
+    "git",
+    ["clone", "--depth", "1", parsed.canonicalUrl, clonePath],
+    { encoding: "utf-8" },
+  );
+
+  if (cloneResult.error || cloneResult.status !== 0) {
+    if (existsSync(clonePath)) {
+      rmSync(clonePath, { recursive: true, force: true });
+    }
+
+    const detail =
+      cloneResult.error?.message ||
+      cloneResult.stderr?.toString().trim() ||
+      cloneResult.stdout?.toString().trim();
+    if (detail) {
+      throw new Error(`Could not download repository: ${detail}`);
+    }
+    throw new Error("Could not download repository.");
+  }
+
+  const source: Source = {
+    name: parsed.sourceName,
+    path: clonePath,
+    recursive: true,
+    url: parsed.canonicalUrl,
+  };
+
+  return source;
 }
 
 export function installSkill(skill: Skill, config: Config): void {

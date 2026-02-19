@@ -14,17 +14,18 @@ import {
   type InputRenderable,
 } from "@opentui/core";
 import Fuse from "fuse.js";
-import { isAbsolute, relative, resolve } from "path";
+import { spawnSync } from "child_process";
+import { existsSync, readdirSync } from "fs";
+import { isAbsolute, join, relative, resolve } from "path";
 import type { Config, Skill } from "./types";
-import { installSkill, uninstallSkill, disableSkill, enableSkill } from "./actions";
+import { installSkill, uninstallSkill, disableSkill, enableSkill, addGitHubSource } from "./actions";
+import { findKitchenSource } from "./config";
 import { scan } from "./scanner";
 
 export async function startUI(config: Config) {
   let skills = await scan(config);
-  const kitchenRoot =
-    config.sources.find((source) => source.name.toLowerCase() === "kitchen")?.path ||
-    config.sources.find((source) => source.path.includes("skills-kitchen"))?.path;
-  const resolvedKitchenRoot = kitchenRoot ? resolve(kitchenRoot) : null;
+  const kitchenSource = findKitchenSource(config);
+  const resolvedKitchenRoot = kitchenSource ? resolve(kitchenSource.path) : null;
 
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
@@ -67,10 +68,118 @@ export async function startUI(config: Config) {
     };
   }
 
+  interface SourceListEntry {
+    name: string;
+    path: string;
+    recursive: boolean;
+    repoUrl?: string;
+  }
+
+  const sourceRepoUrlCache = new Map<string, string | null>();
+
+  function normalizeRepoUrl(raw: string): string {
+    const trimmed = raw.trim();
+    const githubSsh = trimmed.match(/^[^@]+@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/i);
+    if (githubSsh) {
+      return `https://github.com/${githubSsh[1]}/${githubSsh[2]}`;
+    }
+
+    try {
+      const parsed = new URL(trimmed);
+      if ((parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.pathname.endsWith(".git")) {
+        parsed.pathname = parsed.pathname.replace(/\.git$/i, "");
+      }
+      return parsed.toString().replace(/\/$/, "");
+    } catch {
+      return trimmed;
+    }
+  }
+
+  function getRepoUrl(sourcePath: string): string | null {
+    const absolutePath = resolve(sourcePath);
+    if (sourceRepoUrlCache.has(absolutePath)) {
+      return sourceRepoUrlCache.get(absolutePath) ?? null;
+    }
+
+    const result = spawnSync(
+      "git",
+      ["-C", absolutePath, "remote", "get-url", "origin"],
+      { encoding: "utf-8" },
+    );
+
+    if (result.error || result.status !== 0) {
+      sourceRepoUrlCache.set(absolutePath, null);
+      return null;
+    }
+
+    const rawUrl = result.stdout?.toString().trim();
+    if (!rawUrl) {
+      sourceRepoUrlCache.set(absolutePath, null);
+      return null;
+    }
+
+    const repoUrl = normalizeRepoUrl(rawUrl);
+    sourceRepoUrlCache.set(absolutePath, repoUrl);
+    return repoUrl;
+  }
+
+  function getDisplayedSources(): SourceListEntry[] {
+    const rows: SourceListEntry[] = [];
+    const seenPaths = new Set<string>();
+
+    if (resolvedKitchenRoot && existsSync(resolvedKitchenRoot)) {
+      try {
+        for (const entry of readdirSync(resolvedKitchenRoot, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          if (entry.name.startsWith(".")) continue;
+
+          const sourcePath = resolve(join(resolvedKitchenRoot, entry.name));
+          if (seenPaths.has(sourcePath)) continue;
+          seenPaths.add(sourcePath);
+          rows.push({
+            name: entry.name,
+            path: sourcePath,
+            recursive: true,
+            repoUrl: getRepoUrl(sourcePath) ?? undefined,
+          });
+        }
+      } catch {
+        // Ignore inaccessible directories and fall back to configured sources.
+      }
+    }
+
+    for (const source of config.sources) {
+      const sourcePath = resolve(source.path);
+      if (resolvedKitchenRoot && sourcePath === resolvedKitchenRoot) continue;
+      if (seenPaths.has(sourcePath)) continue;
+
+      seenPaths.add(sourcePath);
+      rows.push({
+        name: source.name,
+        path: sourcePath,
+        recursive: source.recursive ?? false,
+        repoUrl: getRepoUrl(sourcePath) ?? undefined,
+      });
+    }
+
+    rows.sort((a, b) => a.name.localeCompare(b.name));
+    return rows;
+  }
+
+  function formatSourceOption(source: SourceListEntry) {
+    const sourceRef = source.repoUrl || source.path;
+    return {
+      name: source.name,
+      description: sourceRef,
+      value: source,
+    };
+  }
+
   // --- Build static layout ---
 
   const initialInstalled = installedSkills().map(formatInstalledOption);
   const initialAvailable = availableSkills().map(formatAvailableOption);
+  const initialSources = getDisplayedSources().map(formatSourceOption);
   const statusMessage = `d:toggle disable  u:uninstall  ←/→:switch  q:quit  (${initialInstalled.length} installed)`;
 
   renderer.root.add(
@@ -89,6 +198,7 @@ export async function startUI(config: Config) {
         options: [
           { name: "Installed", description: "" },
           { name: "Available", description: "" },
+          { name: "Sources", description: "" },
         ],
         showDescription: false,
         showUnderline: true,
@@ -153,6 +263,43 @@ export async function startUI(config: Config) {
             selectedDescriptionColor: "#AAAAAA",
           }),
         ),
+        Box(
+          { id: "sources-view", flexDirection: "column", flexGrow: 1, visible: false },
+          Text({
+            id: "sources-url-label",
+            content: "GitHub repository URL",
+            fg: "#888888",
+          }),
+          Input({
+            id: "sources-url-input",
+            width: "100%" as any,
+            placeholder: "https://github.com/owner/repo",
+            backgroundColor: "#1a1a1a",
+            focusedBackgroundColor: "#2a2a2a",
+            textColor: "#FFFFFF",
+            cursorColor: "#00FF00",
+          }),
+          Text({
+            id: "sources-add-source-label",
+            content: "Add Source (press Enter)",
+            fg: "#666666",
+          }),
+          Select({
+            id: "sources-select",
+            width: "100%" as any,
+            height: "100%" as any,
+            options: initialSources,
+            showDescription: true,
+            showScrollIndicator: true,
+            wrapSelection: true,
+            backgroundColor: "#111111",
+            selectedBackgroundColor: "#333366",
+            selectedTextColor: "#FFFFFF",
+            textColor: "#CCCCCC",
+            descriptionColor: "#666666",
+            selectedDescriptionColor: "#AAAAAA",
+          }),
+        ),
       ),
       Box(
         {
@@ -185,17 +332,22 @@ export async function startUI(config: Config) {
   const tabsR = find<TabSelectRenderable>("tabs");
   const installedViewR = find<any>("installed-view");
   const availableViewR = find<any>("available-view");
+  const sourcesViewR = find<any>("sources-view");
   const installedSearchInputR = find<InputRenderable>("installed-search-input");
   const installedSelectR = find<SelectRenderable>("installed-select");
   const availableSelectR = find<SelectRenderable>("available-select");
   const availableSearchInputR = find<InputRenderable>("available-search-input");
+  const sourcesUrlInputR = find<InputRenderable>("sources-url-input");
+  const sourcesSelectR = find<SelectRenderable>("sources-select");
   const statusR = find<TextRenderable>("status");
 
   // --- State ---
 
+  const TAB_COUNT = 3;
   let currentTab = 0;
   let installedSearchQuery = "";
   let availableSearchQuery = "";
+  let sourcesUrl = "";
   let transientStatusMessage: string | null = null;
   let transientStatusTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -271,6 +423,10 @@ export async function startUI(config: Config) {
     availableSelectR.options = filtered.map(formatAvailableOption);
   }
 
+  function refreshSourcesList() {
+    sourcesSelectR.options = getDisplayedSources().map(formatSourceOption);
+  }
+
   function updateStatus() {
     if (transientStatusMessage) {
       statusR.content = transientStatusMessage;
@@ -280,14 +436,16 @@ export async function startUI(config: Config) {
     if (currentTab === 0) {
       const count = searchInstalledSkills(installedSearchQuery).length;
       statusR.content = `d:toggle disable  u:uninstall  ←/→:switch  q:quit  (${count} installed)`;
-    } else {
+    } else if (currentTab === 1) {
       const count = searchAvailableSkills(availableSearchQuery).length;
       statusR.content = `Enter:install  ←/→:switch  q:quit  (${count} available)`;
+    } else {
+      statusR.content = `Enter:Add Source  ←/→:switch  q:quit  (${getDisplayedSources().length} sources)`;
     }
   }
 
   function switchTab(tabIndex: number, syncTabs: boolean = true) {
-    const safeIndex = Math.max(0, Math.min(1, tabIndex));
+    const safeIndex = Math.max(0, Math.min(TAB_COUNT - 1, tabIndex));
     currentTab = safeIndex;
     if (syncTabs && tabsR.getSelectedIndex() !== safeIndex) {
       tabsR.setSelectedIndex(safeIndex);
@@ -296,13 +454,21 @@ export async function startUI(config: Config) {
     if (safeIndex === 0) {
       installedViewR.visible = true;
       availableViewR.visible = false;
+      sourcesViewR.visible = false;
       refreshInstalledList(installedSearchQuery);
       installedSearchInputR.focus();
-    } else {
+    } else if (safeIndex === 1) {
       installedViewR.visible = false;
       availableViewR.visible = true;
+      sourcesViewR.visible = false;
       refreshAvailableList(availableSearchQuery);
       availableSearchInputR.focus();
+    } else {
+      installedViewR.visible = false;
+      availableViewR.visible = false;
+      sourcesViewR.visible = true;
+      refreshSourcesList();
+      sourcesUrlInputR.focus();
     }
 
     updateStatus();
@@ -330,6 +496,27 @@ export async function startUI(config: Config) {
     }
   }
 
+  async function addSourceFromInput() {
+    const repoUrl = sourcesUrl.trim();
+    if (!repoUrl) {
+      showTransientStatus("Enter a GitHub repository URL.", 2200);
+      return;
+    }
+
+    try {
+      showTransientStatus("Adding source...", 0);
+      const source = addGitHubSource(repoUrl, config);
+      await rescan();
+      refreshSourcesList();
+      refreshAvailableList(availableSearchQuery);
+      sourcesUrl = "";
+      sourcesUrlInputR.value = "";
+      showTransientStatus(`Added source ${source.name}.`, 1800);
+    } catch (err: any) {
+      showTransientStatus(err?.message || "Could not add source.", 3200);
+    }
+  }
+
   // --- Event handlers ---
 
   tabsR.on(TabSelectRenderableEvents.SELECTION_CHANGED, (index: number) => {
@@ -344,7 +531,7 @@ export async function startUI(config: Config) {
     const tabWidth =
       typeof (tabsR as any).getTabWidth === "function"
         ? (tabsR as any).getTabWidth()
-        : Math.max(1, Math.floor(tabsR.width / 2));
+        : Math.max(1, Math.floor(tabsR.width / TAB_COUNT));
 
     const clickedIndex = Math.floor(localX / tabWidth);
     switchTab(clickedIndex);
@@ -362,23 +549,27 @@ export async function startUI(config: Config) {
     updateStatus();
   });
 
+  sourcesUrlInputR.on(InputRenderableEvents.INPUT, (value: string) => {
+    sourcesUrl = value;
+  });
+
   availableSelectR.on(SelectRenderableEvents.ITEM_SELECTED, (_index: number, option: any) => {
     void installSelectedSkill(option?.value as Skill | undefined);
   });
 
   renderer.keyInput.on("keypress", async (key: any) => {
-    if (key.name === "q" && currentTab !== 1) {
+    if (key.name === "q" && currentTab === 0) {
       renderer.destroy();
       process.exit(0);
     }
 
     if (key.name === "left") {
-      switchTab(0);
+      switchTab(currentTab - 1);
       return;
     }
 
     if (key.name === "right") {
-      switchTab(1);
+      switchTab(currentTab + 1);
       return;
     }
 
@@ -410,9 +601,28 @@ export async function startUI(config: Config) {
       return;
     }
 
+    if (currentTab === 2 && key.name === "down") {
+      if (!sourcesSelectR.focused) {
+        sourcesSelectR.setSelectedIndex(sourcesSelectR.getSelectedIndex() + 1);
+      }
+      return;
+    }
+
+    if (currentTab === 2 && key.name === "up") {
+      if (!sourcesSelectR.focused) {
+        sourcesSelectR.setSelectedIndex(sourcesSelectR.getSelectedIndex() - 1);
+      }
+      return;
+    }
+
     if (currentTab === 1 && (key.name === "return" || key.name === "enter" || key.name === "kpenter")) {
       const option = availableSelectR.getSelectedOption() as any;
       await installSelectedSkill(option?.value as Skill | undefined);
+      return;
+    }
+
+    if (currentTab === 2 && (key.name === "return" || key.name === "enter" || key.name === "kpenter")) {
+      await addSourceFromInput();
       return;
     }
 
@@ -463,6 +673,12 @@ export async function startUI(config: Config) {
       availableSearchQuery = "";
       availableSearchInputR.value = "";
       refreshAvailableList("");
+      updateStatus();
+    }
+
+    if (currentTab === 2 && key.name === "escape") {
+      sourcesUrl = "";
+      sourcesUrlInputR.value = "";
       updateStatus();
     }
   });

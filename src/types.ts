@@ -2,6 +2,7 @@ export interface Source {
   name: string;
   path: string;
   recursive?: boolean;
+  url?: string;
 }
 
 export interface Config {
