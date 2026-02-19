@@ -29,7 +29,3 @@ See **[Research](docs/research.md)** for how tools handle skills today, **[User 
 - **[Provenance Tracking](docs/provenance.md)**: Every skill records its source repo, author, version, and update channel.
 - **[Quality Scores](docs/quality.md)**: Community and automated ratings for security, efficiency, and best practices, with benchmarks across models and harnesses.
 - **[Development Mode](docs/dev-mode.md)**: TUI/GUI for authoring, testing, and previewing skills before publishing.
-
-## Next Steps
-
-- Draft system architecture in `docs/architecture.md`
