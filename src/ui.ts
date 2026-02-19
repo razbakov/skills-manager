@@ -41,7 +41,7 @@ export async function startUI(config: Config) {
     return skills.filter((s) => !s.installed);
   }
 
-  function getInstalledDisplayPath(skill: Skill): string {
+  function getKitchenRelativePath(skill: Skill): string {
     if (!resolvedKitchenRoot) return skill.sourcePath;
 
     const rel = relative(resolvedKitchenRoot, resolve(skill.sourcePath));
@@ -53,8 +53,8 @@ export async function startUI(config: Config) {
   function formatInstalledOption(s: Skill) {
     const skillDescription = s.description || "(no description)";
     return {
-      name: `${s.name} — ${skillDescription}`,
-      description: getInstalledDisplayPath(s),
+      name: s.name,
+      description: `${getKitchenRelativePath(s)} — ${skillDescription}`,
       value: s,
     };
   }
@@ -62,7 +62,7 @@ export async function startUI(config: Config) {
   function formatAvailableOption(s: Skill) {
     return {
       name: s.name,
-      description: `${s.sourceName} — ${s.description || "(no description)"}`,
+      description: `${getKitchenRelativePath(s)} — ${s.description || "(no description)"}`,
       value: s,
     };
   }
@@ -71,7 +71,7 @@ export async function startUI(config: Config) {
 
   const initialInstalled = installedSkills().map(formatInstalledOption);
   const initialAvailable = availableSkills().map(formatAvailableOption);
-  const statusMessage = `d:toggle disable  u:uninstall  Tab:switch  q:quit  (${initialInstalled.length} installed)`;
+  const statusMessage = `d:toggle disable  u:uninstall  ←/→:switch  q:quit  (${initialInstalled.length} installed)`;
 
   renderer.root.add(
     Box(
@@ -101,6 +101,15 @@ export async function startUI(config: Config) {
         { id: "content", flexGrow: 1, flexDirection: "column" },
         Box(
           { id: "installed-view", flexDirection: "column", flexGrow: 1 },
+          Input({
+            id: "installed-search-input",
+            width: "100%" as any,
+            placeholder: "Search installed skills...",
+            backgroundColor: "#1a1a1a",
+            focusedBackgroundColor: "#2a2a2a",
+            textColor: "#FFFFFF",
+            cursorColor: "#00FF00",
+          }),
           Select({
             id: "installed-select",
             width: "100%" as any,
@@ -120,7 +129,7 @@ export async function startUI(config: Config) {
         Box(
           { id: "available-view", flexDirection: "column", flexGrow: 1, visible: false },
           Input({
-            id: "search-input",
+            id: "available-search-input",
             width: "100%" as any,
             placeholder: "Search skills...",
             backgroundColor: "#1a1a1a",
@@ -176,64 +185,124 @@ export async function startUI(config: Config) {
   const tabsR = find<TabSelectRenderable>("tabs");
   const installedViewR = find<any>("installed-view");
   const availableViewR = find<any>("available-view");
+  const installedSearchInputR = find<InputRenderable>("installed-search-input");
   const installedSelectR = find<SelectRenderable>("installed-select");
   const availableSelectR = find<SelectRenderable>("available-select");
-  const searchInputR = find<InputRenderable>("search-input");
+  const availableSearchInputR = find<InputRenderable>("available-search-input");
   const statusR = find<TextRenderable>("status");
 
   // --- State ---
 
   let currentTab = 0;
-  let searchQuery = "";
+  let installedSearchQuery = "";
+  let availableSearchQuery = "";
+  let transientStatusMessage: string | null = null;
+  let transientStatusTimer: ReturnType<typeof setTimeout> | null = null;
 
-  function refreshInstalledList() {
-    installedSelectR.options = installedSkills().map(formatInstalledOption);
+  function showTransientStatus(message: string, durationMs: number = 1800) {
+    transientStatusMessage = message;
+    statusR.content = message;
+
+    if (transientStatusTimer) {
+      clearTimeout(transientStatusTimer);
+      transientStatusTimer = null;
+    }
+
+    if (durationMs > 0) {
+      transientStatusTimer = setTimeout(() => {
+        transientStatusMessage = null;
+        transientStatusTimer = null;
+        updateStatus();
+      }, durationMs);
+    }
+  }
+
+  function searchInstalledSkills(query: string): Skill[] {
+    const installed = installedSkills();
+    if (!query.trim()) return installed;
+
+    const searchable = installed.map((skill) => ({
+      skill,
+      name: skill.name,
+      description: skill.description || "",
+      kitchenPath: getKitchenRelativePath(skill),
+      sourcePath: skill.sourcePath,
+      sourceName: skill.sourceName,
+      installName: skill.installName || "",
+    }));
+
+    const fuse = new Fuse(searchable, {
+      keys: ["name", "description", "kitchenPath", "sourcePath", "sourceName", "installName"],
+      threshold: 0.4,
+    });
+
+    return fuse.search(query).map((r) => r.item.skill);
+  }
+
+  function refreshInstalledList(query: string = "") {
+    const filtered = searchInstalledSkills(query);
+    installedSelectR.options = filtered.map(formatInstalledOption);
+  }
+
+  function searchAvailableSkills(query: string): Skill[] {
+    const available = availableSkills();
+    if (!query.trim()) return available;
+
+    const searchable = available.map((skill) => ({
+      skill,
+      name: skill.name,
+      description: skill.description || "",
+      kitchenPath: getKitchenRelativePath(skill),
+      sourcePath: skill.sourcePath,
+      sourceName: skill.sourceName,
+      installName: skill.installName || "",
+    }));
+
+    const fuse = new Fuse(searchable, {
+      keys: ["name", "description", "kitchenPath", "sourcePath", "sourceName", "installName"],
+      threshold: 0.4,
+    });
+
+    return fuse.search(query).map((r) => r.item.skill);
   }
 
   function refreshAvailableList(query: string = "") {
-    const available = availableSkills();
-    let filtered: Skill[];
-
-    if (query.trim()) {
-      const fuse = new Fuse(available, {
-        keys: ["name", "description"],
-        threshold: 0.4,
-      });
-      filtered = fuse.search(query).map((r) => r.item);
-    } else {
-      filtered = available;
-    }
-
+    const filtered = searchAvailableSkills(query);
     availableSelectR.options = filtered.map(formatAvailableOption);
   }
 
   function updateStatus() {
+    if (transientStatusMessage) {
+      statusR.content = transientStatusMessage;
+      return;
+    }
+
     if (currentTab === 0) {
-      const count = installedSkills().length;
-      statusR.content = `d:toggle disable  u:uninstall  Tab:switch  q:quit  (${count} installed)`;
+      const count = searchInstalledSkills(installedSearchQuery).length;
+      statusR.content = `d:toggle disable  u:uninstall  ←/→:switch  q:quit  (${count} installed)`;
     } else {
-      const available = availableSkills();
-      const count = searchQuery
-        ? new Fuse(available, { keys: ["name", "description"], threshold: 0.4 }).search(searchQuery).length
-        : available.length;
-      statusR.content = `Enter:install  Tab:switch  q:quit  (${count} available)`;
+      const count = searchAvailableSkills(availableSearchQuery).length;
+      statusR.content = `Enter:install  ←/→:switch  q:quit  (${count} available)`;
     }
   }
 
-  function switchTab(tabIndex: number) {
-    currentTab = tabIndex;
-    tabsR.setSelectedIndex(tabIndex);
+  function switchTab(tabIndex: number, syncTabs: boolean = true) {
+    const safeIndex = Math.max(0, Math.min(1, tabIndex));
+    currentTab = safeIndex;
+    if (syncTabs && tabsR.getSelectedIndex() !== safeIndex) {
+      tabsR.setSelectedIndex(safeIndex);
+    }
 
-    if (tabIndex === 0) {
+    if (safeIndex === 0) {
       installedViewR.visible = true;
       availableViewR.visible = false;
-      refreshInstalledList();
-      installedSelectR.focus();
+      refreshInstalledList(installedSearchQuery);
+      installedSearchInputR.focus();
     } else {
       installedViewR.visible = false;
       availableViewR.visible = true;
-      refreshAvailableList(searchQuery);
-      searchInputR.focus();
+      refreshAvailableList(availableSearchQuery);
+      availableSearchInputR.focus();
     }
 
     updateStatus();
@@ -243,25 +312,58 @@ export async function startUI(config: Config) {
     skills = scan(config);
   }
 
+  function installSelectedSkill(skill: Skill | undefined) {
+    if (!skill) {
+      showTransientStatus("No skill selected to install.", 1500);
+      return;
+    }
+
+    try {
+      showTransientStatus(`Installing ${skill.name}...`, 0);
+      installSkill(skill, config);
+      rescan();
+      refreshAvailableList(availableSearchQuery);
+      refreshInstalledList(installedSearchQuery);
+      showTransientStatus(`Installed ${skill.name}.`, 1600);
+    } catch (err: any) {
+      showTransientStatus(`Install failed: ${err?.message || "Unknown error"}`, 2600);
+    }
+  }
+
   // --- Event handlers ---
 
-  tabsR.on(TabSelectRenderableEvents.SELECTION_CHANGED, (_index: number) => {
-    switchTab(_index);
+  tabsR.on(TabSelectRenderableEvents.SELECTION_CHANGED, (index: number) => {
+    switchTab(index, false);
   });
 
-  searchInputR.on(InputRenderableEvents.INPUT, (value: string) => {
-    searchQuery = value;
+  (tabsR as any).onMouseDown = (event: any) => {
+    if (event?.button !== 0) return;
+    const localX = event.x - tabsR.x;
+    if (localX < 0 || localX >= tabsR.width) return;
+
+    const tabWidth =
+      typeof (tabsR as any).getTabWidth === "function"
+        ? (tabsR as any).getTabWidth()
+        : Math.max(1, Math.floor(tabsR.width / 2));
+
+    const clickedIndex = Math.floor(localX / tabWidth);
+    switchTab(clickedIndex);
+  };
+
+  installedSearchInputR.on(InputRenderableEvents.INPUT, (value: string) => {
+    installedSearchQuery = value;
+    refreshInstalledList(value);
+    updateStatus();
+  });
+
+  availableSearchInputR.on(InputRenderableEvents.INPUT, (value: string) => {
+    availableSearchQuery = value;
     refreshAvailableList(value);
     updateStatus();
   });
 
   availableSelectR.on(SelectRenderableEvents.ITEM_SELECTED, (_index: number, option: any) => {
-    if (!option?.value) return;
-    const skill = option.value as Skill;
-    installSkill(skill, config);
-    rescan();
-    refreshAvailableList(searchQuery);
-    updateStatus();
+    installSelectedSkill(option?.value as Skill | undefined);
   });
 
   renderer.keyInput.on("keypress", (key: any) => {
@@ -270,8 +372,47 @@ export async function startUI(config: Config) {
       process.exit(0);
     }
 
-    if (key.name === "tab") {
-      switchTab(currentTab === 0 ? 1 : 0);
+    if (key.name === "left") {
+      switchTab(0);
+      return;
+    }
+
+    if (key.name === "right") {
+      switchTab(1);
+      return;
+    }
+
+    if (currentTab === 0 && key.name === "down") {
+      if (!installedSelectR.focused) {
+        installedSelectR.setSelectedIndex(installedSelectR.getSelectedIndex() + 1);
+      }
+      return;
+    }
+
+    if (currentTab === 0 && key.name === "up") {
+      if (!installedSelectR.focused) {
+        installedSelectR.setSelectedIndex(installedSelectR.getSelectedIndex() - 1);
+      }
+      return;
+    }
+
+    if (currentTab === 1 && key.name === "down") {
+      if (!availableSelectR.focused) {
+        availableSelectR.setSelectedIndex(availableSelectR.getSelectedIndex() + 1);
+      }
+      return;
+    }
+
+    if (currentTab === 1 && key.name === "up") {
+      if (!availableSelectR.focused) {
+        availableSelectR.setSelectedIndex(availableSelectR.getSelectedIndex() - 1);
+      }
+      return;
+    }
+
+    if (currentTab === 1 && (key.name === "return" || key.name === "enter" || key.name === "kpenter")) {
+      const option = availableSelectR.getSelectedOption() as any;
+      installSelectedSkill(option?.value as Skill | undefined);
       return;
     }
 
@@ -286,7 +427,7 @@ export async function startUI(config: Config) {
             disableSkill(skill, config);
           }
           rescan();
-          refreshInstalledList();
+          refreshInstalledList(installedSearchQuery);
           updateStatus();
         }
       }
@@ -297,21 +438,28 @@ export async function startUI(config: Config) {
           const skill = option.value as Skill;
           uninstallSkill(skill, config);
           rescan();
-          refreshInstalledList();
+          refreshInstalledList(installedSearchQuery);
           updateStatus();
         }
       }
     }
 
+    if (currentTab === 0 && key.name === "escape") {
+      installedSearchQuery = "";
+      installedSearchInputR.value = "";
+      refreshInstalledList("");
+      updateStatus();
+    }
+
     if (currentTab === 1 && key.name === "escape") {
-      searchQuery = "";
-      searchInputR.value = "";
+      availableSearchQuery = "";
+      availableSearchInputR.value = "";
       refreshAvailableList("");
       updateStatus();
     }
   });
 
   // Set initial focus
-  installedSelectR.focus();
+  installedSearchInputR.focus();
   updateStatus();
 }
