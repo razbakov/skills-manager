@@ -183,6 +183,12 @@ export async function startUI(config: Config) {
   }
 
   function getSourceSkillCounts(source: SourceListEntry): { installed: number; total: number } {
+    const sourceSkills = getSkillsForSource(source);
+    const installedCount = sourceSkills.filter((skill) => skill.installed).length;
+    return { installed: installedCount, total: sourceSkills.length };
+  }
+
+  function getSkillsForSource(source: SourceListEntry): Skill[] {
     const sourceRoot = resolve(source.path);
     const matchedSkills = skills.filter((skill) => {
       const skillPath = resolve(skill.sourcePath);
@@ -193,9 +199,21 @@ export async function startUI(config: Config) {
       const rel = relative(sourceRoot, skillPath);
       return rel === "" || (!rel.includes("/") && !rel.includes("\\"));
     });
+    return sortSkillsByName(matchedSkills);
+  }
 
-    const installedCount = matchedSkills.filter((skill) => skill.installed).length;
-    return { installed: installedCount, total: matchedSkills.length };
+  function getSourceSkillRelativePath(source: SourceListEntry, skill: Skill): string {
+    const rel = relative(resolve(source.path), resolve(skill.sourcePath));
+    return rel || ".";
+  }
+
+  function formatSourcePackageSkillOption(source: SourceListEntry, skill: Skill) {
+    const statusPrefix = skill.installed ? (skill.disabled ? "[-]" : "[x]") : "[ ]";
+    return {
+      name: `${statusPrefix} ${skill.name}`,
+      description: `${getSourceSkillRelativePath(source, skill)} — ${skill.description || "(no description)"}`,
+      value: skill,
+    };
   }
 
   function formatSourceOption(source: SourceListEntry) {
@@ -212,7 +230,17 @@ export async function startUI(config: Config) {
 
   const initialInstalled = installedSkills().map(formatInstalledOption);
   const initialAvailable = availableSkills().map(formatAvailableOption);
-  const initialSources = getDisplayedSources().map(formatSourceOption);
+  const initialSourceEntries = getDisplayedSources();
+  const initialSources = initialSourceEntries.map(formatSourceOption);
+  const initialSourcePackage = initialSourceEntries[0];
+  const initialSourcePackageSkills = initialSourcePackage
+    ? getSkillsForSource(initialSourcePackage).map((skill) =>
+        formatSourcePackageSkillOption(initialSourcePackage, skill),
+      )
+    : [];
+  const initialSourcePackageCounts = initialSourcePackage
+    ? getSourceSkillCounts(initialSourcePackage)
+    : { installed: 0, total: 0 };
   const statusMessage = `d:toggle disable  u:uninstall  e:export  ←/→:switch  q:quit  (${initialInstalled.length} installed)`;
 
   renderer.root.add(
@@ -298,40 +326,80 @@ export async function startUI(config: Config) {
         ),
         Box(
           { id: "sources-view", flexDirection: "column", flexGrow: 1, visible: false },
-          Text({
-            id: "sources-url-label",
-            content: "GitHub repository URL",
-            fg: "#888888",
-          }),
-          Input({
-            id: "sources-url-input",
-            width: "100%" as any,
-            placeholder: "https://github.com/owner/repo",
-            backgroundColor: "#1a1a1a",
-            focusedBackgroundColor: "#2a2a2a",
-            textColor: "#FFFFFF",
-            cursorColor: "#00FF00",
-          }),
-          Text({
-            id: "sources-add-source-label",
-            content: "Add Source (press Enter)",
-            fg: "#666666",
-          }),
-          Select({
-            id: "sources-select",
-            width: "100%" as any,
-            height: "100%" as any,
-            options: initialSources,
-            showDescription: true,
-            showScrollIndicator: true,
-            wrapSelection: true,
-            backgroundColor: "#111111",
-            selectedBackgroundColor: "#333366",
-            selectedTextColor: "#FFFFFF",
-            textColor: "#CCCCCC",
-            descriptionColor: "#666666",
-            selectedDescriptionColor: "#AAAAAA",
-          }),
+          Box(
+            { id: "sources-browser-view", flexDirection: "column", flexGrow: 1 },
+            Text({
+              id: "sources-url-label",
+              content: "GitHub repository URL",
+              fg: "#888888",
+            }),
+            Input({
+              id: "sources-url-input",
+              width: "100%" as any,
+              placeholder: "https://github.com/owner/repo",
+              backgroundColor: "#1a1a1a",
+              focusedBackgroundColor: "#2a2a2a",
+              textColor: "#FFFFFF",
+              cursorColor: "#00FF00",
+            }),
+            Text({
+              id: "sources-add-source-label",
+              content: "Type URL + Enter to add, or Enter on list to open package",
+              fg: "#666666",
+            }),
+            Select({
+              id: "sources-select",
+              width: "100%" as any,
+              height: "100%" as any,
+              options: initialSources,
+              showDescription: true,
+              showScrollIndicator: true,
+              wrapSelection: true,
+              backgroundColor: "#111111",
+              selectedBackgroundColor: "#333366",
+              selectedTextColor: "#FFFFFF",
+              textColor: "#CCCCCC",
+              descriptionColor: "#666666",
+              selectedDescriptionColor: "#AAAAAA",
+            }),
+          ),
+          Box(
+            { id: "sources-package-view", flexDirection: "column", flexGrow: 1, visible: false },
+            Text({
+              id: "sources-package-title",
+              content: initialSourcePackage
+                ? `${initialSourcePackage.name} (${initialSourcePackageCounts.installed} of ${initialSourcePackageCounts.total})`
+                : "Package details",
+              fg: "#FFFFFF",
+            }),
+            Text({
+              id: "sources-package-meta",
+              content: initialSourcePackage
+                ? (initialSourcePackage.repoUrl || initialSourcePackage.path)
+                : "No source selected.",
+              fg: "#888888",
+            }),
+            Text({
+              id: "sources-package-help",
+              content: "Esc: back to sources",
+              fg: "#666666",
+            }),
+            Select({
+              id: "sources-package-select",
+              width: "100%" as any,
+              height: "100%" as any,
+              options: initialSourcePackageSkills,
+              showDescription: true,
+              showScrollIndicator: true,
+              wrapSelection: true,
+              backgroundColor: "#111111",
+              selectedBackgroundColor: "#333366",
+              selectedTextColor: "#FFFFFF",
+              textColor: "#CCCCCC",
+              descriptionColor: "#666666",
+              selectedDescriptionColor: "#AAAAAA",
+            }),
+          ),
         ),
       ),
       Box(
@@ -370,8 +438,13 @@ export async function startUI(config: Config) {
   const installedSelectR = find<SelectRenderable>("installed-select");
   const availableSelectR = find<SelectRenderable>("available-select");
   const availableSearchInputR = find<InputRenderable>("available-search-input");
+  const sourcesBrowserViewR = find<any>("sources-browser-view");
+  const sourcesPackageViewR = find<any>("sources-package-view");
   const sourcesUrlInputR = find<InputRenderable>("sources-url-input");
   const sourcesSelectR = find<SelectRenderable>("sources-select");
+  const sourcesPackageTitleR = find<TextRenderable>("sources-package-title");
+  const sourcesPackageMetaR = find<TextRenderable>("sources-package-meta");
+  const sourcesPackageSelectR = find<SelectRenderable>("sources-package-select");
   const statusR = find<TextRenderable>("status");
 
   // --- State ---
@@ -381,12 +454,15 @@ export async function startUI(config: Config) {
   let installedSearchQuery = "";
   let availableSearchQuery = "";
   let sourcesUrl = "";
+  let sourcesPackageOpen = false;
+  let selectedSourceInPackage: SourceListEntry | undefined;
   let transientStatusMessage: string | null = null;
   let transientStatusTimer: ReturnType<typeof setTimeout> | null = null;
 
   function isCurrentTabInputFocused(): boolean {
     if (currentTab === 0) return installedSearchInputR.focused;
     if (currentTab === 1) return availableSearchInputR.focused;
+    if (sourcesPackageOpen) return false;
     return sourcesUrlInputR.focused;
   }
 
@@ -470,8 +546,70 @@ export async function startUI(config: Config) {
     availableSelectR.options = filtered.map(formatAvailableOption);
   }
 
+  function refreshSourcePackageDetails() {
+    if (!selectedSourceInPackage) {
+      sourcesPackageTitleR.content = "Package details";
+      sourcesPackageMetaR.content = "No source selected.";
+      sourcesPackageSelectR.options = [];
+      return;
+    }
+
+    const counts = getSourceSkillCounts(selectedSourceInPackage);
+    const prevIndex = sourcesPackageSelectR.getSelectedIndex();
+    const sourceSkills = getSkillsForSource(selectedSourceInPackage);
+    const options = sourceSkills.map((skill) =>
+      formatSourcePackageSkillOption(selectedSourceInPackage!, skill),
+    );
+    sourcesPackageTitleR.content =
+      `${selectedSourceInPackage.name} (${counts.installed} of ${counts.total})`;
+    sourcesPackageMetaR.content = selectedSourceInPackage.repoUrl || selectedSourceInPackage.path;
+    sourcesPackageSelectR.options = options;
+
+    if (options.length === 0) {
+      return;
+    }
+
+    const nextIndex = Math.max(0, Math.min(prevIndex, options.length - 1));
+    sourcesPackageSelectR.setSelectedIndex(nextIndex);
+  }
+
+  function openSourcePackage(source: SourceListEntry | undefined) {
+    if (!source) {
+      showTransientStatus("No source selected.", 1800);
+      return;
+    }
+
+    selectedSourceInPackage = source;
+    sourcesPackageOpen = true;
+    sourcesBrowserViewR.visible = false;
+    sourcesPackageViewR.visible = true;
+    refreshSourcePackageDetails();
+    sourcesPackageSelectR.focus();
+    updateStatus();
+  }
+
+  function closeSourcePackage() {
+    sourcesPackageOpen = false;
+    sourcesPackageViewR.visible = false;
+    sourcesBrowserViewR.visible = true;
+    refreshSourcesList();
+    sourcesUrlInputR.focus();
+    updateStatus();
+  }
+
   function refreshSourcesList() {
-    sourcesSelectR.options = getDisplayedSources().map(formatSourceOption);
+    const prevIndex = sourcesSelectR.getSelectedIndex();
+    const sourceEntries = getDisplayedSources();
+    sourcesSelectR.options = sourceEntries.map(formatSourceOption);
+
+    if (sourceEntries.length === 0) {
+      selectedSourceInPackage = undefined;
+      return;
+    }
+
+    const nextIndex = Math.max(0, Math.min(prevIndex, sourceEntries.length - 1));
+    sourcesSelectR.setSelectedIndex(nextIndex);
+    selectedSourceInPackage = sourceEntries[nextIndex];
   }
 
   function updateStatus() {
@@ -487,7 +625,11 @@ export async function startUI(config: Config) {
       const count = searchAvailableSkills(availableSearchQuery).length;
       statusR.content = `Enter:install  ←/→:switch  q:quit  (${count} available)`;
     } else {
-      statusR.content = `Enter:Add Source  ←/→:switch  q:quit  (${getDisplayedSources().length} sources)`;
+      if (sourcesPackageOpen) {
+        statusR.content = "Esc:back  ↑/↓:browse  ←/→:switch  q:quit";
+      } else {
+        statusR.content = `Enter:open/add source  ←/→:switch  q:quit  (${getDisplayedSources().length} sources)`;
+      }
     }
   }
 
@@ -514,8 +656,17 @@ export async function startUI(config: Config) {
       installedViewR.visible = false;
       availableViewR.visible = false;
       sourcesViewR.visible = true;
-      refreshSourcesList();
-      sourcesUrlInputR.focus();
+      if (sourcesPackageOpen) {
+        sourcesBrowserViewR.visible = false;
+        sourcesPackageViewR.visible = true;
+        refreshSourcePackageDetails();
+        sourcesPackageSelectR.focus();
+      } else {
+        sourcesPackageViewR.visible = false;
+        sourcesBrowserViewR.visible = true;
+        refreshSourcesList();
+        sourcesUrlInputR.focus();
+      }
     }
 
     updateStatus();
@@ -613,6 +764,10 @@ export async function startUI(config: Config) {
     sourcesUrl = value;
   });
 
+  sourcesSelectR.on(SelectRenderableEvents.SELECTION_CHANGED, (_index: number, option: any) => {
+    selectedSourceInPackage = option?.value as SourceListEntry | undefined;
+  });
+
   availableSelectR.on(SelectRenderableEvents.ITEM_SELECTED, (_index: number, option: any) => {
     void installSelectedSkill(option?.value as Skill | undefined);
   });
@@ -664,14 +819,22 @@ export async function startUI(config: Config) {
     }
 
     if (currentTab === 2 && key.name === "down") {
-      if (!sourcesSelectR.focused) {
+      if (sourcesPackageOpen) {
+        if (!sourcesPackageSelectR.focused) {
+          sourcesPackageSelectR.setSelectedIndex(sourcesPackageSelectR.getSelectedIndex() + 1);
+        }
+      } else if (!sourcesSelectR.focused) {
         sourcesSelectR.setSelectedIndex(sourcesSelectR.getSelectedIndex() + 1);
       }
       return;
     }
 
     if (currentTab === 2 && key.name === "up") {
-      if (!sourcesSelectR.focused) {
+      if (sourcesPackageOpen) {
+        if (!sourcesPackageSelectR.focused) {
+          sourcesPackageSelectR.setSelectedIndex(sourcesPackageSelectR.getSelectedIndex() - 1);
+        }
+      } else if (!sourcesSelectR.focused) {
         sourcesSelectR.setSelectedIndex(sourcesSelectR.getSelectedIndex() - 1);
       }
       return;
@@ -684,7 +847,17 @@ export async function startUI(config: Config) {
     }
 
     if (currentTab === 2 && (key.name === "return" || key.name === "enter" || key.name === "kpenter")) {
-      await addSourceFromInput();
+      if (sourcesPackageOpen) {
+        return;
+      }
+
+      if (sourcesUrl.trim()) {
+        await addSourceFromInput();
+        return;
+      }
+
+      const option = sourcesSelectR.getSelectedOption() as any;
+      openSourcePackage(option?.value as SourceListEntry | undefined);
       return;
     }
 
@@ -746,6 +919,10 @@ export async function startUI(config: Config) {
     }
 
     if (currentTab === 2 && key.name === "escape") {
+      if (sourcesPackageOpen) {
+        closeSourcePackage();
+        return;
+      }
       sourcesUrl = "";
       sourcesUrlInputR.value = "";
       updateStatus();
