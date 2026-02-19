@@ -6,9 +6,9 @@ All three tools follow the open [Agent Skills](https://agentskills.io/) standard
 
 ## Usage
 
-- `bun run start` launches the TUI.
-- `bun run start -- --install` creates a global `skills` command symlink in `$BUN_INSTALL/bin` (or `~/.bun/bin`).
-- `bun run start -- --export-installed [output-path]` exports installed skills to JSON.
+- One-line setup: `curl -fsSL https://raw.githubusercontent.com/razbakov/skills-manager/main/scripts/install.sh | bash`
+- `skills` launches the TUI after setup.
+- `skills --export-installed [output-path]` exports installed skills to JSON.
 - In the **Installed** tab, press `e` to export installed skills to `installed-skills.json` in the current working directory.
 - Exported entries include only install metadata (repository URL + optional skill path), not local filesystem paths.
 

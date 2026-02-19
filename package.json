@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "bun src/index.ts"
+    "start": "bun src/index.ts",
+    "setup": "bun install && bun src/index.ts --install"
   },
   "dependencies": {
     "@opentui/core": "^0.1.80",
