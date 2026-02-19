@@ -9,6 +9,8 @@ All three tools follow the open [Agent Skills](https://agentskills.io/) standard
 - One-line setup: `curl -fsSL https://raw.githubusercontent.com/razbakov/skills-manager/main/scripts/install.sh | bash`
 - `skills` launches the TUI after setup.
 - `skills --export-installed [output-path]` exports installed skills to JSON.
+- `skills --import-installed [input-path]` imports skills from `skills.json` format.
+- `skills import [input-path]` is shorthand for import.
 - In the **Installed** tab, press `e` to export installed skills to `installed-skills.json` in the current working directory.
 - Exported entries include only install metadata (repository URL + optional skill path), not local filesystem paths.
 

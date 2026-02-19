@@ -2,6 +2,7 @@ import { loadConfig, getConfigPath, writeDefaultConfig } from "./config";
 import { startUI } from "./ui";
 import { scan } from "./scanner";
 import { defaultInstalledSkillsExportPath, exportInstalledSkills } from "./export";
+import { defaultInstalledSkillsImportPath, importInstalledSkills } from "./import";
 import { chmodSync, existsSync, lstatSync, mkdirSync, readlinkSync, symlinkSync } from "fs";
 import { homedir } from "os";
 import { dirname, join, resolve } from "path";
@@ -11,13 +12,18 @@ import type { Config } from "./types";
 interface CliArgs {
   installCommand: boolean;
   exportInstalled: boolean;
+  importInstalled: boolean;
   outputPath: string;
+  inputPath: string;
 }
 
 function parseArgs(argv: string[]): CliArgs {
+  const command = argv[0];
   const installCommand = argv.includes("--install") || argv[0] === "install";
   let exportInstalled = false;
   let outputPath: string | undefined;
+  let importInstalled = false;
+  let inputPath: string | undefined;
 
   const exportFlagIndex = argv.indexOf("--export-installed");
   if (exportFlagIndex >= 0) {
@@ -28,7 +34,6 @@ function parseArgs(argv: string[]): CliArgs {
     }
   }
 
-  const command = argv[0];
   if (command === "export-installed" || command === "export") {
     exportInstalled = true;
     const providedPath = argv[1];
@@ -37,10 +42,38 @@ function parseArgs(argv: string[]): CliArgs {
     }
   }
 
+  const importFlagIndex = argv.indexOf("--import-installed");
+  if (importFlagIndex >= 0) {
+    importInstalled = true;
+    const providedPath = argv[importFlagIndex + 1];
+    if (providedPath && !providedPath.startsWith("-")) {
+      inputPath = providedPath;
+    }
+  }
+
+  const genericImportFlagIndex = argv.indexOf("--import");
+  if (genericImportFlagIndex >= 0) {
+    importInstalled = true;
+    const providedPath = argv[genericImportFlagIndex + 1];
+    if (providedPath && !providedPath.startsWith("-")) {
+      inputPath = providedPath;
+    }
+  }
+
+  if (command === "import-installed" || command === "import") {
+    importInstalled = true;
+    const providedPath = argv[1];
+    if (providedPath && !providedPath.startsWith("-")) {
+      inputPath = providedPath;
+    }
+  }
+
   return {
     installCommand,
     exportInstalled,
+    importInstalled,
     outputPath: outputPath || defaultInstalledSkillsExportPath(),
+    inputPath: inputPath || defaultInstalledSkillsImportPath(),
   };
 }
 
@@ -146,6 +179,26 @@ async function main() {
       console.log(
         `Exported ${installedCount} installed skill${installedCount === 1 ? "" : "s"} to ${outputPath}`,
       );
+      return;
+    }
+
+    if (args.importInstalled) {
+      const result = await importInstalledSkills(config, args.inputPath);
+      console.log(
+        `Imported ${result.installed} skill${result.installed === 1 ? "" : "s"} from ${result.inputPath}`,
+      );
+      console.log(
+        `Requested: ${result.requested}, already installed: ${result.alreadyInstalled}, added sources: ${result.addedSources}`,
+      );
+      if (result.missingRepoUrl > 0) {
+        console.log(`Skipped (missing repo URL): ${result.missingRepoUrl}`);
+      }
+      if (result.unsupportedRepoUrl > 0) {
+        console.log(`Skipped (unsupported repo URL): ${result.unsupportedRepoUrl}`);
+      }
+      if (result.missingSkills.length > 0) {
+        console.log(`Not found in scanned sources: ${result.missingSkills.join(", ")}`);
+      }
       return;
     }
 
