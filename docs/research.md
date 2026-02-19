@@ -184,6 +184,8 @@ Skill descriptions consume 2% of context window (fallback: 16,000 chars). Excess
 
 The open Agent Skills standard provides a common format, but no tool solves the **management layer**: discovering, rating, deduplicating, scoping, and updating skills across tools and collections.
 
+See **[User Problems](problems.md)** for real-world complaints, bug reports, and security research.
+
 ## Next Steps
 
 - Define system architecture in `docs/architecture.md`
