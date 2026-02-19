@@ -4,28 +4,28 @@ overview: Build a TUI app with OpenTUI + Bun that lets you browse, install (syml
 todos:
   - id: scaffold
     content: "Scaffold project: package.json, tsconfig, install deps (opentui, gray-matter, fuse.js)"
-    status: pending
+    status: completed
   - id: types-config
     content: Define types (Skill, Source, Config) and config loader (~/.config/skills-manager/config.yaml)
-    status: pending
+    status: completed
   - id: scanner
     content: "Build scanner: recursively find SKILL.md files, parse frontmatter, detect installed skills (symlinks in targets)"
-    status: pending
+    status: completed
   - id: actions
     content: "Build actions: install (symlink), uninstall (rm), disable (move to .disabled), enable (move back)"
-    status: pending
+    status: completed
   - id: tui-installed
     content: "Build Installed view: list with info, disable/enable, uninstall keybindings"
-    status: pending
+    status: completed
   - id: tui-available
     content: "Build Available view: fuzzy search input + filtered skill list + install on Enter"
-    status: pending
+    status: completed
   - id: tui-nav
     content: Wire tab navigation between views, keybindings, and entry point
-    status: pending
+    status: completed
   - id: seed-config
     content: Create initial config.yaml with user's actual source paths and targets
-    status: pending
+    status: completed
 isProject: false
 ---
 
