@@ -4,6 +4,13 @@ A management layer for AI agent skills — discover, install, scope, rate, and u
 
 All three tools follow the open [Agent Skills](https://agentskills.io/) standard (`SKILL.md`), but none solves the management problem: how to find the right skill, avoid duplicates, track where it came from, or know if it's any good.
 
+## Usage
+
+- `bun run start` launches the TUI.
+- `bun run start -- --export-installed [output-path]` exports installed skills to JSON.
+- In the **Installed** tab, press `e` to export installed skills to `installed-skills.json` in the current working directory.
+- Exported entries include only install metadata (repository URL + optional skill path), not local filesystem paths.
+
 ## Problem
 
 See **[Research](docs/research.md)** for how tools handle skills today, **[User Problems](docs/problems.md)** for 14 documented pain points, **[Landscape](docs/landscape.md)** for existing directories and tools, and **[Competitors](docs/competitors.md)** for detailed analysis of current solutions and their gaps.
@@ -25,4 +32,3 @@ See **[Research](docs/research.md)** for how tools handle skills today, **[User 
 ## Next Steps
 
 - Draft system architecture in `docs/architecture.md`
-

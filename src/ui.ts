@@ -21,6 +21,10 @@ import type { Config, Skill } from "./types";
 import { installSkill, uninstallSkill, disableSkill, enableSkill, addGitHubSource } from "./actions";
 import { findKitchenSource } from "./config";
 import { scan } from "./scanner";
+import {
+  defaultInstalledSkillsExportPath,
+  exportInstalledSkills as exportInstalledSkillsManifest,
+} from "./export";
 
 export async function startUI(config: Config) {
   let skills = await scan(config);
@@ -180,7 +184,7 @@ export async function startUI(config: Config) {
   const initialInstalled = installedSkills().map(formatInstalledOption);
   const initialAvailable = availableSkills().map(formatAvailableOption);
   const initialSources = getDisplayedSources().map(formatSourceOption);
-  const statusMessage = `d:toggle disable  u:uninstall  ←/→:switch  q:quit  (${initialInstalled.length} installed)`;
+  const statusMessage = `d:toggle disable  u:uninstall  e:export  ←/→:switch  q:quit  (${initialInstalled.length} installed)`;
 
   renderer.root.add(
     Box(
@@ -435,7 +439,7 @@ export async function startUI(config: Config) {
 
     if (currentTab === 0) {
       const count = searchInstalledSkills(installedSearchQuery).length;
-      statusR.content = `d:toggle disable  u:uninstall  ←/→:switch  q:quit  (${count} installed)`;
+      statusR.content = `d:toggle disable  u:uninstall  e:export  ←/→:switch  q:quit  (${count} installed)`;
     } else if (currentTab === 1) {
       const count = searchAvailableSkills(availableSearchQuery).length;
       statusR.content = `Enter:install  ←/→:switch  q:quit  (${count} available)`;
@@ -493,6 +497,19 @@ export async function startUI(config: Config) {
       showTransientStatus(`Installed ${skill.name}.`, 1600);
     } catch (err: any) {
       showTransientStatus(`Install failed: ${err?.message || "Unknown error"}`, 2600);
+    }
+  }
+
+  function exportInstalledSkillsToFile() {
+    try {
+      const outputPath = exportInstalledSkillsManifest(skills, defaultInstalledSkillsExportPath());
+      const installedCount = skills.filter((skill) => skill.installed).length;
+      showTransientStatus(
+        `Exported ${installedCount} installed skill${installedCount === 1 ? "" : "s"} to ${outputPath}.`,
+        3200,
+      );
+    } catch (err: any) {
+      showTransientStatus(`Export failed: ${err?.message || "Unknown error"}`, 3200);
     }
   }
 
@@ -659,6 +676,10 @@ export async function startUI(config: Config) {
             showTransientStatus(`Uninstall failed: ${err?.message || "Unknown error"}`, 2600);
           }
         }
+      }
+
+      if (key.name === "e") {
+        exportInstalledSkillsToFile();
       }
     }
 
