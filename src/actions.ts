@@ -8,8 +8,12 @@ function ensureDir(dir: string): void {
   }
 }
 
+function getInstallDirName(skill: Skill): string {
+  return skill.installName || basename(skill.sourcePath);
+}
+
 export function installSkill(skill: Skill, config: Config): void {
-  const dirName = basename(skill.sourcePath);
+  const dirName = getInstallDirName(skill);
 
   for (const target of config.targets) {
     ensureDir(target);
@@ -35,7 +39,7 @@ export function installSkill(skill: Skill, config: Config): void {
 }
 
 export function uninstallSkill(skill: Skill, config: Config): void {
-  const dirName = basename(skill.sourcePath);
+  const dirName = getInstallDirName(skill);
 
   for (const target of config.targets) {
     const linkPath = join(target, dirName);
@@ -53,7 +57,7 @@ export function uninstallSkill(skill: Skill, config: Config): void {
 }
 
 export function disableSkill(skill: Skill, config: Config): void {
-  const dirName = basename(skill.sourcePath);
+  const dirName = getInstallDirName(skill);
 
   for (const target of config.targets) {
     const linkPath = join(target, dirName);
@@ -75,7 +79,7 @@ export function disableSkill(skill: Skill, config: Config): void {
 }
 
 export function enableSkill(skill: Skill, config: Config): void {
-  const dirName = basename(skill.sourcePath);
+  const dirName = getInstallDirName(skill);
 
   for (const target of config.targets) {
     const disabledPath = join(target, ".disabled", dirName);

@@ -8,6 +8,28 @@ interface RawSkill {
   description: string;
   sourcePath: string;
   sourceName: string;
+  installName: string;
+}
+
+interface SkillMeta {
+  name: string;
+  description: string;
+}
+
+function readSkillMetaFromDir(skillDir: string, fallbackName: string): SkillMeta {
+  try {
+    const content = readFileSync(join(skillDir, "SKILL.md"), "utf-8");
+    const { data } = matter(content);
+    return {
+      name: (data.name as string) || fallbackName,
+      description: (data.description as string) || "",
+    };
+  } catch {
+    return {
+      name: fallbackName,
+      description: "",
+    };
+  }
 }
 
 function findSkillMdFiles(dir: string, recursive: boolean): string[] {
@@ -59,12 +81,13 @@ function parseSkillMd(skillMdPath: string, source: Source): RawSkill | null {
   try {
     const content = readFileSync(skillMdPath, "utf-8");
     const { data } = matter(content);
-    const skillDir = dirname(skillMdPath);
+    const skillDir = resolve(dirname(skillMdPath));
     return {
       name: (data.name as string) || basename(skillDir),
       description: (data.description as string) || "",
-      sourcePath: resolve(skillDir),
+      sourcePath: skillDir,
       sourceName: source.name,
+      installName: basename(skillDir),
     };
   } catch {
     return null;
@@ -74,6 +97,7 @@ function parseSkillMd(skillMdPath: string, source: Source): RawSkill | null {
 interface InstalledEntry {
   name: string;
   targetPath: string;
+  fullPath: string;
   realPath: string | null;
   disabled: boolean;
   isSymlink: boolean;
@@ -105,6 +129,7 @@ function scanTarget(targetDir: string): InstalledEntry[] {
         entries.push({
           name: entry.name,
           targetPath: targetDir,
+          fullPath,
           realPath,
           disabled: false,
           isSymlink,
@@ -138,6 +163,7 @@ function scanTarget(targetDir: string): InstalledEntry[] {
           entries.push({
             name: entry.name,
             targetPath: targetDir,
+            fullPath,
             realPath,
             disabled: true,
             isSymlink,
@@ -150,6 +176,24 @@ function scanTarget(targetDir: string): InstalledEntry[] {
   }
 
   return entries;
+}
+
+function newTargetStatus(targets: string[]): Record<string, "installed" | "disabled" | "not-installed"> {
+  const status: Record<string, "installed" | "disabled" | "not-installed"> = {};
+  for (const target of targets) {
+    status[target] = "not-installed";
+  }
+  return status;
+}
+
+interface UnmatchedGroup {
+  key: string;
+  name: string;
+  description: string;
+  sourcePath: string;
+  sourceName: string;
+  installName: string;
+  targetStatus: Record<string, "installed" | "disabled" | "not-installed">;
 }
 
 export function scan(config: Config): Skill[] {
@@ -177,30 +221,34 @@ export function scan(config: Config): Skill[] {
 
   // 3. Build unified skill list
   const skills: Skill[] = [];
-  const matchedSources = new Set<string>();
+  const matchedInstalled = new Set<number>();
 
   for (const [sourcePath, raw] of sourceMap) {
-    const targetStatus: Record<string, "installed" | "disabled" | "not-installed"> = {};
-    let isInstalled = false;
-    let allDisabled = true;
+    const targetStatus = newTargetStatus(config.targets);
+    const sourceDirName = basename(sourcePath);
     let anyInstalled = false;
+    let allDisabled = true;
+    let detectedInstallName = raw.installName;
 
     for (const target of config.targets) {
-      // Only match by symlink resolution — the symlink must point to this source
-      const match = allInstalled.find(
-        (e) =>
-          e.targetPath === target &&
-          e.isSymlink &&
-          e.realPath === sourcePath,
+      const matchIndex = allInstalled.findIndex(
+        (entry, i) =>
+          !matchedInstalled.has(i) &&
+          entry.targetPath === target &&
+          (
+            (entry.isSymlink && entry.realPath === sourcePath) ||
+            (!entry.isSymlink && entry.name === sourceDirName)
+          ),
       );
-      if (match) {
-        isInstalled = true;
-        anyInstalled = true;
+
+      if (matchIndex >= 0) {
+        const match = allInstalled[matchIndex];
+        matchedInstalled.add(matchIndex);
+
         targetStatus[target] = match.disabled ? "disabled" : "installed";
+        anyInstalled = true;
         if (!match.disabled) allDisabled = false;
-        matchedSources.add(sourcePath);
-      } else {
-        targetStatus[target] = "not-installed";
+        detectedInstallName = match.name;
       }
     }
 
@@ -209,9 +257,59 @@ export function scan(config: Config): Skill[] {
       description: raw.description,
       sourcePath: raw.sourcePath,
       sourceName: raw.sourceName,
-      installed: isInstalled,
+      installName: detectedInstallName,
+      installed: anyInstalled,
       disabled: anyInstalled && allDisabled,
       targetStatus,
+    });
+  }
+
+  // 4. Add installed skills that don't exist in source folders
+  const unmatchedGroups = new Map<string, UnmatchedGroup>();
+
+  for (const [index, entry] of allInstalled.entries()) {
+    if (matchedInstalled.has(index)) continue;
+
+    const key = entry.realPath
+      ? `external:${entry.realPath}|name:${entry.name}`
+      : `target-copy:${entry.name}`;
+
+    let group = unmatchedGroups.get(key);
+    if (!group) {
+      const originPath = entry.realPath || entry.fullPath;
+      const meta = readSkillMetaFromDir(originPath, entry.name);
+
+      group = {
+        key,
+        name: meta.name,
+        description: meta.description,
+        sourcePath: originPath,
+        sourceName: entry.realPath ? "external" : "target-copy",
+        installName: entry.name,
+        targetStatus: newTargetStatus(config.targets),
+      };
+      unmatchedGroups.set(key, group);
+    }
+
+    group.targetStatus[entry.targetPath] = entry.disabled ? "disabled" : "installed";
+  }
+
+  for (const group of unmatchedGroups.values()) {
+    const statuses = Object.values(group.targetStatus).filter(
+      (s) => s !== "not-installed",
+    );
+    const anyInstalled = statuses.length > 0;
+    const allDisabled = anyInstalled && statuses.every((s) => s === "disabled");
+
+    skills.push({
+      name: group.name,
+      description: group.description,
+      sourcePath: group.sourcePath,
+      sourceName: group.sourceName,
+      installName: group.installName,
+      installed: anyInstalled,
+      disabled: allDisabled,
+      targetStatus: group.targetStatus,
     });
   }
 

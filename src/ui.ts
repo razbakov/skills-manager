@@ -14,12 +14,17 @@ import {
   type InputRenderable,
 } from "@opentui/core";
 import Fuse from "fuse.js";
+import { isAbsolute, relative, resolve } from "path";
 import type { Config, Skill } from "./types";
 import { installSkill, uninstallSkill, disableSkill, enableSkill } from "./actions";
 import { scan } from "./scanner";
 
 export async function startUI(config: Config) {
   let skills = scan(config);
+  const kitchenRoot =
+    config.sources.find((source) => source.name.toLowerCase() === "kitchen")?.path ||
+    config.sources.find((source) => source.path.includes("skills-kitchen"))?.path;
+  const resolvedKitchenRoot = kitchenRoot ? resolve(kitchenRoot) : null;
 
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
@@ -36,11 +41,20 @@ export async function startUI(config: Config) {
     return skills.filter((s) => !s.installed);
   }
 
+  function getInstalledDisplayPath(skill: Skill): string {
+    if (!resolvedKitchenRoot) return skill.sourcePath;
+
+    const rel = relative(resolvedKitchenRoot, resolve(skill.sourcePath));
+    if (!isAbsolute(rel) && !rel.startsWith("..")) return rel || ".";
+
+    return skill.sourcePath;
+  }
+
   function formatInstalledOption(s: Skill) {
-    const status = s.disabled ? " [disabled]" : "";
+    const skillDescription = s.description || "(no description)";
     return {
-      name: `${s.name}${status}`,
-      description: `${s.sourceName} — ${s.sourcePath}`,
+      name: `${s.name} — ${skillDescription}`,
+      description: getInstalledDisplayPath(s),
       value: s,
     };
   }
@@ -100,7 +114,7 @@ export async function startUI(config: Config) {
             selectedTextColor: "#FFFFFF",
             textColor: "#CCCCCC",
             descriptionColor: "#666666",
-            selectedDescriptionColor: "#AAAAAA",
+            selectedDescriptionColor: "#666666",
           }),
         ),
         Box(

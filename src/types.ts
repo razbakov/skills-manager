@@ -14,6 +14,7 @@ export interface Skill {
   description: string;
   sourcePath: string;
   sourceName: string;
+  installName?: string;
   installed: boolean;
   disabled: boolean;
   targetStatus: Record<string, "installed" | "disabled" | "not-installed">;
