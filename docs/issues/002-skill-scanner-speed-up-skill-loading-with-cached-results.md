@@ -9,7 +9,7 @@ status: draft
 As a developer managing many skills, I want the app to remember previously discovered skills and check files in parallel, so that the Installed and Available tabs open quickly even when source folders are large.
 
 ## Context
-The app scans source folders each time it starts. One configured source (Kitchen) is recursive and can include many nested folders. This makes startup slow, even when the skill list has not changed. The product already has Installed and Available views, so this story focuses on making those views load faster by reusing prior scan results.
+The app scans source folders each time it starts. One configured source root is recursive and can include many nested folders. This makes startup slow, even when the skill list has not changed. The product already has Installed and Available views, so this story focuses on making those views load faster by reusing prior scan results.
 
 ## Acceptance Criteria
 ### First Open

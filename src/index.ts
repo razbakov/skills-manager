@@ -125,11 +125,6 @@ async function main() {
             name: "personal",
             path: join(homedir(), "Projects/skills/.cursor/skills"),
           },
-          {
-            name: "kitchen",
-            path: join(homedir(), "Projects/skills-kitchen"),
-            recursive: true,
-          },
         ],
         targets: [
           join(homedir(), ".cursor/skills"),

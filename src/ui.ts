@@ -19,7 +19,7 @@ import { existsSync, readdirSync } from "fs";
 import { isAbsolute, join, relative, resolve } from "path";
 import type { Config, Skill } from "./types";
 import { installSkill, uninstallSkill, disableSkill, enableSkill, addGitHubSource } from "./actions";
-import { findKitchenSource } from "./config";
+import { getSourcesRootPath } from "./config";
 import { scan } from "./scanner";
 import {
   defaultInstalledSkillsExportPath,
@@ -28,8 +28,7 @@ import {
 
 export async function startUI(config: Config) {
   let skills = await scan(config);
-  const kitchenSource = findKitchenSource(config);
-  const resolvedKitchenRoot = kitchenSource ? resolve(kitchenSource.path) : null;
+  const resolvedSourcesRoot = resolve(getSourcesRootPath(config));
 
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
@@ -55,10 +54,8 @@ export async function startUI(config: Config) {
     );
   }
 
-  function getKitchenRelativePath(skill: Skill): string {
-    if (!resolvedKitchenRoot) return skill.sourcePath;
-
-    const rel = relative(resolvedKitchenRoot, resolve(skill.sourcePath));
+  function getSourceRelativePath(skill: Skill): string {
+    const rel = relative(resolvedSourcesRoot, resolve(skill.sourcePath));
     if (!isAbsolute(rel) && !rel.startsWith("..")) return rel || ".";
 
     return skill.sourcePath;
@@ -69,7 +66,7 @@ export async function startUI(config: Config) {
     const displayName = s.disabled ? `${s.name} (disabled)` : s.name;
     return {
       name: displayName,
-      description: `${getKitchenRelativePath(s)} — ${skillDescription}`,
+      description: `${getSourceRelativePath(s)} — ${skillDescription}`,
       value: s,
     };
   }
@@ -77,7 +74,7 @@ export async function startUI(config: Config) {
   function formatAvailableOption(s: Skill) {
     return {
       name: s.name,
-      description: `${getKitchenRelativePath(s)} — ${s.description || "(no description)"}`,
+      description: `${getSourceRelativePath(s)} — ${s.description || "(no description)"}`,
       value: s,
     };
   }
@@ -141,13 +138,13 @@ export async function startUI(config: Config) {
     const rows: SourceListEntry[] = [];
     const seenPaths = new Set<string>();
 
-    if (resolvedKitchenRoot && existsSync(resolvedKitchenRoot)) {
+    if (existsSync(resolvedSourcesRoot)) {
       try {
-        for (const entry of readdirSync(resolvedKitchenRoot, { withFileTypes: true })) {
+        for (const entry of readdirSync(resolvedSourcesRoot, { withFileTypes: true })) {
           if (!entry.isDirectory()) continue;
           if (entry.name.startsWith(".")) continue;
 
-          const sourcePath = resolve(join(resolvedKitchenRoot, entry.name));
+          const sourcePath = resolve(join(resolvedSourcesRoot, entry.name));
           if (seenPaths.has(sourcePath)) continue;
           seenPaths.add(sourcePath);
           rows.push({
@@ -164,7 +161,7 @@ export async function startUI(config: Config) {
 
     for (const source of config.sources) {
       const sourcePath = resolve(source.path);
-      if (resolvedKitchenRoot && sourcePath === resolvedKitchenRoot) continue;
+      if (sourcePath === resolvedSourcesRoot) continue;
       if (seenPaths.has(sourcePath)) continue;
 
       seenPaths.add(sourcePath);
@@ -405,14 +402,14 @@ export async function startUI(config: Config) {
       skill,
       name: skill.name,
       description: skill.description || "",
-      kitchenPath: getKitchenRelativePath(skill),
+      sourceRelativePath: getSourceRelativePath(skill),
       sourcePath: skill.sourcePath,
       sourceName: skill.sourceName,
       installName: skill.installName || "",
     }));
 
     const fuse = new Fuse(searchable, {
-      keys: ["name", "description", "kitchenPath", "sourcePath", "sourceName", "installName"],
+      keys: ["name", "description", "sourceRelativePath", "sourcePath", "sourceName", "installName"],
       threshold: 0.4,
     });
 
@@ -432,14 +429,14 @@ export async function startUI(config: Config) {
       skill,
       name: skill.name,
       description: skill.description || "",
-      kitchenPath: getKitchenRelativePath(skill),
+      sourceRelativePath: getSourceRelativePath(skill),
       sourcePath: skill.sourcePath,
       sourceName: skill.sourceName,
       installName: skill.installName || "",
     }));
 
     const fuse = new Fuse(searchable, {
-      keys: ["name", "description", "kitchenPath", "sourcePath", "sourceName", "installName"],
+      keys: ["name", "description", "sourceRelativePath", "sourcePath", "sourceName", "installName"],
       threshold: 0.4,
     });
 

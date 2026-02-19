@@ -9,7 +9,7 @@ import {
 } from "fs";
 import { spawnSync } from "child_process";
 import { join, basename, resolve } from "path";
-import { findKitchenSource } from "./config";
+import { getSourcesRootPath } from "./config";
 import type { Config, Skill, Source } from "./types";
 
 function ensureDir(dir: string): void {
@@ -81,13 +81,8 @@ function normalizedGitHubUrl(value: string | undefined): string | null {
   return parsed ? parsed.canonicalUrl.toLowerCase() : null;
 }
 
-function resolveKitchenRoot(config: Config): string {
-  const kitchenSource = findKitchenSource(config);
-  if (!kitchenSource) {
-    throw new Error("Kitchen source is not configured.");
-  }
-
-  return resolve(kitchenSource.path);
+function resolveSourcesRoot(config: Config): string {
+  return resolve(getSourcesRootPath(config));
 }
 
 export function addGitHubSource(repoUrl: string, config: Config): Source {
@@ -108,9 +103,9 @@ export function addGitHubSource(repoUrl: string, config: Config): Source {
     throw new Error("Source already added");
   }
 
-  const kitchenRoot = resolveKitchenRoot(config);
-  ensureDir(kitchenRoot);
-  const clonePath = resolve(join(kitchenRoot, parsed.sourceName));
+  const sourcesRoot = resolveSourcesRoot(config);
+  ensureDir(sourcesRoot);
+  const clonePath = resolve(join(sourcesRoot, parsed.sourceName));
 
   if (existsSync(clonePath)) {
     throw new Error("Source already added");

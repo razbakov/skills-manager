@@ -6,11 +6,27 @@ import type { Config, Source } from "./types";
 
 const CONFIG_DIR = join(homedir(), ".config", "skills-manager");
 const CONFIG_PATH = join(CONFIG_DIR, "config.yaml");
+const DEFAULT_SOURCES_ROOT_PATH = join(homedir(), ".skills-manager", "sources");
+
+function normalizePathForMatch(path: string): string {
+  return expandTilde(path).replace(/\/+$/g, "").toLowerCase();
+}
+
+function isSourcesRootSource(source: Source): boolean {
+  return (
+    source.name.toLowerCase() === "sources" ||
+    normalizePathForMatch(source.path) === normalizePathForMatch(DEFAULT_SOURCES_ROOT_PATH)
+  );
+}
 
 export function expandTilde(p: string): string {
   if (p.startsWith("~/")) return join(homedir(), p.slice(2));
   if (p === "~") return homedir();
   return p;
+}
+
+export function getDefaultSourcesRootPath(): string {
+  return DEFAULT_SOURCES_ROOT_PATH;
 }
 
 export function loadConfig(): Config {
@@ -21,18 +37,34 @@ export function loadConfig(): Config {
   }
 
   const raw = readFileSync(CONFIG_PATH, "utf-8");
-  const parsed = yaml.load(raw) as Record<string, unknown>;
+  const parsed = (yaml.load(raw) as Record<string, unknown> | null) || {};
 
-  const sources = (parsed.sources as Array<Record<string, unknown>>).map(
-    (s) => ({
+  const sourceEntries = Array.isArray(parsed.sources) ? parsed.sources : [];
+  const sources = sourceEntries
+    .filter(
+      (entry): entry is Record<string, unknown> =>
+        !!entry &&
+        typeof entry === "object" &&
+        typeof (entry as Record<string, unknown>).name === "string" &&
+        typeof (entry as Record<string, unknown>).path === "string",
+    )
+    .map((s) => ({
       name: s.name as string,
       path: expandTilde(s.path as string),
       recursive: (s.recursive as boolean) ?? false,
       ...(typeof s.url === "string" && s.url ? { url: s.url } : {}),
-    }),
-  );
+    }));
 
-  const targets = (parsed.targets as string[]).map(expandTilde);
+  if (!sources.some(isSourcesRootSource)) {
+    sources.push({
+      name: "sources",
+      path: DEFAULT_SOURCES_ROOT_PATH,
+      recursive: true,
+    });
+  }
+
+  const targetEntries = Array.isArray(parsed.targets) ? parsed.targets : [];
+  const targets = targetEntries.filter((target): target is string => typeof target === "string").map(expandTilde);
 
   return { sources, targets };
 }
@@ -41,11 +73,13 @@ export function getConfigPath(): string {
   return CONFIG_PATH;
 }
 
-export function findKitchenSource(config: Config): Source | undefined {
-  return (
-    config.sources.find((source) => source.name.toLowerCase() === "kitchen") ||
-    config.sources.find((source) => source.path.toLowerCase().includes("skills-kitchen"))
-  );
+export function findSourcesRootSource(config: Config): Source | undefined {
+  return config.sources.find(isSourcesRootSource);
+}
+
+export function getSourcesRootPath(config: Config): string {
+  const sourcesRoot = findSourcesRootSource(config);
+  return sourcesRoot ? sourcesRoot.path : DEFAULT_SOURCES_ROOT_PATH;
 }
 
 export function ensureConfigDir(): void {
