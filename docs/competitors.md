@@ -1,6 +1,55 @@
-# Competitors
+# Competitive Analysis
 
-Detailed analysis of existing tools and platforms that address parts of the skills management problem (as of February 2026).
+Structured competitive analysis of the AI agent skills management space (February 2026).
+
+## Competitive Set
+
+### Direct Competitors
+
+Products solving the same problem (manage skills across agents) for the same users (developers using AI coding tools).
+
+| Competitor | Focus | Why Direct |
+|-----------|-------|------------|
+| **skillshare** | Cross-tool sync | Solves "one source, many agents" with declarative config |
+| **SkillKit** | Package manager + sync + marketplace | Tries to be the npm for skills |
+| **SkillHub** | Desktop app + marketplace + sync | Best UX, visual management |
+| **Tessl** | Enterprise package manager + evaluation | Only commercial player, benchmarked quality |
+
+### Indirect Competitors
+
+Different approach to the same need (making AI agents work better with context).
+
+| Competitor | Approach | Why Indirect |
+|-----------|----------|-------------|
+| **AGENTS.md / CLAUDE.md** | Static config files | Vercel showed these beat skills for conventions (94% vs 78% reliability). Many users choose this instead of skills. |
+| **MCP servers** | Runtime tool integration | Heavier than skills but more capable. Some use cases overlap. |
+| **Cursor Rules (`.mdc`)** | IDE-native rules | Cursor-specific, richer precedence than skills, but not portable. |
+
+### Adjacent Competitors
+
+Could expand into skills management.
+
+| Player | Current Focus | Expansion Path |
+|--------|--------------|----------------|
+| **Anthropic / Claude Code** | Agent platform | Could build a first-party skill marketplace and management UI |
+| **OpenAI / Codex** | Agent platform | Already has `$skill-installer` and `$skill-creator`; could build registry |
+| **Cursor** | IDE | Could add skill management UI to Settings > Rules |
+| **SkillsMP / agentskill.sh** | Discovery only | Could add sync, security, evaluation |
+| **SkillScan.dev / Cisco scanner** | Security only | Could build a trusted registry around their scanning |
+
+### Substitute Solutions
+
+How people solve the problem without a dedicated tool today.
+
+| Substitute | How | Limitation |
+|-----------|-----|------------|
+| **Manual file management** | Copy SKILL.md files between directories | Error-prone, no dedup, no updates |
+| **Symlinks** | `ln -s` across agent directories | Breaks on some filesystems, no versioning |
+| **Git submodules** | Track skill repos as submodules | Complex, no per-agent adaptation |
+| **Dotfiles managers** (stow, chezmoi) | Sync config files including skills | Not skill-aware, no security scanning |
+| **Do nothing** | Use only built-in skills | Misses community innovation |
+
+---
 
 ## Category Map
 
@@ -240,6 +289,181 @@ Most marketplaces are **GitHub scrapers** — they index repos containing SKILL.
 ```
 
 **The center is empty.** No tool combines discovery + security + evaluation + sync + scope management into one coherent experience.
+
+---
+
+## Feature Comparison Matrix
+
+Rating scale: **Strong** (market-leading), **Adequate** (functional but not differentiated), **Weak** (exists but limited), **Absent** (not available).
+
+### Discovery & Installation
+
+*Why it matters: Users need to find the right skill among thousands, trust it, and get it running.*
+
+| Capability | skillshare | SkillKit | SkillHub | Tessl | Marketplaces |
+|-----------|-----------|---------|---------|-------|-------------|
+| Search across sources | Weak (GitHub + hub) | Adequate (15k marketplace) | Strong (semantic search) | Adequate (curated registry) | Adequate (per-site only) |
+| Cross-directory dedup | Absent | Absent | Absent | Absent | Absent |
+| Install from any source | Adequate (GitHub) | Strong (multi-format) | Adequate | Adequate | Absent (browse only) |
+| Auto-detect installed agents | Strong | Strong | Adequate | Adequate | Absent |
+| One-command install | Strong | Strong | Strong | Strong | Absent |
+
+### Sync & Scope Management
+
+*Why it matters: Users have 3–6 agent directories and need skills consistent across them, with project-level control.*
+
+| Capability | skillshare | SkillKit | SkillHub | Tessl |
+|-----------|-----------|---------|---------|-------|
+| Cross-tool sync | Strong (49+ agents) | Strong (44 agents) | Adequate (8+) | Adequate (4) |
+| Bidirectional sync | Strong (`collect`) | Absent | Absent | Absent |
+| Project-scoped skills | Strong (`.skillshare/`) | Adequate | Absent | Absent |
+| Org-level skills | Strong (tracked repos) | Absent | Adequate (stacks) | Adequate (tiles) |
+| Enable/disable per scope | Absent | Absent | Absent | Absent |
+| Precedence visualization | Absent | Absent | Absent | Absent |
+| Cross-machine sync | Strong (git push/pull) | Absent | Absent | Absent |
+
+### Quality & Trust
+
+*Why it matters: 26% of marketplace skills contain vulnerabilities. Users have no way to know if a skill is safe, effective, or maintained.*
+
+| Capability | skillshare | SkillKit | AgentSkillsHub | Tessl | SkillScan |
+|-----------|-----------|---------|---------------|-------|-----------|
+| Security scanning | Adequate (built-in) | Strong (46 threats) | Strong (A–F grading) | Absent | Strong (free SaaS) |
+| Performance benchmarks | Absent | Absent | Absent | Strong (1.8–3.3x) | Absent |
+| Community ratings | Absent | Absent | Weak (heat score) | Absent | Absent |
+| Provenance tracking | Absent | Absent | Absent | Absent | Absent |
+| Version pinning | Absent | Absent | Absent | Weak | Absent |
+| Dependency detection | Absent | Absent | Absent | Absent | Absent |
+
+### Authoring & Development
+
+*Why it matters: Agents create skills incorrectly 50%+ of the time. Testing skills against multiple models is manual.*
+
+| Capability | skillshare | SkillKit | build-skill | Codex built-ins |
+|-----------|-----------|---------|------------|----------------|
+| Scaffold new skill | Strong (`new`) | Adequate | Strong | Strong |
+| Validate SKILL.md format | Absent | Absent | Absent | Absent |
+| Test against models | Absent | Absent | Absent | Absent |
+| Preview before publish | Absent | Absent | Absent | Absent |
+| Web UI for management | Strong (dashboard) | Absent | Absent | Absent |
+
+---
+
+## Positioning Analysis
+
+### skillshare
+**For** developers who use multiple AI coding agents **who** need their skills consistent everywhere, **skillshare** is a **sync tool** that **keeps one source of truth for skills across 49+ agents**. Unlike SkillKit or manual symlinks, skillshare uses **declarative config, bidirectional sync, and zero runtime dependencies**.
+
+- **Category claim:** Sync tool
+- **Differentiator:** Privacy-first, declarative, Go binary
+- **Value proposition:** "One command, everywhere"
+- **Vulnerability:** No quality layer — syncing bad skills everywhere is still bad
+
+### SkillKit
+**For** developers building with AI agents **who** want a complete skill ecosystem, **SkillKit** is a **package manager** that **installs, translates, and syncs skills across 44 agents**. Unlike skillshare, SkillKit offers **auto-format translation, a 15k marketplace, and session intelligence**.
+
+- **Category claim:** Package manager / agent enablement platform
+- **Differentiator:** Format translation, session memory, mesh networking
+- **Value proposition:** "Write once, deploy across 44 agents"
+- **Vulnerability:** Scope creep — session intelligence and mesh networking dilute the core value
+
+### Tessl
+**For** engineering teams **who** need measurable agent performance, **Tessl** is a **skills platform** that **evaluates and versions skills with real benchmarks**. Unlike open-source tools, Tessl provides **conformance reviews and task evaluations proving 1.8–3.3x improvement**.
+
+- **Category claim:** Agent enablement platform (enterprise)
+- **Differentiator:** Benchmarked evaluation with measurable performance gains
+- **Value proposition:** "Skills are software and need a lifecycle"
+- **Vulnerability:** Proprietary, limited agent support, no community ecosystem
+
+### SkillHub
+**For** developers who want a visual way to manage skills, **SkillHub** is a **desktop app** that **discovers, installs, and syncs skills with one click**. Unlike CLI-only tools, SkillHub provides **a desktop app, web marketplace, and skill stacks**.
+
+- **Category claim:** Visual skill management
+- **Differentiator:** Best UX (desktop app + marketplace + stacks)
+- **Value proposition:** "Manage AI skills across all your tools"
+- **Vulnerability:** Fewer agents, no security scanning, closed-source app
+
+### Positioning Gaps (Unclaimed)
+
+| Position | Why unclaimed | Opportunity |
+|----------|-------------|-------------|
+| **"The npm for agent skills"** | SkillKit claims it but lacks versioning, lockfiles, dependency resolution | First to deliver real package management wins this |
+| **"Trusted skills"** | AgentSkillsHub scans 458 skills; 200k+ unaudited | Combine scanning + ratings + provenance at scale |
+| **"Skills that actually work"** | Only Tessl benchmarks; proprietary | Open benchmark database per skill per model |
+| **"What's active and why?"** | No tool visualizes skill precedence across scopes | Scope management UI with conflict detection |
+
+---
+
+## Market Trends
+
+### 1. Agent Skills as an open standard is winning
+
+**What:** The SKILL.md format (agentskills.io) is now supported by Claude Code, Codex, Cursor, Copilot, Gemini, and 40+ other tools.
+**Why now:** Anthropic released it as open standard; OpenAI and others adopted it to avoid fragmentation.
+**Timeline:** Happened (2025). Adoption accelerating.
+**Implication:** Build on the standard, not against it. Management tools must be format-native.
+
+### 2. Skill counts are exploding but quality is not
+
+**What:** From 0 to 240k+ indexed skills in under a year. 26% contain vulnerabilities.
+**Why now:** Low barrier to create (it's just markdown). GitHub scrapers inflate counts.
+**Timeline:** Now. Will get worse as AI generates more skills.
+**Implication:** Trust and quality become the primary differentiator, not quantity.
+
+### 3. AGENTS.md competes with skills for conventions
+
+**What:** Vercel showed AGENTS.md beats skills 94% vs 78% for formatting reliability.
+**Why now:** Skills load asynchronously; AGENTS.md is always in context.
+**Timeline:** Now. Skills and AGENTS.md will likely converge.
+**Implication:** Don't treat skills as the only solution. The bridge between AGENTS.md and skills is an opportunity.
+
+### 4. Security is the emerging blocker
+
+**What:** Research proves trivial prompt injection via skills. "Don't ask again" approvals carry over.
+**Why now:** Skills gained broad access to filesystems and APIs. Supply chain risk is real.
+**Timeline:** Now, accelerating as skills from untrusted sources proliferate.
+**Implication:** Security scanning is table stakes, but trust needs to go beyond scanning to provenance and community review.
+
+### 5. Fragmentation is creating tool fatigue
+
+**What:** 5+ sync tools, 8+ marketplaces, 5+ security scanners — all with different configs.
+**Why now:** Low barrier to build tools on top of SKILL.md. Each solves one slice.
+**Timeline:** Peak fragmentation now. Consolidation expected in 12–18 months.
+**Implication:** The tool that consolidates the best parts wins. Integration > invention.
+
+### 6. Enterprise adoption is starting
+
+**What:** Tessl is the first commercial player. Claude Code added enterprise managed settings.
+**Why now:** Companies with large repos and multiple teams hit skill sprawl first.
+**Timeline:** Early 2026. Enterprise features will drive roadmaps in 2026–2027.
+**Implication:** Team/org features (shared collections, governance, audit trails) become differentiators.
+
+---
+
+## Strategic Implications
+
+### Where to compete
+
+The positioning map shows the center is empty — **no tool combines discovery, trust, sync, and scope management**. The winning strategy is not to out-feature any single competitor but to integrate the full lifecycle.
+
+### What to build vs. integrate
+
+| Capability | Build | Integrate | Rationale |
+|-----------|-------|-----------|-----------|
+| Scope management UI | Build | — | No one does this. Highest differentiation. |
+| Provenance tracking | Build | — | No one does this. Enables trust chain. |
+| Cross-directory dedup | Build | — | Core value proposition. |
+| Security scanning | — | Integrate (SkillScan, Cisco, or own rules) | Multiple good scanners exist. Don't reinvent. |
+| Skill sync | — | Integrate (symlink strategy from skillshare) | Proven approach, low risk. |
+| Marketplace search | — | Aggregate (query multiple sources) | No need to build another scraper. |
+| Benchmarks | Build (open format) | Integrate (SkillsBench) | Open benchmark DB is the gap. |
+| Authoring | — | Integrate (build-skill, skills-ref) | Good tools exist. |
+
+### Competitive moats
+
+1. **Network effects from quality data** — ratings, benchmarks, and provenance are worth more with scale. First mover with an open quality database creates a defensible position.
+2. **Standard compliance** — build on agentskills.io, not a proprietary format. Portability is what users want.
+3. **Trust chain** — provenance (source → author → review → install) is the one thing no competitor has. It's also the hardest to retrofit.
 
 ## Next Steps
 
