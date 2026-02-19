@@ -72,11 +72,12 @@ interface SourceScanResult {
   cacheEntry: CachedSourceScan;
 }
 
-const SCAN_CACHE_VERSION = 1;
+const SCAN_CACHE_VERSION = 2;
 const SCAN_CACHE_PATH = join(homedir(), ".config", "skills-manager", "scan-cache.json");
 const FILE_STAT_CONCURRENCY = 64;
 const FILE_READ_CONCURRENCY = 24;
 const DIRECTORY_STAT_CONCURRENCY = 128;
+const SKIP_SKILL_SCAN_DIRS = new Set(["node_modules", ".git", ".hg", ".svn"]);
 
 function emptyScanCache(): ScanCache {
   return {
@@ -173,6 +174,10 @@ function addDirectorySnapshot(dir: string, directories: CachedDirectory[]): void
   }
 }
 
+function shouldSkipSkillScanDir(name: string): boolean {
+  return SKIP_SKILL_SCAN_DIRS.has(name);
+}
+
 function findSkillMdFiles(dir: string, recursive: boolean): SkillFileDiscovery {
   const results: string[] = [];
   const directories: CachedDirectory[] = [];
@@ -188,7 +193,7 @@ function findSkillMdFiles(dir: string, recursive: boolean): SkillFileDiscovery {
     try {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
-        if (entry.name.startsWith(".")) continue;
+        if (shouldSkipSkillScanDir(entry.name)) continue;
         const skillDir = join(dir, entry.name);
         addDirectorySnapshot(skillDir, directories);
         const skillMd = join(skillDir, "SKILL.md");
@@ -219,8 +224,7 @@ function findSkillMdFiles(dir: string, recursive: boolean): SkillFileDiscovery {
 function walkRecursive(dir: string, results: string[], directories: CachedDirectory[]): void {
   try {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name.startsWith(".") || entry.name === "node_modules")
-        continue;
+      if (shouldSkipSkillScanDir(entry.name)) continue;
       const full = join(dir, entry.name);
       if (entry.isDirectory()) {
         addDirectorySnapshot(full, directories);
