@@ -20,7 +20,7 @@ import { installSkill, uninstallSkill, disableSkill, enableSkill } from "./actio
 import { scan } from "./scanner";
 
 export async function startUI(config: Config) {
-  let skills = scan(config);
+  let skills = await scan(config);
   const kitchenRoot =
     config.sources.find((source) => source.name.toLowerCase() === "kitchen")?.path ||
     config.sources.find((source) => source.path.includes("skills-kitchen"))?.path;
@@ -308,11 +308,11 @@ export async function startUI(config: Config) {
     updateStatus();
   }
 
-  function rescan() {
-    skills = scan(config);
+  async function rescan() {
+    skills = await scan(config);
   }
 
-  function installSelectedSkill(skill: Skill | undefined) {
+  async function installSelectedSkill(skill: Skill | undefined) {
     if (!skill) {
       showTransientStatus("No skill selected to install.", 1500);
       return;
@@ -321,7 +321,7 @@ export async function startUI(config: Config) {
     try {
       showTransientStatus(`Installing ${skill.name}...`, 0);
       installSkill(skill, config);
-      rescan();
+      await rescan();
       refreshAvailableList(availableSearchQuery);
       refreshInstalledList(installedSearchQuery);
       showTransientStatus(`Installed ${skill.name}.`, 1600);
@@ -363,10 +363,10 @@ export async function startUI(config: Config) {
   });
 
   availableSelectR.on(SelectRenderableEvents.ITEM_SELECTED, (_index: number, option: any) => {
-    installSelectedSkill(option?.value as Skill | undefined);
+    void installSelectedSkill(option?.value as Skill | undefined);
   });
 
-  renderer.keyInput.on("keypress", (key: any) => {
+  renderer.keyInput.on("keypress", async (key: any) => {
     if (key.name === "q" && currentTab !== 1) {
       renderer.destroy();
       process.exit(0);
@@ -412,7 +412,7 @@ export async function startUI(config: Config) {
 
     if (currentTab === 1 && (key.name === "return" || key.name === "enter" || key.name === "kpenter")) {
       const option = availableSelectR.getSelectedOption() as any;
-      installSelectedSkill(option?.value as Skill | undefined);
+      await installSelectedSkill(option?.value as Skill | undefined);
       return;
     }
 
@@ -420,26 +420,34 @@ export async function startUI(config: Config) {
       if (key.name === "d") {
         const option = installedSelectR.getSelectedOption() as any;
         if (option?.value) {
-          const skill = option.value as Skill;
-          if (skill.disabled) {
-            enableSkill(skill, config);
-          } else {
-            disableSkill(skill, config);
+          try {
+            const skill = option.value as Skill;
+            if (skill.disabled) {
+              enableSkill(skill, config);
+            } else {
+              disableSkill(skill, config);
+            }
+            await rescan();
+            refreshInstalledList(installedSearchQuery);
+            updateStatus();
+          } catch (err: any) {
+            showTransientStatus(`Toggle failed: ${err?.message || "Unknown error"}`, 2600);
           }
-          rescan();
-          refreshInstalledList(installedSearchQuery);
-          updateStatus();
         }
       }
 
       if (key.name === "u") {
         const option = installedSelectR.getSelectedOption() as any;
         if (option?.value) {
-          const skill = option.value as Skill;
-          uninstallSkill(skill, config);
-          rescan();
-          refreshInstalledList(installedSearchQuery);
-          updateStatus();
+          try {
+            const skill = option.value as Skill;
+            uninstallSkill(skill, config);
+            await rescan();
+            refreshInstalledList(installedSearchQuery);
+            updateStatus();
+          } catch (err: any) {
+            showTransientStatus(`Uninstall failed: ${err?.message || "Unknown error"}`, 2600);
+          }
         }
       }
     }
