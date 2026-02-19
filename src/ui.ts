@@ -57,8 +57,9 @@ export async function startUI(config: Config) {
 
   function formatInstalledOption(s: Skill) {
     const skillDescription = s.description || "(no description)";
+    const displayName = s.disabled ? `${s.name} (disabled)` : s.name;
     return {
-      name: s.name,
+      name: displayName,
       description: `${getKitchenRelativePath(s)} — ${skillDescription}`,
       value: s,
     };
@@ -355,6 +356,20 @@ export async function startUI(config: Config) {
   let transientStatusMessage: string | null = null;
   let transientStatusTimer: ReturnType<typeof setTimeout> | null = null;
 
+  function isCurrentTabInputFocused(): boolean {
+    if (currentTab === 0) return installedSearchInputR.focused;
+    if (currentTab === 1) return availableSearchInputR.focused;
+    return sourcesUrlInputR.focused;
+  }
+
+  function isPlainPrintableKey(key: any): boolean {
+    if (key.ctrl || key.meta || key.option) return false;
+    if (typeof key.sequence !== "string" || key.sequence.length !== 1) return false;
+
+    const charCode = key.sequence.charCodeAt(0);
+    return charCode >= 32 && charCode !== 127;
+  }
+
   function showTransientStatus(message: string, durationMs: number = 1800) {
     transientStatusMessage = message;
     statusR.content = message;
@@ -575,7 +590,9 @@ export async function startUI(config: Config) {
   });
 
   renderer.keyInput.on("keypress", async (key: any) => {
-    if (key.name === "q" && currentTab === 0) {
+    const isTypingInInput = isCurrentTabInputFocused() && isPlainPrintableKey(key);
+
+    if ((key.ctrl && key.name === "q") || (key.name === "q" && !isTypingInInput)) {
       renderer.destroy();
       process.exit(0);
     }
@@ -644,26 +661,29 @@ export async function startUI(config: Config) {
     }
 
     if (currentTab === 0) {
-      if (key.name === "d") {
+      if (!isTypingInInput && key.name === "d") {
         const option = installedSelectR.getSelectedOption() as any;
         if (option?.value) {
           try {
             const skill = option.value as Skill;
-            if (skill.disabled) {
+            const skillName = skill.name;
+            const wasDisabled = skill.disabled;
+
+            if (wasDisabled) {
               enableSkill(skill, config);
             } else {
               disableSkill(skill, config);
             }
             await rescan();
             refreshInstalledList(installedSearchQuery);
-            updateStatus();
+            showTransientStatus(`${wasDisabled ? "Enabled" : "Disabled"} ${skillName}.`, 1800);
           } catch (err: any) {
             showTransientStatus(`Toggle failed: ${err?.message || "Unknown error"}`, 2600);
           }
         }
       }
 
-      if (key.name === "u") {
+      if (!isTypingInInput && key.name === "u") {
         const option = installedSelectR.getSelectedOption() as any;
         if (option?.value) {
           try {
@@ -678,7 +698,7 @@ export async function startUI(config: Config) {
         }
       }
 
-      if (key.name === "e") {
+      if (!isTypingInInput && key.name === "e") {
         exportInstalledSkillsToFile();
       }
     }
