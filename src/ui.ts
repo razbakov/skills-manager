@@ -61,6 +61,11 @@ export async function startUI(config: Config) {
     return skill.sourcePath;
   }
 
+  function isPathWithin(path: string, root: string): boolean {
+    const rel = relative(root, path);
+    return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+  }
+
   function formatInstalledOption(s: Skill) {
     const skillDescription = s.description || "(no description)";
     const displayName = s.disabled ? `${s.name} (disabled)` : s.name;
@@ -177,10 +182,27 @@ export async function startUI(config: Config) {
     return rows;
   }
 
+  function getSourceSkillCounts(source: SourceListEntry): { installed: number; total: number } {
+    const sourceRoot = resolve(source.path);
+    const matchedSkills = skills.filter((skill) => {
+      const skillPath = resolve(skill.sourcePath);
+      if (!isPathWithin(skillPath, sourceRoot)) return false;
+
+      if (source.recursive) return true;
+
+      const rel = relative(sourceRoot, skillPath);
+      return rel === "" || (!rel.includes("/") && !rel.includes("\\"));
+    });
+
+    const installedCount = matchedSkills.filter((skill) => skill.installed).length;
+    return { installed: installedCount, total: matchedSkills.length };
+  }
+
   function formatSourceOption(source: SourceListEntry) {
     const sourceRef = source.repoUrl || source.path;
+    const counts = getSourceSkillCounts(source);
     return {
-      name: source.name,
+      name: `${source.name} (${counts.installed} of ${counts.total})`,
       description: sourceRef,
       value: source,
     };
