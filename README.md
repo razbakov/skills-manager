@@ -6,7 +6,7 @@ All three tools follow the open [Agent Skills](https://agentskills.io/) standard
 
 ## Problem
 
-See **[Research](docs/research.md)** for a detailed comparison of how Cursor, Codex, and Claude Code handle skills today.
+See **[Research](docs/research.md)** for how tools handle skills today, **[User Problems](docs/problems.md)** for 14 documented pain points, and **[Landscape](docs/landscape.md)** for existing directories, tools, and gaps.
 
 - **Naming collisions** — Multiple skills share similar names or overlap in responsibility. Cursor has no detection; Codex shows both without merging; Claude Code overrides by scope precedence.
 - **No development workflow** — No way to test, enable, or disable skills without editing files by hand (Codex has `config.toml`, but no UI).
