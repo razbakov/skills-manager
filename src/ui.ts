@@ -39,11 +39,20 @@ export async function startUI(config: Config) {
   // --- Helpers ---
 
   function installedSkills(): Skill[] {
-    return skills.filter((s) => s.installed);
+    return sortSkillsByName(skills.filter((s) => s.installed));
   }
 
   function availableSkills(): Skill[] {
-    return skills.filter((s) => !s.installed);
+    return sortSkillsByName(skills.filter((s) => !s.installed));
+  }
+
+  function sortSkillsByName(list: Skill[]): Skill[] {
+    return [...list].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, {
+        sensitivity: "base",
+        numeric: true,
+      }),
+    );
   }
 
   function getKitchenRelativePath(skill: Skill): string {
@@ -407,7 +416,7 @@ export async function startUI(config: Config) {
       threshold: 0.4,
     });
 
-    return fuse.search(query).map((r) => r.item.skill);
+    return sortSkillsByName(fuse.search(query).map((r) => r.item.skill));
   }
 
   function refreshInstalledList(query: string = "") {
@@ -434,7 +443,7 @@ export async function startUI(config: Config) {
       threshold: 0.4,
     });
 
-    return fuse.search(query).map((r) => r.item.skill);
+    return sortSkillsByName(fuse.search(query).map((r) => r.item.skill));
   }
 
   function refreshAvailableList(query: string = "") {
