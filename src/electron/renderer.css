@@ -199,7 +199,8 @@ label {
   letter-spacing: 0.11em;
 }
 
-input {
+input,
+select {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 0.45rem;
@@ -210,7 +211,8 @@ input {
   margin-bottom: 0.75rem;
 }
 
-input:focus {
+input:focus,
+select:focus {
   outline: 2px solid rgba(183, 245, 118, 0.3);
   outline-offset: 1px;
 }
@@ -277,6 +279,11 @@ input:focus {
   font-size: 0.75rem;
   color: var(--text-muted);
   line-height: 1.25;
+}
+
+.item-meta {
+  font-size: 0.7rem;
+  color: #9cb4ab;
 }
 
 .chip {
@@ -380,6 +387,36 @@ h3.subheading {
   display: grid;
   gap: 0.5rem;
   grid-template-columns: 1fr auto;
+}
+
+.recommendation-controls {
+  margin-bottom: 0.75rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.recommendation-controls .control {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.recommendation-controls .control label {
+  margin-bottom: 0;
+}
+
+.recommendation-controls .control select {
+  margin-bottom: 0;
+}
+
+#recommendation-run-button {
+  justify-self: start;
+}
+
+#recommendation-trigger,
+#recommendation-example {
+  flex: 0;
+  min-height: 74px;
+  max-height: 160px;
 }
 
 .source-skill {

@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import { addGitHubSource, disableSkill, enableSkill, installSkill, uninstallSkill } from "../actions";
 import { getSourcesRootPath, loadConfig } from "../config";
 import { defaultInstalledSkillsExportPath, exportInstalledSkills } from "../export";
+import { buildRecommendations } from "../recommendations";
 import { scan } from "../scanner";
 import type { Config, Skill } from "../types";
 
@@ -46,6 +47,13 @@ interface SourceListEntry {
   path: string;
   recursive: boolean;
   repoUrl?: string;
+}
+
+interface RecommendationRequestPayload {
+  mode?: unknown;
+  scope?: unknown;
+  projectPath?: unknown;
+  limit?: unknown;
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -325,6 +333,19 @@ function findSkillById(skills: Skill[], skillId: string): Skill | undefined {
   return skills.find((skill) => resolve(skill.sourcePath) === resolvedSkillId);
 }
 
+function parseRecommendationMode(value: unknown): "standard" | "explore-new" {
+  return value === "explore-new" ? "explore-new" : "standard";
+}
+
+function parseRecommendationScope(value: unknown): "all" | "current-project" {
+  return value === "current-project" ? "current-project" : "all";
+}
+
+function parseRecommendationLimit(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  return Math.max(3, Math.min(Math.round(value), 15));
+}
+
 async function mutateSkill(
   skillId: unknown,
   mutate: (skill: Skill, config: Config) => void,
@@ -353,6 +374,25 @@ function registerIpcHandlers(): void {
   ipcMain.handle("skills:refresh", async () => {
     const config = loadConfig();
     return createSnapshot(config);
+  });
+
+  ipcMain.handle("skills:getRecommendations", async (_event, payload: RecommendationRequestPayload) => {
+    const config = loadConfig();
+    const skills = await scan(config);
+    const mode = parseRecommendationMode(payload?.mode);
+    const scope = parseRecommendationScope(payload?.scope);
+    const projectPath =
+      typeof payload?.projectPath === "string" && payload.projectPath.trim()
+        ? payload.projectPath
+        : process.cwd();
+    const limit = parseRecommendationLimit(payload?.limit);
+
+    return buildRecommendations(skills, {
+      mode,
+      scope,
+      projectPath,
+      ...(typeof limit === "number" ? { limit } : {}),
+    });
   });
 
   ipcMain.handle("skills:install", async (_event, skillId: unknown) =>

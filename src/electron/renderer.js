@@ -4,7 +4,7 @@ if (!api) {
   throw new Error("skillsApi bridge is unavailable.");
 }
 
-const TAB_IDS = ["installed", "available", "sources"];
+const TAB_IDS = ["installed", "available", "sources", "recommendations"];
 
 const state = {
   snapshot: null,
@@ -18,6 +18,13 @@ const state = {
     installed: null,
     available: null,
     source: null,
+    recommendation: null,
+  },
+  recommendations: {
+    mode: "standard",
+    scope: "all",
+    loading: false,
+    data: null,
   },
   statusTimeout: null,
   skillMdCache: new Map(),
@@ -67,6 +74,21 @@ const sourceOpenRepo = document.getElementById("source-open-repo");
 const refreshButton = document.getElementById("refresh-button");
 const exportButton = document.getElementById("export-button");
 const sourceAddButton = document.getElementById("source-add-button");
+const recommendationMode = document.getElementById("recommendation-mode");
+const recommendationScope = document.getElementById("recommendation-scope");
+const recommendationRunButton = document.getElementById("recommendation-run-button");
+const recommendationList = document.getElementById("recommendation-list");
+const recommendationTitle = document.getElementById("recommendation-title");
+const recommendationSummary = document.getElementById("recommendation-summary");
+const recommendationUsage = document.getElementById("recommendation-usage");
+const recommendationConfidence = document.getElementById("recommendation-confidence");
+const recommendationSource = document.getElementById("recommendation-source");
+const recommendationMatches = document.getElementById("recommendation-matches");
+const recommendationReason = document.getElementById("recommendation-reason");
+const recommendationTrigger = document.getElementById("recommendation-trigger");
+const recommendationExample = document.getElementById("recommendation-example");
+const recommendationManage = document.getElementById("recommendation-manage");
+const recommendationInstall = document.getElementById("recommendation-install");
 
 function clearStatusTimer() {
   if (state.statusTimeout) {
@@ -156,6 +178,18 @@ function buildSkillChip(skill) {
   if (!skill.installed) return { label: "available", className: "chip muted" };
   if (skill.disabled) return { label: "disabled", className: "chip warn" };
   return { label: "installed", className: "chip" };
+}
+
+function buildUsageChip(rec) {
+  if (rec.usageStatus === "unused") return { label: "unused", className: "chip warn" };
+  if (rec.usageStatus === "low-use") return { label: "low-use", className: "chip muted" };
+  return { label: "used", className: "chip" };
+}
+
+function buildConfidenceChip(rec) {
+  if (rec.confidence === "high") return { label: "high", className: "chip" };
+  if (rec.confidence === "medium") return { label: "medium", className: "chip muted" };
+  return { label: "low", className: "chip warn" };
 }
 
 function clearNode(node) {
@@ -319,6 +353,43 @@ function createSourceSkillRow(skill) {
   return row;
 }
 
+function createRecommendationButton(rec, selected) {
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = `item${selected ? " selected" : ""}`;
+  row.dataset.recommendationSkillId = rec.skillId;
+
+  const top = document.createElement("span");
+  top.className = "item-topline";
+
+  const name = document.createElement("span");
+  name.className = "item-name";
+  name.textContent = rec.skillName;
+
+  const usageChipMeta = buildUsageChip(rec);
+  const usageChip = document.createElement("span");
+  usageChip.className = usageChipMeta.className;
+  usageChip.textContent = usageChipMeta.label;
+
+  const confidenceChipMeta = buildConfidenceChip(rec);
+  const confidenceChip = document.createElement("span");
+  confidenceChip.className = confidenceChipMeta.className;
+  confidenceChip.textContent = confidenceChipMeta.label;
+
+  top.append(name, usageChip, confidenceChip);
+
+  const meta = document.createElement("span");
+  meta.className = "item-meta";
+  meta.textContent = `${rec.confidence} confidence • ${rec.evidenceSource}`;
+
+  const desc = document.createElement("span");
+  desc.className = "item-desc";
+  desc.textContent = rec.reason || rec.description || "(no reason)";
+
+  row.append(top, meta, desc);
+  return row;
+}
+
 function ensureSelection() {
   if (!state.snapshot) return;
 
@@ -335,6 +406,14 @@ function ensureSelection() {
   if (!findById(sources, state.selected.source)) {
     state.selected.source = sources[0]?.id || null;
   }
+
+  const recommendationItems = state.recommendations.data?.items || [];
+  const hasRecommendation = recommendationItems.some(
+    (item) => item.skillId === state.selected.recommendation,
+  );
+  if (!hasRecommendation) {
+    state.selected.recommendation = recommendationItems[0]?.skillId || null;
+  }
 }
 
 function getSelectedInstalledSkill() {
@@ -350,6 +429,16 @@ function getSelectedAvailableSkill() {
 function getSelectedSource() {
   if (!state.snapshot) return null;
   return findById(state.snapshot.sources, state.selected.source) || null;
+}
+
+function getSkillById(skillId) {
+  if (!state.snapshot) return null;
+  return findById(state.snapshot.skills, skillId) || null;
+}
+
+function getSelectedRecommendation() {
+  const items = state.recommendations.data?.items || [];
+  return items.find((item) => item.skillId === state.selected.recommendation) || null;
 }
 
 function renderTabs() {
@@ -480,11 +569,71 @@ function renderSourcesView() {
   });
 }
 
+function renderRecommendationsView() {
+  clearNode(recommendationList);
+
+  if (state.recommendations.loading) {
+    addEmptyState(recommendationList, "Generating recommendations...");
+  } else {
+    const items = state.recommendations.data?.items || [];
+    if (items.length === 0) {
+      addEmptyState(recommendationList, "No recommendations yet. Click Generate.");
+    } else {
+      items.forEach((rec) => {
+        recommendationList.appendChild(
+          createRecommendationButton(rec, rec.skillId === state.selected.recommendation),
+        );
+      });
+      ensureSelectedRowInView(recommendationList);
+    }
+  }
+
+  const selectedRecommendation = getSelectedRecommendation();
+  const historySummary = state.recommendations.data?.historySummary;
+  const totalQueries = historySummary?.totalQueries || 0;
+  const totalSessions = historySummary?.uniqueSessions || 0;
+  const summaryLine =
+    `${totalQueries} deduplicated queries across ${totalSessions} sessions ` +
+    `(${state.recommendations.scope === "all" ? "all conversations" : "current project"}).`;
+
+  if (!selectedRecommendation) {
+    recommendationTitle.textContent = "No recommendation selected";
+    recommendationSummary.textContent = summaryLine;
+    recommendationUsage.textContent = "-";
+    recommendationConfidence.textContent = "-";
+    recommendationSource.textContent = "-";
+    recommendationMatches.textContent = "-";
+    recommendationReason.textContent = "-";
+    recommendationTrigger.textContent = "-";
+    recommendationExample.textContent = "-";
+    recommendationManage.disabled = true;
+    recommendationInstall.disabled = true;
+    return;
+  }
+
+  const selectedSkill = getSkillById(selectedRecommendation.skillId);
+  const installed = Boolean(selectedSkill?.installed);
+
+  recommendationTitle.textContent = selectedRecommendation.skillName;
+  recommendationSummary.textContent = summaryLine;
+  recommendationUsage.textContent = selectedRecommendation.usageStatus;
+  recommendationConfidence.textContent = selectedRecommendation.confidence;
+  recommendationSource.textContent = selectedRecommendation.evidenceSource;
+  recommendationMatches.textContent =
+    `${selectedRecommendation.matchedSessions} sessions • ${selectedRecommendation.matchedQueries} queries`;
+  recommendationReason.textContent = selectedRecommendation.reason || "(no reason)";
+  recommendationTrigger.textContent = selectedRecommendation.trigger || "(no trigger)";
+  recommendationExample.textContent = selectedRecommendation.exampleQuery || "(no example)";
+  recommendationManage.disabled = !selectedSkill;
+  recommendationInstall.disabled = state.busy || installed || !selectedSkill;
+}
+
 function render() {
   renderTabs();
   renderInstalledView();
   renderAvailableView();
   renderSourcesView();
+  renderRecommendationsView();
 }
 
 function applySnapshot(snapshot) {
@@ -524,13 +673,22 @@ async function runTask(task, pendingMessage, successMessage) {
 }
 
 function isTextInput(target) {
-  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
+  );
 }
 
 function switchTab(nextTab) {
   if (!TAB_IDS.includes(nextTab)) return;
   state.activeTab = nextTab;
-  renderTabs();
+
+  if (nextTab === "recommendations" && !state.recommendations.data && !state.recommendations.loading) {
+    void loadRecommendations(true);
+  }
+
+  render();
 }
 
 function moveSelection(delta) {
@@ -563,6 +721,19 @@ function moveSelection(delta) {
     const nextIndex = Math.max(0, Math.min(list.length - 1, currentIndex + delta));
     state.selected.source = list[nextIndex].id;
     renderSourcesView();
+    return;
+  }
+
+  if (state.activeTab === "recommendations") {
+    const list = state.recommendations.data?.items || [];
+    if (!list.length) return;
+    const currentIndex = Math.max(
+      0,
+      list.findIndex((item) => item.skillId === state.selected.recommendation),
+    );
+    const nextIndex = Math.max(0, Math.min(list.length - 1, currentIndex + delta));
+    state.selected.recommendation = list[nextIndex].skillId;
+    renderRecommendationsView();
   }
 }
 
@@ -606,6 +777,44 @@ async function refreshSnapshot() {
       return `Loaded ${total} skills.`;
     },
   );
+
+  if (state.recommendations.data) {
+    await loadRecommendations(false);
+  }
+}
+
+async function loadRecommendations(showStatus = true) {
+  if (state.recommendations.loading) return;
+  state.recommendations.loading = true;
+  renderRecommendationsView();
+
+  if (showStatus) {
+    setStatus("Generating recommendations...", "pending", 0);
+  }
+
+  try {
+    const result = await api.getRecommendations({
+      mode: state.recommendations.mode,
+      scope: state.recommendations.scope,
+      limit: 7,
+    });
+
+    state.recommendations.data = result || { items: [], historySummary: null };
+    ensureSelection();
+    renderRecommendationsView();
+
+    if (showStatus) {
+      const count = result?.items?.length || 0;
+      setStatus(`Generated ${count} recommendations.`, "ok");
+    }
+  } catch (err) {
+    if (showStatus) {
+      setStatus(err?.message || "Could not generate recommendations.", "error", 4200);
+    }
+  } finally {
+    state.recommendations.loading = false;
+    renderRecommendationsView();
+  }
 }
 
 tabButtons.forEach((button) => {
@@ -651,6 +860,13 @@ sourceSkillsList.addEventListener("click", (event) => {
   const manageButton = event.target.closest("[data-manage-skill-id]");
   if (!manageButton) return;
   jumpToSkill(manageButton.dataset.manageSkillId);
+});
+
+recommendationList.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-recommendation-skill-id]");
+  if (!row) return;
+  state.selected.recommendation = row.dataset.recommendationSkillId;
+  renderRecommendationsView();
 });
 
 refreshButton.addEventListener("click", () => {
@@ -755,8 +971,42 @@ sourceUrlInput.addEventListener("keydown", (event) => {
   sourceAddButton.click();
 });
 
+recommendationMode.addEventListener("change", () => {
+  state.recommendations.mode = recommendationMode.value;
+  void loadRecommendations(true);
+});
+
+recommendationScope.addEventListener("change", () => {
+  state.recommendations.scope = recommendationScope.value;
+  void loadRecommendations(true);
+});
+
+recommendationRunButton.addEventListener("click", () => {
+  void loadRecommendations(true);
+});
+
+recommendationManage.addEventListener("click", () => {
+  const selected = getSelectedRecommendation();
+  if (!selected) return;
+  jumpToSkill(selected.skillId);
+});
+
+recommendationInstall.addEventListener("click", () => {
+  const selected = getSelectedRecommendation();
+  if (!selected) return;
+
+  void (async () => {
+    await runTask(
+      () => api.installSkill(selected.skillId),
+      `Installing ${selected.skillName}...`,
+      () => `Installed ${selected.skillName}.`,
+    );
+    await loadRecommendations(false);
+  })();
+});
+
 window.addEventListener("keydown", (event) => {
-  if ((event.ctrlKey || event.metaKey) && ["1", "2", "3"].includes(event.key)) {
+  if ((event.ctrlKey || event.metaKey) && ["1", "2", "3", "4"].includes(event.key)) {
     const index = Number(event.key) - 1;
     switchTab(TAB_IDS[index]);
     event.preventDefault();
@@ -784,8 +1034,23 @@ window.addEventListener("keydown", (event) => {
     if (state.activeTab === "available") {
       availableInstall.click();
       event.preventDefault();
+      return;
+    }
+    if (state.activeTab === "recommendations") {
+      const selected = getSelectedRecommendation();
+      if (!selected) return;
+      const selectedSkill = getSkillById(selected.skillId);
+      if (selectedSkill?.installed) {
+        recommendationManage.click();
+      } else {
+        recommendationInstall.click();
+      }
+      event.preventDefault();
     }
   }
 });
+
+recommendationMode.value = state.recommendations.mode;
+recommendationScope.value = state.recommendations.scope;
 
 void refreshSnapshot();
