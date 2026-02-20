@@ -100,19 +100,25 @@ function parseManifest(inputPath: string): ImportedSkillDescriptor[] {
     throw new Error("Invalid import file: expected installedSkills array.");
   }
 
-  return manifest.installedSkills
-    .map((entry) => {
-      if (!entry || typeof entry !== "object") return null;
-      const row = entry as Record<string, unknown>;
-      const install = (row.install as Record<string, unknown> | undefined) || {};
-      const name = typeof row.name === "string" ? row.name : "";
-      return {
-        name,
-        repoUrl: typeof install.repoUrl === "string" ? install.repoUrl : undefined,
-        skillPath: typeof install.skillPath === "string" ? install.skillPath : undefined,
-      };
-    })
-    .filter((entry): entry is ImportedSkillDescriptor => !!entry && !!entry.name.trim());
+  const parsedDescriptors: Array<ImportedSkillDescriptor | null> = manifest.installedSkills.map((entry) => {
+    if (!entry || typeof entry !== "object") return null;
+    const row = entry as Record<string, unknown>;
+    const install = (row.install as Record<string, unknown> | undefined) || {};
+    const name = typeof row.name === "string" ? row.name : "";
+
+    const descriptor: ImportedSkillDescriptor = { name };
+    if (typeof install.repoUrl === "string") {
+      descriptor.repoUrl = install.repoUrl;
+    }
+    if (typeof install.skillPath === "string") {
+      descriptor.skillPath = install.skillPath;
+    }
+    return descriptor;
+  });
+
+  return parsedDescriptors.filter(
+    (entry): entry is ImportedSkillDescriptor => !!entry && !!entry.name.trim(),
+  );
 }
 
 function isPathWithin(path: string, root: string): boolean {
