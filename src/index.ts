@@ -4,6 +4,7 @@ import { scan } from "./scanner";
 import { defaultInstalledSkillsExportPath, exportInstalledSkills } from "./export";
 import { defaultInstalledSkillsImportPath, importInstalledSkills } from "./import";
 import { chmodSync, existsSync, lstatSync, mkdirSync, readlinkSync, symlinkSync } from "fs";
+import { spawnSync } from "child_process";
 import { homedir } from "os";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
@@ -11,6 +12,7 @@ import type { Config } from "./types";
 
 interface CliArgs {
   installCommand: boolean;
+  launchDesktopUi: boolean;
   exportInstalled: boolean;
   importInstalled: boolean;
   outputPath: string;
@@ -20,6 +22,7 @@ interface CliArgs {
 function parseArgs(argv: string[]): CliArgs {
   const command = argv[0];
   const installCommand = argv.includes("--install") || argv[0] === "install";
+  const launchDesktopUi = command === "ui" || argv.includes("--ui");
   let exportInstalled = false;
   let outputPath: string | undefined;
   let importInstalled = false;
@@ -70,6 +73,7 @@ function parseArgs(argv: string[]): CliArgs {
 
   return {
     installCommand,
+    launchDesktopUi,
     exportInstalled,
     importInstalled,
     outputPath: outputPath || defaultInstalledSkillsExportPath(),
@@ -131,6 +135,24 @@ function installGlobalCommand(): InstallCommandResult {
 
   symlinkSync(launcherPath, commandPath);
   return { commandPath, alreadyInstalled: false };
+}
+
+function launchElectronUi(): void {
+  const srcDir = dirname(fileURLToPath(import.meta.url));
+  const projectRoot = resolve(srcDir, "..");
+  const result = spawnSync("bun", ["run", "electron"], {
+    cwd: projectRoot,
+    stdio: "inherit",
+    env: process.env,
+  });
+
+  if (result.error) {
+    throw new Error(`Could not launch Electron UI: ${result.error.message}`);
+  }
+
+  if (typeof result.status === "number" && result.status !== 0) {
+    throw new Error(`Electron UI exited with code ${result.status}.`);
+  }
 }
 
 async function main() {
@@ -199,6 +221,11 @@ async function main() {
       if (result.missingSkills.length > 0) {
         console.log(`Not found in scanned sources: ${result.missingSkills.join(", ")}`);
       }
+      return;
+    }
+
+    if (args.launchDesktopUi) {
+      launchElectronUi();
       return;
     }
 
