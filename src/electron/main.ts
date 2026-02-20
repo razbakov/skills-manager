@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { spawnSync } from "child_process";
 import { existsSync, readFileSync, readdirSync } from "fs";
-import { dirname, isAbsolute, join, relative, resolve } from "path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "path";
 import { fileURLToPath } from "url";
 import { addGitHubSource, disableSkill, enableSkill, installSkill, uninstallSkill } from "../actions";
 import { getSourcesRootPath, loadConfig } from "../config";
@@ -15,6 +15,7 @@ interface SkillViewModel {
   description: string;
   sourcePath: string;
   sourceName: string;
+  pathLabel: string;
   installName: string;
   installed: boolean;
   disabled: boolean;
@@ -130,7 +131,7 @@ function getDisplayedSources(config: Config): SourceListEntry[] {
         if (seenPaths.has(sourcePath)) continue;
         seenPaths.add(sourcePath);
         rows.push({
-          name: entry.name,
+          name: formatPackageNameAsOwnerRepo(entry.name),
           path: sourcePath,
           recursive: true,
           repoUrl: getRepoUrl(sourcePath) ?? undefined,
@@ -148,7 +149,7 @@ function getDisplayedSources(config: Config): SourceListEntry[] {
 
     seenPaths.add(sourcePath);
     rows.push({
-      name: source.name,
+      name: formatPackageNameAsOwnerRepo(source.name),
       path: sourcePath,
       recursive: source.recursive ?? false,
       repoUrl: getRepoUrl(sourcePath) ?? undefined,
@@ -164,10 +165,19 @@ function getDisplayedSources(config: Config): SourceListEntry[] {
   return rows;
 }
 
+function formatPackageNameAsOwnerRepo(value: string): string {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^([^@\/]+)@([^@\/]+)$/);
+  if (!match) return trimmed;
+  const repo = match[1];
+  const owner = match[2];
+  return `${owner}/${repo}`;
+}
+
 function getDisplaySourceName(skill: Skill, resolvedSourcesRoot: string): string {
   const sourceName = (skill.sourceName || "").trim();
   if (sourceName && sourceName.toLowerCase() !== "sources") {
-    return sourceName;
+    return formatPackageNameAsOwnerRepo(sourceName);
   }
 
   const sourcePath = resolve(skill.sourcePath);
@@ -175,14 +185,40 @@ function getDisplaySourceName(skill: Skill, resolvedSourcesRoot: string): string
     const rel = relative(resolvedSourcesRoot, sourcePath);
     const packageName = rel.split(/[\\/]/).filter(Boolean)[0];
     if (packageName) {
-      return packageName;
+      return formatPackageNameAsOwnerRepo(packageName);
     }
   }
 
-  return sourceName || "unknown";
+  return formatPackageNameAsOwnerRepo(sourceName || "unknown");
 }
 
-function toSkillViewModel(skill: Skill, resolvedSourcesRoot: string): SkillViewModel {
+function getSkillPathLabel(skill: Skill, config: Config, resolvedSourcesRoot: string): string {
+  const resolvedSkillPath = resolve(skill.sourcePath);
+
+  if (isPathWithin(resolvedSkillPath, resolvedSourcesRoot)) {
+    const relParts = relative(resolvedSourcesRoot, resolvedSkillPath).split(/[\\/]/).filter(Boolean);
+    if (relParts.length >= 2) {
+      return relParts[1];
+    }
+    if (relParts.length === 1) {
+      return relParts[0];
+    }
+  }
+
+  for (const source of config.sources) {
+    const sourceRoot = resolve(source.path);
+    if (!isPathWithin(resolvedSkillPath, sourceRoot)) continue;
+
+    const relParts = relative(sourceRoot, resolvedSkillPath).split(/[\\/]/).filter(Boolean);
+    if (relParts.length >= 1) {
+      return relParts[0];
+    }
+  }
+
+  return basename(resolvedSkillPath);
+}
+
+function toSkillViewModel(skill: Skill, config: Config, resolvedSourcesRoot: string): SkillViewModel {
   const sourcePath = resolve(skill.sourcePath);
   return {
     id: sourcePath,
@@ -190,6 +226,7 @@ function toSkillViewModel(skill: Skill, resolvedSourcesRoot: string): SkillViewM
     description: skill.description || "",
     sourcePath,
     sourceName: getDisplaySourceName(skill, resolvedSourcesRoot),
+    pathLabel: getSkillPathLabel(skill, config, resolvedSourcesRoot),
     installName: skill.installName || "",
     installed: skill.installed,
     disabled: skill.disabled,
@@ -199,7 +236,7 @@ function toSkillViewModel(skill: Skill, resolvedSourcesRoot: string): SkillViewM
 async function createSnapshot(config: Config): Promise<Snapshot> {
   const skills = sortSkillsByName(await scan(config));
   const resolvedSourcesRoot = resolve(getSourcesRootPath(config));
-  const allSkillModels = skills.map((skill) => toSkillViewModel(skill, resolvedSourcesRoot));
+  const allSkillModels = skills.map((skill) => toSkillViewModel(skill, config, resolvedSourcesRoot));
   const skillById = new Map<string, SkillViewModel>();
 
   for (const skill of allSkillModels) {
@@ -342,7 +379,7 @@ function registerIpcHandlers(): void {
     const config = loadConfig();
     const source = addGitHubSource(repoUrl, config);
     const snapshot = await createSnapshot(config);
-    return { snapshot, sourceName: source.name };
+    return { snapshot, sourceName: formatPackageNameAsOwnerRepo(source.name) };
   });
 
   ipcMain.handle("skills:exportInstalled", async () => {

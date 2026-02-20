@@ -1,9 +1,9 @@
-import { loadConfig, getConfigPath, writeDefaultConfig } from "./config";
+import { getConfigPath, getDefaultSourcesRootPath, loadConfig, writeDefaultConfig } from "./config";
 import { startUI } from "./ui";
 import { scan } from "./scanner";
 import { defaultInstalledSkillsExportPath, exportInstalledSkills } from "./export";
 import { defaultInstalledSkillsImportPath, importInstalledSkills } from "./import";
-import { chmodSync, existsSync, lstatSync, mkdirSync, readlinkSync, symlinkSync } from "fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, symlinkSync } from "fs";
 import { spawnSync } from "child_process";
 import { homedir } from "os";
 import { dirname, join, resolve } from "path";
@@ -155,6 +155,51 @@ function launchElectronUi(): void {
   }
 }
 
+function defaultSourceNameFromDirectory(dirName: string): string {
+  return dirName.replace(/\.git$/i, "");
+}
+
+function buildDefaultSources(): Config["sources"] {
+  const sources: Config["sources"] = [];
+  const seenPaths = new Set<string>();
+  const sourcesRoot = resolve(getDefaultSourcesRootPath());
+
+  function addSource(name: string, path: string, recursive: boolean = false): void {
+    const resolvedPath = resolve(path);
+    if (seenPaths.has(resolvedPath)) return;
+    seenPaths.add(resolvedPath);
+    sources.push({ name, path: resolvedPath, ...(recursive ? { recursive: true } : {}) });
+  }
+
+  if (existsSync(sourcesRoot)) {
+    try {
+      for (const entry of readdirSync(sourcesRoot, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name.startsWith(".")) continue;
+        addSource(defaultSourceNameFromDirectory(entry.name), join(sourcesRoot, entry.name), true);
+      }
+    } catch {
+      // Keep defaults resilient if the root is inaccessible.
+    }
+  }
+
+  const personalPath = join(homedir(), "Projects/skills/.cursor/skills");
+  if (existsSync(personalPath)) {
+    addSource("personal", personalPath, false);
+  }
+
+  if (sources.length === 0) {
+    addSource("sources", sourcesRoot, true);
+  }
+
+  return sources.sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, {
+      sensitivity: "base",
+      numeric: true,
+    }),
+  );
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
@@ -175,12 +220,7 @@ async function main() {
       console.log("Creating default config...\n");
 
       const defaultConfig: Config = {
-        sources: [
-          {
-            name: "personal",
-            path: join(homedir(), "Projects/skills/.cursor/skills"),
-          },
-        ],
+        sources: buildDefaultSources(),
         targets: [
           join(homedir(), ".cursor/skills"),
           join(homedir(), ".codex/skills"),

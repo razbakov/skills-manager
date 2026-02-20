@@ -261,7 +261,10 @@ function createSkillListButton(skill, selected) {
 
   const description = document.createElement("span");
   description.className = "item-desc";
-  description.textContent = compactPath(skill.sourcePath);
+  description.textContent =
+    skill.sourceName && skill.sourceName !== "unknown"
+      ? skill.sourceName
+      : (skill.pathLabel || compactPath(skill.sourcePath));
 
   row.append(top, description);
   return row;
@@ -393,7 +396,7 @@ function renderInstalledView() {
   installedTitle.textContent = selectedSkill.name;
   installedDescription.textContent = selectedSkill.description || "(no description)";
   installedSource.textContent = selectedSkill.sourceName || "-";
-  installedPath.textContent = compactPath(selectedSkill.sourcePath);
+  installedPath.textContent = selectedSkill.pathLabel || compactPath(selectedSkill.sourcePath);
   installedToggle.disabled = state.busy;
   installedUninstall.disabled = state.busy;
   installedOpenPath.disabled = false;
@@ -430,7 +433,7 @@ function renderAvailableView() {
   availableTitle.textContent = selectedSkill.name;
   availableDescription.textContent = selectedSkill.description || "(no description)";
   availableSource.textContent = selectedSkill.sourceName || "-";
-  availablePath.textContent = compactPath(selectedSkill.sourcePath);
+  availablePath.textContent = selectedSkill.pathLabel || compactPath(selectedSkill.sourcePath);
   availableInstall.disabled = state.busy;
   availableOpenPath.disabled = false;
   requestSkillMarkdownPreview("available", selectedSkill);

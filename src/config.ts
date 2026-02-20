@@ -1,5 +1,5 @@
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from "fs";
-import { join } from "path";
+import { isAbsolute, join, relative } from "path";
 import { homedir } from "os";
 import yaml from "js-yaml";
 import type { Config, Source } from "./types";
@@ -17,6 +17,16 @@ function isSourcesRootSource(source: Source): boolean {
     source.name.toLowerCase() === "sources" ||
     normalizePathForMatch(source.path) === normalizePathForMatch(DEFAULT_SOURCES_ROOT_PATH)
   );
+}
+
+function isPathWithin(path: string, root: string): boolean {
+  const rel = relative(root, path);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+function hasSourceWithinSourcesRoot(sources: Source[]): boolean {
+  const rootPath = expandTilde(DEFAULT_SOURCES_ROOT_PATH);
+  return sources.some((source) => isPathWithin(expandTilde(source.path), rootPath));
 }
 
 export function expandTilde(p: string): string {
@@ -55,7 +65,7 @@ export function loadConfig(): Config {
       ...(typeof s.url === "string" && s.url ? { url: s.url } : {}),
     }));
 
-  if (!sources.some(isSourcesRootSource)) {
+  if (!sources.some(isSourcesRootSource) && !hasSourceWithinSourcesRoot(sources)) {
     sources.push({
       name: "sources",
       path: DEFAULT_SOURCES_ROOT_PATH,

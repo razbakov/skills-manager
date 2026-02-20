@@ -15,6 +15,7 @@ All three tools follow the open [Agent Skills](https://agentskills.io/) standard
 - `skills import [input-path]` is shorthand for import.
 - In the **Installed** tab, press `e` to export installed skills to `installed-skills.json` in the current working directory.
 - Exported entries include only install metadata (repository URL + optional skill path), not local filesystem paths.
+- On first run, if no config exists, `skills` auto-creates one and preloads currently available local sources.
 
 ## Problem
 
