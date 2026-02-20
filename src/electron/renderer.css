@@ -229,6 +229,11 @@ input:focus {
   min-height: 200px;
 }
 
+#source-skills-list {
+  flex: 1;
+  min-height: 0;
+}
+
 .empty {
   color: var(--text-muted);
   font-size: 0.84rem;
