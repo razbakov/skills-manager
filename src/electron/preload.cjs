@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("skillsApi", {
   addSource: (repoUrl) => ipcRenderer.invoke("skills:addSource", repoUrl),
   exportInstalled: () => ipcRenderer.invoke("skills:exportInstalled"),
   getSkillMarkdown: (skillId) => ipcRenderer.invoke("skills:getSkillMarkdown", skillId),
+  editSkill: (skillId) => ipcRenderer.invoke("skills:editSkill", skillId),
   openPath: (targetPath) => ipcRenderer.invoke("shell:openPath", targetPath),
   openExternal: (targetUrl) => ipcRenderer.invoke("shell:openExternal", targetUrl),
 });

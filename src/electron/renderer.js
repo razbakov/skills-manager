@@ -261,8 +261,7 @@ function createSkillListButton(skill, selected) {
 
   const description = document.createElement("span");
   description.className = "item-desc";
-  description.textContent =
-    `${compactPath(skill.sourcePath)} - ${skill.description || "(no description)"}`;
+  description.textContent = compactPath(skill.sourcePath);
 
   row.append(top, description);
   return row;
@@ -666,13 +665,25 @@ exportButton.addEventListener("click", () => {
 installedOpenPath.addEventListener("click", () => {
   const selectedSkill = getSelectedInstalledSkill();
   if (!selectedSkill) return;
-  void api.openPath(selectedSkill.sourcePath);
+  void api.editSkill(selectedSkill.id)
+    .then(() => {
+      setStatus(`Opened ${selectedSkill.name} in Cursor.`, "ok");
+    })
+    .catch((err) => {
+      setStatus(err?.message || "Could not open selected skill in Cursor.", "error", 4200);
+    });
 });
 
 availableOpenPath.addEventListener("click", () => {
   const selectedSkill = getSelectedAvailableSkill();
   if (!selectedSkill) return;
-  void api.openPath(selectedSkill.sourcePath);
+  void api.editSkill(selectedSkill.id)
+    .then(() => {
+      setStatus(`Opened ${selectedSkill.name} in Cursor.`, "ok");
+    })
+    .catch((err) => {
+      setStatus(err?.message || "Could not open selected skill in Cursor.", "error", 4200);
+    });
 });
 
 sourceOpenPath.addEventListener("click", () => {

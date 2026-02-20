@@ -164,14 +164,32 @@ function getDisplayedSources(config: Config): SourceListEntry[] {
   return rows;
 }
 
-function toSkillViewModel(skill: Skill): SkillViewModel {
+function getDisplaySourceName(skill: Skill, resolvedSourcesRoot: string): string {
+  const sourceName = (skill.sourceName || "").trim();
+  if (sourceName && sourceName.toLowerCase() !== "sources") {
+    return sourceName;
+  }
+
+  const sourcePath = resolve(skill.sourcePath);
+  if (isPathWithin(sourcePath, resolvedSourcesRoot)) {
+    const rel = relative(resolvedSourcesRoot, sourcePath);
+    const packageName = rel.split(/[\\/]/).filter(Boolean)[0];
+    if (packageName) {
+      return packageName;
+    }
+  }
+
+  return sourceName || "unknown";
+}
+
+function toSkillViewModel(skill: Skill, resolvedSourcesRoot: string): SkillViewModel {
   const sourcePath = resolve(skill.sourcePath);
   return {
     id: sourcePath,
     name: skill.name,
     description: skill.description || "",
     sourcePath,
-    sourceName: skill.sourceName,
+    sourceName: getDisplaySourceName(skill, resolvedSourcesRoot),
     installName: skill.installName || "",
     installed: skill.installed,
     disabled: skill.disabled,
@@ -180,7 +198,8 @@ function toSkillViewModel(skill: Skill): SkillViewModel {
 
 async function createSnapshot(config: Config): Promise<Snapshot> {
   const skills = sortSkillsByName(await scan(config));
-  const allSkillModels = skills.map(toSkillViewModel);
+  const resolvedSourcesRoot = resolve(getSourcesRootPath(config));
+  const allSkillModels = skills.map((skill) => toSkillViewModel(skill, resolvedSourcesRoot));
   const skillById = new Map<string, SkillViewModel>();
 
   for (const skill of allSkillModels) {
@@ -235,6 +254,32 @@ function readSkillMarkdownFromSkillId(skillId: unknown): string {
     return readFileSync(skillMdPath, "utf-8");
   } catch (err: any) {
     throw new Error(`Could not read SKILL.md: ${err?.message || "Unknown error"}`);
+  }
+}
+
+function openSkillFolderInCursor(skillId: unknown): void {
+  if (typeof skillId !== "string" || !skillId.trim()) {
+    throw new Error("Missing skill identifier.");
+  }
+
+  const resolvedSkillId = resolve(skillId);
+  if (!latestSnapshotSkillIds.has(resolvedSkillId)) {
+    throw new Error("Skill not found. Refresh and try again.");
+  }
+
+  const skillMdPath = join(resolvedSkillId, "SKILL.md");
+  if (!existsSync(skillMdPath)) {
+    throw new Error("SKILL.md not found in selected skill folder.");
+  }
+
+  const result = spawnSync("cursor", [resolvedSkillId], { encoding: "utf-8" });
+  if (result.error) {
+    throw new Error(`Could not run cursor: ${result.error.message}`);
+  }
+
+  if (typeof result.status === "number" && result.status !== 0) {
+    const detail = result.stderr?.toString().trim() || result.stdout?.toString().trim();
+    throw new Error(detail || `cursor exited with code ${result.status}.`);
   }
 }
 
@@ -310,6 +355,10 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("skills:getSkillMarkdown", async (_event, skillId: unknown) => {
     return readSkillMarkdownFromSkillId(skillId);
+  });
+
+  ipcMain.handle("skills:editSkill", async (_event, skillId: unknown) => {
+    openSkillFolderInCursor(skillId);
   });
 
   ipcMain.handle("shell:openPath", async (_event, targetPath: unknown) => {
