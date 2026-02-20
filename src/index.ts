@@ -1,9 +1,9 @@
-import { getConfigPath, getDefaultSourcesRootPath, loadConfig, writeDefaultConfig } from "./config";
+import { getConfigPath, getDefaultSourcesRootPath, loadConfig, writeDefaultConfig, SUPPORTED_IDES, expandTilde } from "./config";
 import { startUI } from "./ui";
 import { scan } from "./scanner";
 import { defaultInstalledSkillsExportPath, exportInstalledSkills } from "./export";
 import { defaultInstalledSkillsImportPath, importInstalledSkills } from "./import";
-import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, symlinkSync } from "fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, symlinkSync, readFileSync } from "fs";
 import { spawnSync } from "child_process";
 import { homedir } from "os";
 import { dirname, join, resolve } from "path";
@@ -12,6 +12,7 @@ import type { Config } from "./types";
 
 interface CliArgs {
   installCommand: boolean;
+  updateCommand: boolean;
   launchDesktopUi: boolean;
   exportInstalled: boolean;
   importInstalled: boolean;
@@ -22,6 +23,7 @@ interface CliArgs {
 function parseArgs(argv: string[]): CliArgs {
   const command = argv[0];
   const installCommand = argv.includes("--install") || argv[0] === "install";
+  const updateCommand = command === "update";
   const launchDesktopUi = command === "ui" || argv.includes("--ui");
   let exportInstalled = false;
   let outputPath: string | undefined;
@@ -73,6 +75,7 @@ function parseArgs(argv: string[]): CliArgs {
 
   return {
     installCommand,
+    updateCommand,
     launchDesktopUi,
     exportInstalled,
     importInstalled,
@@ -200,6 +203,40 @@ function buildDefaultSources(): Config["sources"] {
   );
 }
 
+export function getAppVersion(): string {
+  try {
+    const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+    const pkg = JSON.parse(readFileSync(join(appRoot, "package.json"), "utf8"));
+    return pkg.version || "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+export function updateApp(): { updated: boolean; message: string; version: string } {
+  const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+  const pullResult = spawnSync("git", ["pull"], { cwd: appRoot, encoding: "utf-8" });
+  if (pullResult.error) {
+    throw new Error(`Git pull failed: ${pullResult.error.message}`);
+  }
+  const stdout = pullResult.stdout?.trim() || "";
+  const alreadyUpToDate = stdout.includes("Already up to date.") || stdout.includes("Already up-to-date.");
+
+  const version = getAppVersion();
+
+  if (alreadyUpToDate) {
+    return { updated: false, message: "App is already up to date.", version };
+  }
+
+  const installResult = spawnSync("bun", ["install"], { cwd: appRoot, encoding: "utf-8", stdio: "ignore" });
+  if (installResult.error) {
+    throw new Error(`bun install failed: ${installResult.error.message}`);
+  }
+
+  return { updated: true, message: "App updated successfully.", version: getAppVersion() };
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
@@ -214,6 +251,18 @@ async function main() {
       return;
     }
 
+    if (args.updateCommand) {
+      console.log(`[Skills Manager v${getAppVersion()}] Updating...`);
+      const result = updateApp();
+      console.log(result.message);
+      if (result.updated) {
+        console.log(`Successfully updated to v${result.version}`);
+        // Explicitly exit with the new version printed as the "restart" terminal header effect
+        process.exit(0);
+      }
+      return;
+    }
+
     const configPath = getConfigPath();
     if (!existsSync(configPath)) {
       console.log(`No config found at ${configPath}`);
@@ -221,11 +270,9 @@ async function main() {
 
       const defaultConfig: Config = {
         sources: buildDefaultSources(),
-        targets: [
-          join(homedir(), ".cursor/skills"),
-          join(homedir(), ".codex/skills"),
-          join(homedir(), ".claude/skills"),
-        ],
+        targets: SUPPORTED_IDES.map((ide) => expandTilde(ide.path)).filter((targetPath) =>
+          existsSync(dirname(targetPath)),
+        ),
       };
 
       writeDefaultConfig(defaultConfig);

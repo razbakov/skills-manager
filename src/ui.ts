@@ -16,10 +16,10 @@ import {
 import Fuse from "fuse.js";
 import { spawnSync } from "child_process";
 import { existsSync, readdirSync } from "fs";
-import { isAbsolute, join, relative, resolve } from "path";
+import { isAbsolute, join, relative, resolve, dirname } from "path";
 import type { Config, Skill } from "./types";
 import { installSkill, uninstallSkill, disableSkill, enableSkill, addGitHubSource } from "./actions";
-import { getSourcesRootPath } from "./config";
+import { getSourcesRootPath, saveConfig, SUPPORTED_IDES, expandTilde } from "./config";
 import { scan } from "./scanner";
 import {
   defaultInstalledSkillsExportPath,
@@ -228,6 +228,21 @@ export async function startUI(config: Config) {
 
   // --- Build static layout ---
 
+  function formatSettingsOption(ide: typeof SUPPORTED_IDES[0]) {
+    const targetPath = expandTilde(ide.path);
+    const isTarget = config.targets.includes(targetPath);
+    const isDetected = existsSync(dirname(targetPath));
+    return {
+      name: `${isTarget ? "[x]" : "[ ]"} ${ide.name}`,
+      description: `${targetPath} — ${isDetected ? "Detected locally" : "Not detected"}`,
+      value: ide,
+    };
+  }
+
+  function refreshSettingsList() {
+    settingsSelectR.options = SUPPORTED_IDES.map(formatSettingsOption);
+  }
+
   const initialInstalled = installedSkills().map(formatInstalledOption);
   const initialAvailable = availableSkills().map(formatAvailableOption);
   const initialSourceEntries = getDisplayedSources();
@@ -235,8 +250,8 @@ export async function startUI(config: Config) {
   const initialSourcePackage = initialSourceEntries[0];
   const initialSourcePackageSkills = initialSourcePackage
     ? getSkillsForSource(initialSourcePackage).map((skill) =>
-        formatSourcePackageSkillOption(initialSourcePackage, skill),
-      )
+      formatSourcePackageSkillOption(initialSourcePackage, skill),
+    )
     : [];
   const initialSourcePackageCounts = initialSourcePackage
     ? getSourceSkillCounts(initialSourcePackage)
@@ -260,6 +275,7 @@ export async function startUI(config: Config) {
           { name: "Installed", description: "" },
           { name: "Available", description: "" },
           { name: "Sources", description: "" },
+          { name: "Settings", description: "" },
         ],
         showDescription: false,
         showUnderline: true,
@@ -401,6 +417,24 @@ export async function startUI(config: Config) {
             }),
           ),
         ),
+        Box(
+          { id: "settings-view", flexDirection: "column", flexGrow: 1, visible: false },
+          Select({
+            id: "settings-select",
+            width: "100%" as any,
+            height: "100%" as any,
+            options: [],
+            showDescription: true,
+            showScrollIndicator: true,
+            wrapSelection: true,
+            backgroundColor: "#111111",
+            selectedBackgroundColor: "#333366",
+            selectedTextColor: "#FFFFFF",
+            textColor: "#CCCCCC",
+            descriptionColor: "#666666",
+            selectedDescriptionColor: "#AAAAAA",
+          }),
+        ),
       ),
       Box(
         {
@@ -434,6 +468,7 @@ export async function startUI(config: Config) {
   const installedViewR = find<any>("installed-view");
   const availableViewR = find<any>("available-view");
   const sourcesViewR = find<any>("sources-view");
+  const settingsViewR = find<any>("settings-view");
   const installedSearchInputR = find<InputRenderable>("installed-search-input");
   const installedSelectR = find<SelectRenderable>("installed-select");
   const availableSelectR = find<SelectRenderable>("available-select");
@@ -445,11 +480,12 @@ export async function startUI(config: Config) {
   const sourcesPackageTitleR = find<TextRenderable>("sources-package-title");
   const sourcesPackageMetaR = find<TextRenderable>("sources-package-meta");
   const sourcesPackageSelectR = find<SelectRenderable>("sources-package-select");
+  const settingsSelectR = find<SelectRenderable>("settings-select");
   const statusR = find<TextRenderable>("status");
 
   // --- State ---
 
-  const TAB_COUNT = 3;
+  const TAB_COUNT = 4;
   let currentTab = 0;
   let installedSearchQuery = "";
   let availableSearchQuery = "";
@@ -624,12 +660,14 @@ export async function startUI(config: Config) {
     } else if (currentTab === 1) {
       const count = searchAvailableSkills(availableSearchQuery).length;
       statusR.content = `Enter:install  ←/→:switch  q:quit  (${count} available)`;
-    } else {
+    } else if (currentTab === 2) {
       if (sourcesPackageOpen) {
         statusR.content = "Esc:back  ↑/↓:browse  ←/→:switch  q:quit";
       } else {
         statusR.content = `Enter:open/add source  ←/→:switch  q:quit  (${getDisplayedSources().length} sources)`;
       }
+    } else if (currentTab === 3) {
+      statusR.content = "Enter:toggle target  ←/→:switch  q:quit";
     }
   }
 
@@ -644,18 +682,21 @@ export async function startUI(config: Config) {
       installedViewR.visible = true;
       availableViewR.visible = false;
       sourcesViewR.visible = false;
+      settingsViewR.visible = false;
       refreshInstalledList(installedSearchQuery);
       installedSearchInputR.focus();
     } else if (safeIndex === 1) {
       installedViewR.visible = false;
       availableViewR.visible = true;
       sourcesViewR.visible = false;
+      settingsViewR.visible = false;
       refreshAvailableList(availableSearchQuery);
       availableSearchInputR.focus();
-    } else {
+    } else if (safeIndex === 2) {
       installedViewR.visible = false;
       availableViewR.visible = false;
       sourcesViewR.visible = true;
+      settingsViewR.visible = false;
       if (sourcesPackageOpen) {
         sourcesBrowserViewR.visible = false;
         sourcesPackageViewR.visible = true;
@@ -667,6 +708,13 @@ export async function startUI(config: Config) {
         refreshSourcesList();
         sourcesUrlInputR.focus();
       }
+    } else {
+      installedViewR.visible = false;
+      availableViewR.visible = false;
+      sourcesViewR.visible = false;
+      settingsViewR.visible = true;
+      refreshSettingsList();
+      settingsSelectR.focus();
     }
 
     updateStatus();
@@ -840,6 +888,20 @@ export async function startUI(config: Config) {
       return;
     }
 
+    if (currentTab === 3 && key.name === "down") {
+      if (!settingsSelectR.focused) {
+        settingsSelectR.setSelectedIndex(settingsSelectR.getSelectedIndex() + 1);
+      }
+      return;
+    }
+
+    if (currentTab === 3 && key.name === "up") {
+      if (!settingsSelectR.focused) {
+        settingsSelectR.setSelectedIndex(settingsSelectR.getSelectedIndex() - 1);
+      }
+      return;
+    }
+
     if (currentTab === 1 && (key.name === "return" || key.name === "enter" || key.name === "kpenter")) {
       const option = availableSelectR.getSelectedOption() as any;
       await installSelectedSkill(option?.value as Skill | undefined);
@@ -858,6 +920,27 @@ export async function startUI(config: Config) {
 
       const option = sourcesSelectR.getSelectedOption() as any;
       openSourcePackage(option?.value as SourceListEntry | undefined);
+      return;
+    }
+
+    if (currentTab === 3 && (key.name === "return" || key.name === "enter" || key.name === "kpenter")) {
+      const option = settingsSelectR.getSelectedOption() as any;
+      if (option?.value) {
+        const ide = option.value as typeof SUPPORTED_IDES[0];
+        const targetPath = expandTilde(ide.path);
+        const index = config.targets.indexOf(targetPath);
+        if (index >= 0) {
+          config.targets.splice(index, 1);
+        } else {
+          config.targets.push(targetPath);
+        }
+        saveConfig(config);
+        refreshSettingsList();
+        showTransientStatus(
+          `Target ${ide.name} ${index >= 0 ? "disabled" : "enabled"}.`,
+          1500
+        );
+      }
       return;
     }
 
@@ -925,6 +1008,10 @@ export async function startUI(config: Config) {
       }
       sourcesUrl = "";
       sourcesUrlInputR.value = "";
+      updateStatus();
+    }
+
+    if (currentTab === 3 && key.name === "escape") {
       updateStatus();
     }
   });

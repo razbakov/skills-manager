@@ -4,6 +4,23 @@ import { homedir } from "os";
 import yaml from "js-yaml";
 import type { Config, Source } from "./types";
 
+export interface SupportedIde {
+  name: string;
+  path: string;
+}
+
+export const SUPPORTED_IDES: SupportedIde[] = [
+  { name: "Cursor", path: "~/.cursor/skills" },
+  { name: "Claude Code", path: "~/.claude/skills" },
+  { name: "Codex (OpenAI)", path: "~/.codex/skills" },
+  { name: "Gemini CLI", path: "~/.gemini/skills" },
+  { name: "Antigravity", path: "~/.gemini/antigravity/skills" },
+  { name: "GitHub Copilot / VS Code", path: "~/.copilot/skills" },
+  { name: "Amp", path: "~/.config/agents/skills" },
+  { name: "Goose (Block)", path: "~/.config/goose/skills" },
+  { name: "OpenCode", path: "~/.config/opencode/skills" },
+];
+
 const CONFIG_DIR = join(homedir(), ".config", "skills-manager");
 const CONFIG_PATH = join(CONFIG_DIR, "config.yaml");
 const DEFAULT_SOURCES_ROOT_PATH = join(homedir(), ".skills-manager", "sources");

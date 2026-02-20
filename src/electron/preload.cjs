@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld("skillsApi", {
   getRecommendations: (request) => ipcRenderer.invoke("skills:getRecommendations", request),
   onRecommendationProgress: (listener) => {
     if (typeof listener !== "function") {
-      return () => {};
+      return () => { };
     }
 
     const channel = "skills:recommendationProgress";
@@ -24,4 +24,6 @@ contextBridge.exposeInMainWorld("skillsApi", {
   editSkill: (skillId) => ipcRenderer.invoke("skills:editSkill", skillId),
   openPath: (targetPath) => ipcRenderer.invoke("shell:openPath", targetPath),
   openExternal: (targetUrl) => ipcRenderer.invoke("shell:openExternal", targetUrl),
+  toggleTarget: (targetPath) => ipcRenderer.invoke("skills:toggleTarget", targetPath),
+  updateApp: () => ipcRenderer.invoke("skills:updateApp"),
 });

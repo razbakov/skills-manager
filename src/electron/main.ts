@@ -4,11 +4,12 @@ import { existsSync, readFileSync, readdirSync } from "fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "path";
 import { fileURLToPath } from "url";
 import { addGitHubSource, disableSkill, enableSkill, installSkill, uninstallSkill } from "../actions";
-import { getSourcesRootPath, loadConfig } from "../config";
+import { getSourcesRootPath, loadConfig, saveConfig, SUPPORTED_IDES, expandTilde } from "../config";
 import { defaultInstalledSkillsExportPath, exportInstalledSkills } from "../export";
 import { buildRecommendations, type RecommendationProgressEvent } from "../recommendations";
 import { scan } from "../scanner";
 import type { Config, Skill } from "../types";
+import { updateApp, getAppVersion } from "../index";
 
 interface SkillViewModel {
   id: string;
@@ -33,6 +34,14 @@ interface SourceViewModel {
   skills: SkillViewModel[];
 }
 
+interface SettingViewModel {
+  id: string;
+  name: string;
+  targetPath: string;
+  isTarget: boolean;
+  isDetected: boolean;
+}
+
 interface Snapshot {
   generatedAt: string;
   exportDefaultPath: string;
@@ -40,6 +49,7 @@ interface Snapshot {
   installedSkills: SkillViewModel[];
   availableSkills: SkillViewModel[];
   sources: SourceViewModel[];
+  settings: SettingViewModel[];
 }
 
 interface SourceListEntry {
@@ -269,6 +279,17 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
     };
   });
 
+  const settings = SUPPORTED_IDES.map((ide) => {
+    const targetPath = expandTilde(ide.path);
+    return {
+      id: targetPath,
+      name: ide.name,
+      targetPath,
+      isTarget: config.targets.includes(targetPath),
+      isDetected: existsSync(dirname(targetPath)),
+    };
+  });
+
   return {
     generatedAt: new Date().toISOString(),
     exportDefaultPath: defaultInstalledSkillsExportPath(),
@@ -276,6 +297,7 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
     installedSkills: allSkillModels.filter((skill) => skill.installed),
     availableSkills: allSkillModels.filter((skill) => !skill.installed),
     sources,
+    settings,
   };
 }
 
@@ -486,6 +508,28 @@ function registerIpcHandlers(): void {
 
     await shell.openExternal(targetUrl);
   });
+
+  ipcMain.handle("skills:toggleTarget", async (_event, targetPath: unknown) => {
+    if (typeof targetPath !== "string" || !targetPath.trim()) return createSnapshot(loadConfig());
+    const config = loadConfig();
+    const index = config.targets.indexOf(targetPath);
+    if (index >= 0) {
+      config.targets.splice(index, 1);
+    } else {
+      config.targets.push(targetPath);
+    }
+    saveConfig(config);
+    return createSnapshot(config);
+  });
+
+  ipcMain.handle("skills:updateApp", async () => {
+    const result = updateApp();
+    if (result.updated) {
+      app.relaunch();
+      app.exit(0);
+    }
+    return result;
+  });
 }
 
 function createMainWindow(): void {
@@ -496,7 +540,7 @@ function createMainWindow(): void {
     minWidth: 980,
     minHeight: 620,
     backgroundColor: "#0d1216",
-    title: "Skills Manager",
+    title: `Skills Manager v${getAppVersion()}`,
     webPreferences: {
       preload: join(currentDir, "preload.cjs"),
       contextIsolation: true,

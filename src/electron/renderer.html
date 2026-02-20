@@ -1,161 +1,190 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Skills Manager</title>
-    <link rel="stylesheet" href="./renderer.css" />
-  </head>
-  <body>
-    <div class="backdrop"></div>
-    <div class="app-shell">
-      <header class="topbar">
-        <div class="brand">
-          <p class="eyebrow">Desktop Console</p>
-          <h1>Skills Manager</h1>
-        </div>
-        <nav class="tabs" aria-label="Skill views">
-          <button class="tab active" data-tab="installed">Installed</button>
-          <button class="tab" data-tab="available">Available</button>
-          <button class="tab" data-tab="sources">Sources</button>
-          <button class="tab" data-tab="recommendations">Recommendations</button>
-        </nav>
-        <div class="toolbar">
-          <button id="refresh-button" class="secondary">Refresh</button>
-          <button id="export-button">Export Installed</button>
-        </div>
-      </header>
 
-      <main class="views">
-        <section id="installed-view" class="tab-view active">
-          <aside class="panel list-panel">
-            <label for="installed-search">Installed Search</label>
-            <input id="installed-search" type="text" placeholder="Name, description, source path" />
-            <div id="installed-list" class="item-list" role="listbox" aria-label="Installed skills"></div>
-          </aside>
-          <section class="panel detail-panel">
-            <h2 id="installed-title">No installed skill selected</h2>
-            <p id="installed-description" class="description">Pick a skill to manage enable, disable, or uninstall state.</p>
-            <dl class="meta-grid">
-              <dt>Source</dt>
-              <dd id="installed-source">-</dd>
-              <dt>Path</dt>
-              <dd id="installed-path">-</dd>
-            </dl>
-            <div class="actions">
-              <button id="installed-open-path" class="secondary">Edit</button>
-              <button id="installed-toggle" class="warn" disabled>Disable Skill</button>
-              <button id="installed-uninstall" class="danger" disabled>Uninstall</button>
-            </div>
-            <h3 class="subheading">SKILL.md Preview</h3>
-            <pre id="installed-skill-md" class="markdown-preview">Select a skill to preview SKILL.md.</pre>
-            <p class="hint">Keyboard: Ctrl/Cmd+1,2,3,4 to switch tabs, / to focus search, arrows to move.</p>
-          </section>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Skills Manager</title>
+  <link rel="stylesheet" href="./renderer.css" />
+</head>
+
+<body>
+  <div class="backdrop"></div>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <p class="eyebrow">Desktop Console</p>
+        <h1>Skills Manager</h1>
+      </div>
+      <nav class="tabs" aria-label="Skill views">
+        <button class="tab active" data-tab="installed">Installed</button>
+        <button class="tab" data-tab="available">Available</button>
+        <button class="tab" data-tab="sources">Sources</button>
+        <button class="tab" data-tab="recommendations">Recommendations</button>
+        <button class="tab" data-tab="settings">Settings</button>
+      </nav>
+      <div class="toolbar">
+        <button id="update-button" class="secondary">Update</button>
+        <button id="refresh-button" class="secondary">Refresh</button>
+        <button id="export-button">Export Installed</button>
+      </div>
+    </header>
+
+    <main class="views">
+      <section id="installed-view" class="tab-view active">
+        <aside class="panel list-panel">
+          <label for="installed-search">Installed Search</label>
+          <input id="installed-search" type="text" placeholder="Name, description, source path" />
+          <div id="installed-list" class="item-list" role="listbox" aria-label="Installed skills"></div>
+        </aside>
+        <section class="panel detail-panel">
+          <h2 id="installed-title">No installed skill selected</h2>
+          <p id="installed-description" class="description">Pick a skill to manage enable, disable, or uninstall state.
+          </p>
+          <dl class="meta-grid">
+            <dt>Source</dt>
+            <dd id="installed-source">-</dd>
+            <dt>Path</dt>
+            <dd id="installed-path">-</dd>
+          </dl>
+          <div class="actions">
+            <button id="installed-open-path" class="secondary">Edit</button>
+            <button id="installed-toggle" class="warn" disabled>Disable Skill</button>
+            <button id="installed-uninstall" class="danger" disabled>Uninstall</button>
+          </div>
+          <h3 class="subheading">SKILL.md Preview</h3>
+          <pre id="installed-skill-md" class="markdown-preview">Select a skill to preview SKILL.md.</pre>
+          <p class="hint">Keyboard: Ctrl/Cmd+1,2,3,4 to switch tabs, / to focus search, arrows to move.</p>
         </section>
+      </section>
 
-        <section id="available-view" class="tab-view">
-          <aside class="panel list-panel">
-            <label for="available-search">Available Search</label>
-            <input id="available-search" type="text" placeholder="Name, description, source path" />
-            <div id="available-list" class="item-list" role="listbox" aria-label="Available skills"></div>
-          </aside>
-          <section class="panel detail-panel">
-            <h2 id="available-title">No available skill selected</h2>
-            <p id="available-description" class="description">Choose a skill to install it across configured targets.</p>
-            <dl class="meta-grid">
-              <dt>Source</dt>
-              <dd id="available-source">-</dd>
-              <dt>Path</dt>
-              <dd id="available-path">-</dd>
-            </dl>
-            <div class="actions">
-              <button id="available-open-path" class="secondary">Edit</button>
-              <button id="available-install" disabled>Install Skill</button>
-            </div>
-            <h3 class="subheading">SKILL.md Preview</h3>
-            <pre id="available-skill-md" class="markdown-preview">Select a skill to preview SKILL.md.</pre>
-          </section>
+      <section id="available-view" class="tab-view">
+        <aside class="panel list-panel">
+          <label for="available-search">Available Search</label>
+          <input id="available-search" type="text" placeholder="Name, description, source path" />
+          <div id="available-list" class="item-list" role="listbox" aria-label="Available skills"></div>
+        </aside>
+        <section class="panel detail-panel">
+          <h2 id="available-title">No available skill selected</h2>
+          <p id="available-description" class="description">Choose a skill to install it across configured targets.</p>
+          <dl class="meta-grid">
+            <dt>Source</dt>
+            <dd id="available-source">-</dd>
+            <dt>Path</dt>
+            <dd id="available-path">-</dd>
+          </dl>
+          <div class="actions">
+            <button id="available-open-path" class="secondary">Edit</button>
+            <button id="available-install" disabled>Install Skill</button>
+          </div>
+          <h3 class="subheading">SKILL.md Preview</h3>
+          <pre id="available-skill-md" class="markdown-preview">Select a skill to preview SKILL.md.</pre>
         </section>
+      </section>
 
-        <section id="sources-view" class="tab-view">
-          <aside class="panel list-panel">
-            <label>Source Packages</label>
-            <div id="sources-list" class="item-list" role="listbox" aria-label="Sources"></div>
-          </aside>
-          <section class="panel detail-panel">
-            <div class="source-add">
-              <label for="source-url">GitHub Repository URL</label>
-              <div class="source-add-row">
-                <input id="source-url" type="text" placeholder="https://github.com/owner/repo" />
-                <button id="source-add-button">Add Source</button>
-              </div>
+      <section id="sources-view" class="tab-view">
+        <aside class="panel list-panel">
+          <label>Source Packages</label>
+          <div id="sources-list" class="item-list" role="listbox" aria-label="Sources"></div>
+        </aside>
+        <section class="panel detail-panel">
+          <div class="source-add">
+            <label for="source-url">GitHub Repository URL</label>
+            <div class="source-add-row">
+              <input id="source-url" type="text" placeholder="https://github.com/owner/repo" />
+              <button id="source-add-button">Add Source</button>
             </div>
-            <h2 id="source-title">No source selected</h2>
-            <p id="source-meta" class="description">Select a source package to inspect contained skills.</p>
-            <div class="actions">
-              <button id="source-open-path" class="secondary" disabled>Open Path</button>
-              <button id="source-open-repo" class="secondary" disabled>Open Repo</button>
-            </div>
-            <h3 class="subheading">Skills in Source</h3>
-            <div id="source-skills-list" class="item-list compact" role="listbox" aria-label="Source skills"></div>
-          </section>
+          </div>
+          <h2 id="source-title">No source selected</h2>
+          <p id="source-meta" class="description">Select a source package to inspect contained skills.</p>
+          <div class="actions">
+            <button id="source-open-path" class="secondary" disabled>Open Path</button>
+            <button id="source-open-repo" class="secondary" disabled>Open Repo</button>
+          </div>
+          <h3 class="subheading">Skills in Source</h3>
+          <div id="source-skills-list" class="item-list compact" role="listbox" aria-label="Source skills"></div>
         </section>
+      </section>
 
-        <section id="recommendations-view" class="tab-view">
-          <aside class="panel list-panel">
-            <div class="recommendation-controls">
-              <div class="control">
-                <label for="recommendation-mode">Recommendation Mode</label>
-                <select id="recommendation-mode">
-                  <option value="standard">Standard</option>
-                  <option value="explore-new">Explore New</option>
-                </select>
-              </div>
-              <button id="recommendation-run-button" class="secondary">Generate</button>
+      <section id="recommendations-view" class="tab-view">
+        <aside class="panel list-panel">
+          <div class="recommendation-controls">
+            <div class="control">
+              <label for="recommendation-mode">Recommendation Mode</label>
+              <select id="recommendation-mode">
+                <option value="standard">Standard</option>
+                <option value="explore-new">Explore New</option>
+              </select>
             </div>
-            <section id="recommendation-progress" class="recommendation-progress" aria-live="polite">
-              <div class="recommendation-progress-top">
-                <span id="recommendation-progress-stage">Idle</span>
-                <span id="recommendation-progress-percent">0%</span>
-              </div>
-              <div class="recommendation-progress-track">
-                <span id="recommendation-progress-bar" class="recommendation-progress-bar"></span>
-              </div>
-              <p id="recommendation-progress-message" class="description">Waiting for run.</p>
-              <pre id="recommendation-progress-stats" class="recommendation-stats-preview">-</pre>
-            </section>
-            <div id="recommendation-list" class="item-list" role="listbox" aria-label="Recommendations"></div>
-          </aside>
-          <section class="panel detail-panel">
-            <h2 id="recommendation-title">No recommendation selected</h2>
-            <p id="recommendation-summary" class="description">Generate recommendations to see fit, confidence, and invocation hints.</p>
-            <dl class="meta-grid">
-              <dt>Usage</dt>
-              <dd id="recommendation-usage">-</dd>
-              <dt>Confidence</dt>
-              <dd id="recommendation-confidence">-</dd>
-              <dt>Evidence</dt>
-              <dd id="recommendation-source">-</dd>
-              <dt>Matches</dt>
-              <dd id="recommendation-matches">-</dd>
-            </dl>
-            <div class="actions">
-              <button id="recommendation-manage" class="secondary" disabled>Open Skill</button>
-              <button id="recommendation-install" disabled>Install Skill</button>
+            <button id="recommendation-run-button" class="secondary">Generate</button>
+          </div>
+          <section id="recommendation-progress" class="recommendation-progress" aria-live="polite">
+            <div class="recommendation-progress-top">
+              <span id="recommendation-progress-stage">Idle</span>
+              <span id="recommendation-progress-percent">0%</span>
             </div>
-            <h3 class="subheading">Why this fit</h3>
-            <p id="recommendation-reason" class="description">-</p>
-            <h3 class="subheading">How to invoke</h3>
-            <pre id="recommendation-trigger" class="markdown-preview">-</pre>
-            <h3 class="subheading">Example from history</h3>
-            <pre id="recommendation-example" class="markdown-preview">-</pre>
+            <div class="recommendation-progress-track">
+              <span id="recommendation-progress-bar" class="recommendation-progress-bar"></span>
+            </div>
+            <p id="recommendation-progress-message" class="description">Waiting for run.</p>
+            <pre id="recommendation-progress-stats" class="recommendation-stats-preview">-</pre>
           </section>
+          <div id="recommendation-list" class="item-list" role="listbox" aria-label="Recommendations"></div>
+        </aside>
+        <section class="panel detail-panel">
+          <h2 id="recommendation-title">No recommendation selected</h2>
+          <p id="recommendation-summary" class="description">Generate recommendations to see fit, confidence, and
+            invocation hints.</p>
+          <dl class="meta-grid">
+            <dt>Usage</dt>
+            <dd id="recommendation-usage">-</dd>
+            <dt>Confidence</dt>
+            <dd id="recommendation-confidence">-</dd>
+            <dt>Evidence</dt>
+            <dd id="recommendation-source">-</dd>
+            <dt>Matches</dt>
+            <dd id="recommendation-matches">-</dd>
+          </dl>
+          <div class="actions">
+            <button id="recommendation-manage" class="secondary" disabled>Open Skill</button>
+            <button id="recommendation-install" disabled>Install Skill</button>
+          </div>
+          <h3 class="subheading">Why this fit</h3>
+          <p id="recommendation-reason" class="description">-</p>
+          <h3 class="subheading">How to invoke</h3>
+          <pre id="recommendation-trigger" class="markdown-preview">-</pre>
+          <h3 class="subheading">Example from history</h3>
+          <pre id="recommendation-example" class="markdown-preview">-</pre>
         </section>
-      </main>
+      </section>
 
-      <footer id="status-bar" class="status-bar">Ready.</footer>
-    </div>
+      <section id="settings-view" class="tab-view">
+        <aside class="panel list-panel">
+          <label>Target IDEs</label>
+          <div id="settings-list" class="item-list" role="listbox" aria-label="Settings targets"></div>
+        </aside>
+        <section class="panel detail-panel">
+          <h2 id="settings-title">No target selected</h2>
+          <p id="settings-description" class="description">Select a target IDE to learn more about its status.</p>
+          <dl class="meta-grid">
+            <dt>Status</dt>
+            <dd id="settings-status">-</dd>
+            <dt>Path</dt>
+            <dd id="settings-path">-</dd>
+          </dl>
+          <div class="actions">
+            <button id="settings-toggle" disabled>Toggle Target</button>
+          </div>
+          <h3 class="subheading">Note</h3>
+          <p class="description">Turning off an IDE prevents new skills from being symlinked there.</p>
+        </section>
+      </section>
+    </main>
 
-    <script type="module" src="./renderer.js"></script>
-  </body>
+    <footer id="status-bar" class="status-bar">Ready.</footer>
+  </div>
+
+  <script type="module" src="./renderer.js"></script>
+</body>
+
 </html>

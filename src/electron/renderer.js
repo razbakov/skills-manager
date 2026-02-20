@@ -4,7 +4,7 @@ if (!api) {
   throw new Error("skillsApi bridge is unavailable.");
 }
 
-const TAB_IDS = ["installed", "available", "sources", "recommendations"];
+const TAB_IDS = ["installed", "available", "sources", "recommendations", "settings"];
 
 const state = {
   snapshot: null,
@@ -19,6 +19,7 @@ const state = {
     available: null,
     source: null,
     recommendation: null,
+    setting: null,
   },
   recommendations: {
     mode: "standard",
@@ -100,6 +101,15 @@ const recommendationTrigger = document.getElementById("recommendation-trigger");
 const recommendationExample = document.getElementById("recommendation-example");
 const recommendationManage = document.getElementById("recommendation-manage");
 const recommendationInstall = document.getElementById("recommendation-install");
+
+const settingsList = document.getElementById("settings-list");
+const settingsTitle = document.getElementById("settings-title");
+const settingsDescription = document.getElementById("settings-description");
+const settingsStatus = document.getElementById("settings-status");
+const settingsPath = document.getElementById("settings-path");
+const settingsToggle = document.getElementById("settings-toggle");
+
+const updateButton = document.getElementById("update-button");
 
 function clearStatusTimer() {
   if (state.statusTimeout) {
@@ -497,6 +507,10 @@ function ensureSelection() {
   if (!hasRecommendation) {
     state.selected.recommendation = recommendationItems[0]?.skillId || null;
   }
+
+  if (!findById(state.snapshot.settings, state.selected.setting)) {
+    state.selected.setting = state.snapshot.settings[0]?.id || null;
+  }
 }
 
 function getSelectedInstalledSkill() {
@@ -522,6 +536,11 @@ function getSkillById(skillId) {
 function getSelectedRecommendation() {
   const items = state.recommendations.data?.items || [];
   return items.find((item) => item.skillId === state.selected.recommendation) || null;
+}
+
+function getSelectedSetting() {
+  if (!state.snapshot) return null;
+  return findById(state.snapshot.settings, state.selected.setting) || null;
 }
 
 function renderTabs() {
@@ -725,12 +744,66 @@ function renderRecommendationsView() {
   recommendationInstall.disabled = state.busy || installed || !selectedSkill;
 }
 
+function createSettingButton(setting, selected) {
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = `item${selected ? " selected" : ""}`;
+  row.dataset.settingId = setting.id;
+
+  const top = document.createElement("span");
+  top.className = "item-topline";
+
+  const name = document.createElement("span");
+  name.className = "item-name";
+  name.textContent = `${setting.isTarget ? "[x]" : "[ ]"} ${setting.name}`;
+
+  const desc = document.createElement("span");
+  desc.className = "item-desc";
+  desc.textContent = setting.isDetected ? "Detected locally" : "Not detected";
+
+  top.append(name);
+  row.append(top, desc);
+  return row;
+}
+
+function renderSettingsView() {
+  if (!state.snapshot) return;
+
+  clearNode(settingsList);
+  if (state.snapshot.settings.length === 0) {
+    addEmptyState(settingsList, "No target IDEs discovered.");
+  } else {
+    state.snapshot.settings.forEach((setting) => {
+      settingsList.appendChild(createSettingButton(setting, setting.id === state.selected.setting));
+    });
+    ensureSelectedRowInView(settingsList);
+  }
+
+  const selectedSetting = getSelectedSetting();
+  if (!selectedSetting) {
+    settingsTitle.textContent = "No target selected";
+    settingsDescription.textContent = "Select a target IDE to learn more about its status.";
+    settingsStatus.textContent = "-";
+    settingsPath.textContent = "-";
+    settingsToggle.disabled = true;
+    return;
+  }
+
+  settingsTitle.textContent = selectedSetting.name;
+  settingsDescription.textContent = selectedSetting.isDetected ? "Detected locally." : "Not detected locally.";
+  settingsStatus.textContent = selectedSetting.isTarget ? "Enabled" : "Disabled";
+  settingsPath.textContent = selectedSetting.targetPath;
+  settingsToggle.disabled = state.busy;
+  settingsToggle.textContent = selectedSetting.isTarget ? "Disable Target" : "Enable Target";
+}
+
 function render() {
   renderTabs();
   renderInstalledView();
   renderAvailableView();
   renderSourcesView();
   renderRecommendationsView();
+  renderSettingsView();
 }
 
 function applySnapshot(snapshot) {
@@ -827,6 +900,17 @@ function moveSelection(delta) {
     const nextIndex = Math.max(0, Math.min(list.length - 1, currentIndex + delta));
     state.selected.recommendation = list[nextIndex].skillId;
     renderRecommendationsView();
+    return;
+  }
+
+  if (state.activeTab === "settings") {
+    const list = state.snapshot.settings;
+    if (!list.length) return;
+    const currentIndex = Math.max(0, list.findIndex((s) => s.id === state.selected.setting));
+    const nextIndex = Math.max(0, Math.min(list.length - 1, currentIndex + delta));
+    state.selected.setting = list[nextIndex].id;
+    renderSettingsView();
+    return;
   }
 }
 
@@ -994,6 +1078,45 @@ recommendationList.addEventListener("click", (event) => {
   if (!row) return;
   state.selected.recommendation = row.dataset.recommendationSkillId;
   renderRecommendationsView();
+});
+
+settingsList.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-setting-id]");
+  if (!row) return;
+  state.selected.setting = row.dataset.settingId;
+  renderSettingsView();
+});
+
+settingsToggle.addEventListener("click", () => {
+  const selectedSetting = getSelectedSetting();
+  if (!selectedSetting) return;
+
+  void runTask(
+    () => api.toggleTarget(selectedSetting.id),
+    "Toggling target...",
+    () => `Target ${selectedSetting.name} toggled.`
+  );
+});
+
+updateButton.addEventListener("click", () => {
+  const btnText = updateButton.textContent;
+  updateButton.textContent = "Updating...";
+  updateButton.disabled = true;
+  api.updateApp()
+    .then((res) => {
+      if (res.updated) {
+        setStatus("Update installed! Restarting...", "ok");
+      } else {
+        setStatus("App is up to date.", "ok");
+      }
+    })
+    .catch((err) => {
+      setStatus(err?.message || "Failed to update app.", "error", 4200);
+    })
+    .finally(() => {
+      updateButton.textContent = "Update";
+      updateButton.disabled = false;
+    });
 });
 
 refreshButton.addEventListener("click", () => {
@@ -1168,6 +1291,12 @@ window.addEventListener("keydown", (event) => {
         recommendationInstall.click();
       }
       event.preventDefault();
+      return;
+    }
+    if (state.activeTab === "settings") {
+      settingsToggle.click();
+      event.preventDefault();
+      return;
     }
   }
 });
