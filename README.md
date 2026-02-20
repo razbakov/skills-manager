@@ -17,6 +17,12 @@ All three tools follow the open [Agent Skills](https://agentskills.io/) standard
 - Exported entries include only install metadata (repository URL + optional skill path), not local filesystem paths.
 - On first run, if no config exists, `skills` auto-creates one and preloads currently available local sources.
 
+## Desktop UI
+
+Electron desktop interface (`skills ui`) with Installed, Available, and Sources tabs:
+
+![Skills Manager desktop UI](docs/images/desktop-ui.png)
+
 ## Problem
 
 See **[Research](docs/research.md)** for how tools handle skills today, **[User Problems](docs/problems.md)** for 14 documented pain points, **[Landscape](docs/landscape.md)** for existing directories and tools, and **[Competitors](docs/competitors.md)** for detailed analysis of current solutions and their gaps.
