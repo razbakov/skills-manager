@@ -20,6 +20,11 @@ const state = {
     source: null,
   },
   statusTimeout: null,
+  skillMdCache: new Map(),
+  previewRequestVersion: {
+    installed: 0,
+    available: 0,
+  },
 };
 
 const tabButtons = Array.from(document.querySelectorAll(".tab"));
@@ -44,6 +49,7 @@ const installedPath = document.getElementById("installed-path");
 const installedOpenPath = document.getElementById("installed-open-path");
 const installedToggle = document.getElementById("installed-toggle");
 const installedUninstall = document.getElementById("installed-uninstall");
+const installedSkillMd = document.getElementById("installed-skill-md");
 
 const availableTitle = document.getElementById("available-title");
 const availableDescription = document.getElementById("available-description");
@@ -51,6 +57,7 @@ const availableSource = document.getElementById("available-source");
 const availablePath = document.getElementById("available-path");
 const availableOpenPath = document.getElementById("available-open-path");
 const availableInstall = document.getElementById("available-install");
+const availableSkillMd = document.getElementById("available-skill-md");
 
 const sourceTitle = document.getElementById("source-title");
 const sourceMeta = document.getElementById("source-meta");
@@ -181,6 +188,55 @@ function ensureSelectedRowInView(listNode) {
   if (rowBottom > viewportBottom) {
     listNode.scrollTop = rowBottom - listNode.clientHeight;
   }
+}
+
+function setSkillMarkdownPreview(view, content, resetScroll = false) {
+  const target = view === "installed" ? installedSkillMd : availableSkillMd;
+  target.textContent = content;
+  if (resetScroll) {
+    target.scrollTop = 0;
+  }
+}
+
+function requestSkillMarkdownPreview(view, skill) {
+  if (!skill) {
+    state.previewRequestVersion[view] += 1;
+    setSkillMarkdownPreview(view, "Select a skill to preview SKILL.md.", true);
+    return;
+  }
+
+  const cached = state.skillMdCache.get(skill.id);
+  if (typeof cached === "string") {
+    setSkillMarkdownPreview(view, cached, false);
+    return;
+  }
+
+  setSkillMarkdownPreview(view, "Loading SKILL.md...", true);
+  const requestVersion = ++state.previewRequestVersion[view];
+
+  void api.getSkillMarkdown(skill.id)
+    .then((content) => {
+      if (requestVersion !== state.previewRequestVersion[view]) return;
+
+      const normalizedContent =
+        typeof content === "string" && content.trim().length > 0
+          ? content
+          : "(SKILL.md is empty)";
+      state.skillMdCache.set(skill.id, normalizedContent);
+
+      const currentSelectedSkill = view === "installed"
+        ? getSelectedInstalledSkill()
+        : getSelectedAvailableSkill();
+      if (!currentSelectedSkill || currentSelectedSkill.id !== skill.id) return;
+
+      setSkillMarkdownPreview(view, normalizedContent, true);
+    })
+    .catch((err) => {
+      if (requestVersion !== state.previewRequestVersion[view]) return;
+
+      const message = `Could not load SKILL.md: ${err?.message || "Unknown error"}`;
+      setSkillMarkdownPreview(view, message, true);
+    });
 }
 
 function createSkillListButton(skill, selected) {
@@ -331,6 +387,7 @@ function renderInstalledView() {
     installedUninstall.disabled = true;
     installedOpenPath.disabled = true;
     installedToggle.textContent = "Disable Skill";
+    requestSkillMarkdownPreview("installed", null);
     return;
   }
 
@@ -342,6 +399,7 @@ function renderInstalledView() {
   installedUninstall.disabled = state.busy;
   installedOpenPath.disabled = false;
   installedToggle.textContent = selectedSkill.disabled ? "Enable Skill" : "Disable Skill";
+  requestSkillMarkdownPreview("installed", selectedSkill);
 }
 
 function renderAvailableView() {
@@ -366,6 +424,7 @@ function renderAvailableView() {
     availablePath.textContent = "-";
     availableInstall.disabled = true;
     availableOpenPath.disabled = true;
+    requestSkillMarkdownPreview("available", null);
     return;
   }
 
@@ -375,6 +434,7 @@ function renderAvailableView() {
   availablePath.textContent = compactPath(selectedSkill.sourcePath);
   availableInstall.disabled = state.busy;
   availableOpenPath.disabled = false;
+  requestSkillMarkdownPreview("available", selectedSkill);
 }
 
 function renderSourcesView() {
@@ -427,6 +487,9 @@ function render() {
 
 function applySnapshot(snapshot) {
   state.snapshot = snapshot;
+  state.skillMdCache.clear();
+  state.previewRequestVersion.installed += 1;
+  state.previewRequestVersion.available += 1;
   ensureSelection();
   render();
 }

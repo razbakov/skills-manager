@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { spawnSync } from "child_process";
-import { existsSync, readdirSync } from "fs";
+import { existsSync, readFileSync, readdirSync } from "fs";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
 import { fileURLToPath } from "url";
 import { addGitHubSource, disableSkill, enableSkill, installSkill, uninstallSkill } from "../actions";
@@ -48,6 +48,7 @@ interface SourceListEntry {
 }
 
 let mainWindow: BrowserWindow | null = null;
+let latestSnapshotSkillIds = new Set<string>();
 
 function sortSkillsByName(list: Skill[]): Skill[] {
   return [...list].sort((a, b) =>
@@ -185,6 +186,7 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
   for (const skill of allSkillModels) {
     skillById.set(skill.id, skill);
   }
+  latestSnapshotSkillIds = new Set(allSkillModels.map((skill) => skill.id));
 
   const sources = getDisplayedSources(config).map((source) => {
     const sourceSkills = getSkillsForSource(source, skills)
@@ -212,6 +214,28 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
     availableSkills: allSkillModels.filter((skill) => !skill.installed),
     sources,
   };
+}
+
+function readSkillMarkdownFromSkillId(skillId: unknown): string {
+  if (typeof skillId !== "string" || !skillId.trim()) {
+    throw new Error("Missing skill identifier.");
+  }
+
+  const resolvedSkillId = resolve(skillId);
+  if (!latestSnapshotSkillIds.has(resolvedSkillId)) {
+    throw new Error("Skill not found. Refresh and try again.");
+  }
+
+  const skillMdPath = join(resolvedSkillId, "SKILL.md");
+  if (!existsSync(skillMdPath)) {
+    throw new Error("SKILL.md not found for selected skill.");
+  }
+
+  try {
+    return readFileSync(skillMdPath, "utf-8");
+  } catch (err: any) {
+    throw new Error(`Could not read SKILL.md: ${err?.message || "Unknown error"}`);
+  }
 }
 
 function findSkillById(skills: Skill[], skillId: string): Skill | undefined {
@@ -282,6 +306,10 @@ function registerIpcHandlers(): void {
     const outputPath = exportInstalledSkills(skills, defaultInstalledSkillsExportPath());
     const installedCount = skills.filter((skill) => skill.installed).length;
     return { outputPath, installedCount };
+  });
+
+  ipcMain.handle("skills:getSkillMarkdown", async (_event, skillId: unknown) => {
+    return readSkillMarkdownFromSkillId(skillId);
   });
 
   ipcMain.handle("shell:openPath", async (_event, targetPath: unknown) => {
