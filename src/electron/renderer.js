@@ -88,6 +88,15 @@ function setStatus(message, type = "info", durationMs = 2600) {
   }
 }
 
+function compactPath(rawPath) {
+  if (!rawPath) return "-";
+  const normalized = String(rawPath).replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length === 0) return normalized || "-";
+  const tail = parts.slice(-3).join("/");
+  return tail;
+}
+
 function fuzzyScore(query, rawText) {
   const text = rawText.toLowerCase();
   const q = query.toLowerCase();
@@ -155,6 +164,25 @@ function addEmptyState(listNode, message) {
   listNode.appendChild(empty);
 }
 
+function ensureSelectedRowInView(listNode) {
+  const selectedRow = listNode.querySelector(".item.selected");
+  if (!selectedRow) return;
+
+  const rowTop = selectedRow.offsetTop;
+  const rowBottom = rowTop + selectedRow.offsetHeight;
+  const viewportTop = listNode.scrollTop;
+  const viewportBottom = viewportTop + listNode.clientHeight;
+
+  if (rowTop < viewportTop) {
+    listNode.scrollTop = rowTop;
+    return;
+  }
+
+  if (rowBottom > viewportBottom) {
+    listNode.scrollTop = rowBottom - listNode.clientHeight;
+  }
+}
+
 function createSkillListButton(skill, selected) {
   const row = document.createElement("button");
   row.type = "button";
@@ -178,7 +206,7 @@ function createSkillListButton(skill, selected) {
   const description = document.createElement("span");
   description.className = "item-desc";
   description.textContent =
-    `${skill.sourcePath} - ${skill.description || "(no description)"}`;
+    `${compactPath(skill.sourcePath)} - ${skill.description || "(no description)"}`;
 
   row.append(top, description);
   return row;
@@ -290,6 +318,7 @@ function renderInstalledView() {
     filtered.forEach((skill) => {
       installedList.appendChild(createSkillListButton(skill, skill.id === state.selected.installed));
     });
+    ensureSelectedRowInView(installedList);
   }
 
   const selectedSkill = getSelectedInstalledSkill();
@@ -308,7 +337,7 @@ function renderInstalledView() {
   installedTitle.textContent = selectedSkill.name;
   installedDescription.textContent = selectedSkill.description || "(no description)";
   installedSource.textContent = selectedSkill.sourceName || "-";
-  installedPath.textContent = selectedSkill.sourcePath;
+  installedPath.textContent = compactPath(selectedSkill.sourcePath);
   installedToggle.disabled = state.busy;
   installedUninstall.disabled = state.busy;
   installedOpenPath.disabled = false;
@@ -326,6 +355,7 @@ function renderAvailableView() {
     filtered.forEach((skill) => {
       availableList.appendChild(createSkillListButton(skill, skill.id === state.selected.available));
     });
+    ensureSelectedRowInView(availableList);
   }
 
   const selectedSkill = getSelectedAvailableSkill();
@@ -342,7 +372,7 @@ function renderAvailableView() {
   availableTitle.textContent = selectedSkill.name;
   availableDescription.textContent = selectedSkill.description || "(no description)";
   availableSource.textContent = selectedSkill.sourceName || "-";
-  availablePath.textContent = selectedSkill.sourcePath;
+  availablePath.textContent = compactPath(selectedSkill.sourcePath);
   availableInstall.disabled = state.busy;
   availableOpenPath.disabled = false;
 }
@@ -357,6 +387,7 @@ function renderSourcesView() {
     state.snapshot.sources.forEach((source) => {
       sourcesList.appendChild(createSourceButton(source, source.id === state.selected.source));
     });
+    ensureSelectedRowInView(sourcesList);
   }
 
   const selectedSource = getSelectedSource();
