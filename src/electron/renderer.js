@@ -22,9 +22,15 @@ const state = {
   },
   recommendations: {
     mode: "standard",
-    scope: "all",
     loading: false,
     data: null,
+    progress: {
+      active: false,
+      stage: "idle",
+      percent: 0,
+      message: "Waiting for run.",
+      stats: null,
+    },
   },
   statusTimeout: null,
   skillMdCache: new Map(),
@@ -75,8 +81,13 @@ const refreshButton = document.getElementById("refresh-button");
 const exportButton = document.getElementById("export-button");
 const sourceAddButton = document.getElementById("source-add-button");
 const recommendationMode = document.getElementById("recommendation-mode");
-const recommendationScope = document.getElementById("recommendation-scope");
 const recommendationRunButton = document.getElementById("recommendation-run-button");
+const recommendationProgress = document.getElementById("recommendation-progress");
+const recommendationProgressStage = document.getElementById("recommendation-progress-stage");
+const recommendationProgressPercent = document.getElementById("recommendation-progress-percent");
+const recommendationProgressBar = document.getElementById("recommendation-progress-bar");
+const recommendationProgressMessage = document.getElementById("recommendation-progress-message");
+const recommendationProgressStats = document.getElementById("recommendation-progress-stats");
 const recommendationList = document.getElementById("recommendation-list");
 const recommendationTitle = document.getElementById("recommendation-title");
 const recommendationSummary = document.getElementById("recommendation-summary");
@@ -115,6 +126,78 @@ function setStatus(message, type = "info", durationMs = 2600) {
       state.statusTimeout = null;
     }, durationMs);
   }
+}
+
+function toFiniteNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function clampPercent(value) {
+  return Math.max(0, Math.min(100, Math.round(toFiniteNumber(value))));
+}
+
+function formatDurationMs(value) {
+  const ms = Math.max(0, Math.round(toFiniteNumber(value)));
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
+}
+
+function formatRecommendationStats(stats) {
+  if (!stats || typeof stats !== "object") {
+    return "-";
+  }
+
+  const scannedSkills = Math.max(0, Math.round(toFiniteNumber(stats.scannedSkills)));
+  const rawEvents = Math.max(0, Math.round(toFiniteNumber(stats.rawQueryEvents)));
+  const cursorRaw = Math.max(0, Math.round(toFiniteNumber(stats.rawCursorQueryEvents)));
+  const codexRaw = Math.max(0, Math.round(toFiniteNumber(stats.rawCodexQueryEvents)));
+  const deduplicated = Math.max(0, Math.round(toFiniteNumber(stats.deduplicatedQueries)));
+  const contextHistory = Math.max(0, Math.round(toFiniteNumber(stats.contextHistoryQueries)));
+  const contextSkills = Math.max(0, Math.round(toFiniteNumber(stats.contextSkills)));
+  const contextInstalled = Math.max(0, Math.round(toFiniteNumber(stats.contextInstalledSkills)));
+  const requested = Math.max(0, Math.round(toFiniteNumber(stats.requestedRecommendations)));
+  const returned = Math.max(0, Math.round(toFiniteNumber(stats.returnedRecommendations)));
+  const agentDuration = formatDurationMs(stats.agentDurationMs);
+  const totalDuration = formatDurationMs(stats.totalDurationMs);
+
+  return [
+    `Scanned skills: ${scannedSkills}`,
+    `Raw history events: ${rawEvents} (Cursor ${cursorRaw}, Codex ${codexRaw})`,
+    `Deduplicated queries: ${deduplicated}`,
+    `Context: ${contextHistory} queries, ${contextSkills} skills (${contextInstalled} installed)`,
+    `Recommendations: ${returned}/${requested}`,
+    `Durations: agent ${agentDuration}, total ${totalDuration}`,
+  ].join("\n");
+}
+
+function setRecommendationProgress(progress, active = state.recommendations.loading) {
+  if (!progress || typeof progress !== "object") return;
+
+  state.recommendations.progress = {
+    active,
+    stage: typeof progress.stage === "string" ? progress.stage : "unknown",
+    percent: clampPercent(progress.percent),
+    message: typeof progress.message === "string" && progress.message.trim()
+      ? progress.message.trim()
+      : state.recommendations.progress.message,
+    stats:
+      progress.stats && typeof progress.stats === "object"
+        ? {
+          ...(state.recommendations.progress.stats || {}),
+          ...progress.stats,
+        }
+        : state.recommendations.progress.stats,
+  };
+}
+
+function formatRecommendationStage(stage) {
+  if (typeof stage !== "string" || !stage.trim()) return "Idle";
+  return stage
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function compactPath(rawPath) {
@@ -570,10 +653,26 @@ function renderSourcesView() {
 }
 
 function renderRecommendationsView() {
+  const progress = state.recommendations.progress || {};
+  const progressPercent = clampPercent(progress.percent);
+  const progressStats = progress.stats || state.recommendations.data?.stats || null;
+
+  recommendationRunButton.disabled = state.busy || state.recommendations.loading;
+  recommendationMode.disabled = state.recommendations.loading;
+  recommendationProgress.classList.toggle("active", state.recommendations.loading);
+  recommendationProgressStage.textContent = formatRecommendationStage(progress.stage);
+  recommendationProgressPercent.textContent = `${progressPercent}%`;
+  recommendationProgressBar.style.width = `${progressPercent}%`;
+  recommendationProgressMessage.textContent = progress.message || "Waiting for run.";
+  recommendationProgressStats.textContent = formatRecommendationStats(progressStats);
+
   clearNode(recommendationList);
 
   if (state.recommendations.loading) {
-    addEmptyState(recommendationList, "Generating recommendations...");
+    addEmptyState(
+      recommendationList,
+      `${progress.message || "Generating recommendations..."} (${progressPercent}%)`,
+    );
   } else {
     const items = state.recommendations.data?.items || [];
     if (items.length === 0) {
@@ -592,9 +691,7 @@ function renderRecommendationsView() {
   const historySummary = state.recommendations.data?.historySummary;
   const totalQueries = historySummary?.totalQueries || 0;
   const totalSessions = historySummary?.uniqueSessions || 0;
-  const summaryLine =
-    `${totalQueries} deduplicated queries across ${totalSessions} sessions ` +
-    `(${state.recommendations.scope === "all" ? "all conversations" : "current project"}).`;
+  const summaryLine = `${totalQueries} deduplicated queries across ${totalSessions} sessions.`;
 
   if (!selectedRecommendation) {
     recommendationTitle.textContent = "No recommendation selected";
@@ -683,10 +780,6 @@ function isTextInput(target) {
 function switchTab(nextTab) {
   if (!TAB_IDS.includes(nextTab)) return;
   state.activeTab = nextTab;
-
-  if (nextTab === "recommendations" && !state.recommendations.data && !state.recommendations.loading) {
-    void loadRecommendations(true);
-  }
 
   render();
 }
@@ -786,6 +879,17 @@ async function refreshSnapshot() {
 async function loadRecommendations(showStatus = true) {
   if (state.recommendations.loading) return;
   state.recommendations.loading = true;
+  setRecommendationProgress(
+    {
+      stage: "scan-skills",
+      message: "Starting recommendation run...",
+      percent: 1,
+      stats: {
+        requestedRecommendations: 7,
+      },
+    },
+    true,
+  );
   renderRecommendationsView();
 
   if (showStatus) {
@@ -795,7 +899,6 @@ async function loadRecommendations(showStatus = true) {
   try {
     const result = await api.getRecommendations({
       mode: state.recommendations.mode,
-      scope: state.recommendations.scope,
       limit: 7,
     });
 
@@ -808,14 +911,38 @@ async function loadRecommendations(showStatus = true) {
       setStatus(`Generated ${count} recommendations.`, "ok");
     }
   } catch (err) {
+    setRecommendationProgress(
+      {
+        stage: "error",
+        message: err?.message || "Could not generate recommendations.",
+        percent: 100,
+      },
+      false,
+    );
     if (showStatus) {
       setStatus(err?.message || "Could not generate recommendations.", "error", 4200);
     }
   } finally {
     state.recommendations.loading = false;
+    state.recommendations.progress.active = false;
     renderRecommendationsView();
   }
 }
+
+const unsubscribeRecommendationProgress =
+  typeof api.onRecommendationProgress === "function"
+    ? api.onRecommendationProgress((progress) => {
+      if (!progress || typeof progress !== "object") return;
+      setRecommendationProgress(progress, state.recommendations.loading);
+      renderRecommendationsView();
+    })
+    : null;
+
+window.addEventListener("beforeunload", () => {
+  if (typeof unsubscribeRecommendationProgress === "function") {
+    unsubscribeRecommendationProgress();
+  }
+});
 
 tabButtons.forEach((button) => {
   button.addEventListener("click", () => {
@@ -973,12 +1100,7 @@ sourceUrlInput.addEventListener("keydown", (event) => {
 
 recommendationMode.addEventListener("change", () => {
   state.recommendations.mode = recommendationMode.value;
-  void loadRecommendations(true);
-});
-
-recommendationScope.addEventListener("change", () => {
-  state.recommendations.scope = recommendationScope.value;
-  void loadRecommendations(true);
+  renderRecommendationsView();
 });
 
 recommendationRunButton.addEventListener("click", () => {
@@ -1051,6 +1173,5 @@ window.addEventListener("keydown", (event) => {
 });
 
 recommendationMode.value = state.recommendations.mode;
-recommendationScope.value = state.recommendations.scope;
 
 void refreshSnapshot();

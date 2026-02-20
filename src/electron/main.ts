@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 import { addGitHubSource, disableSkill, enableSkill, installSkill, uninstallSkill } from "../actions";
 import { getSourcesRootPath, loadConfig } from "../config";
 import { defaultInstalledSkillsExportPath, exportInstalledSkills } from "../export";
-import { buildRecommendations } from "../recommendations";
+import { buildRecommendations, type RecommendationProgressEvent } from "../recommendations";
 import { scan } from "../scanner";
 import type { Config, Skill } from "../types";
 
@@ -51,7 +51,6 @@ interface SourceListEntry {
 
 interface RecommendationRequestPayload {
   mode?: unknown;
-  scope?: unknown;
   projectPath?: unknown;
   limit?: unknown;
 }
@@ -337,10 +336,6 @@ function parseRecommendationMode(value: unknown): "standard" | "explore-new" {
   return value === "explore-new" ? "explore-new" : "standard";
 }
 
-function parseRecommendationScope(value: unknown): "all" | "current-project" {
-  return value === "current-project" ? "current-project" : "all";
-}
-
 function parseRecommendationLimit(value: unknown): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
   return Math.max(3, Math.min(Math.round(value), 15));
@@ -376,23 +371,58 @@ function registerIpcHandlers(): void {
     return createSnapshot(config);
   });
 
-  ipcMain.handle("skills:getRecommendations", async (_event, payload: RecommendationRequestPayload) => {
-    const config = loadConfig();
-    const skills = await scan(config);
-    const mode = parseRecommendationMode(payload?.mode);
-    const scope = parseRecommendationScope(payload?.scope);
-    const projectPath =
-      typeof payload?.projectPath === "string" && payload.projectPath.trim()
-        ? payload.projectPath
-        : process.cwd();
-    const limit = parseRecommendationLimit(payload?.limit);
+  ipcMain.handle("skills:getRecommendations", async (event, payload: RecommendationRequestPayload) => {
+    const emitProgress = (progress: RecommendationProgressEvent) => {
+      event.sender.send("skills:recommendationProgress", progress);
+    };
 
-    return buildRecommendations(skills, {
-      mode,
-      scope,
-      projectPath,
-      ...(typeof limit === "number" ? { limit } : {}),
+    emitProgress({
+      stage: "scan-skills",
+      message: "Scanning skills inventory...",
+      percent: 4,
     });
+
+    try {
+      const config = loadConfig();
+      const skills = await scan(config);
+      const mode = parseRecommendationMode(payload?.mode);
+      const projectPath =
+        typeof payload?.projectPath === "string" && payload.projectPath.trim()
+          ? payload.projectPath
+          : process.cwd();
+      const limit = parseRecommendationLimit(payload?.limit);
+      const requestedRecommendations = typeof limit === "number" ? limit : 7;
+
+      emitProgress({
+        stage: "scan-skills",
+        message: `Scanned ${skills.length} skills.`,
+        percent: 12,
+        stats: {
+          scannedSkills: skills.length,
+          requestedRecommendations,
+        },
+      });
+
+      return await buildRecommendations(
+        skills,
+        {
+          mode,
+          scope: "all",
+          projectPath,
+          ...(typeof limit === "number" ? { limit } : {}),
+        },
+        {
+          onProgress: (progress) => emitProgress(progress),
+        },
+      );
+    } catch (err: any) {
+      emitProgress({
+        stage: "error",
+        message: err?.message || "Could not generate recommendations.",
+        percent: 100,
+      });
+      throw err;
+    }
   });
 
   ipcMain.handle("skills:install", async (_event, skillId: unknown) =>

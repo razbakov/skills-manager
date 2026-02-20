@@ -412,6 +412,69 @@ h3.subheading {
   justify-self: start;
 }
 
+.recommendation-progress {
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid #2b3a42;
+  border-radius: 0.55rem;
+  background: rgba(9, 14, 19, 0.72);
+  display: none;
+  gap: 0.38rem;
+}
+
+.recommendation-progress.active {
+  display: grid;
+  border-color: #537068;
+  box-shadow: inset 0 0 0 1px rgba(135, 211, 124, 0.08);
+}
+
+.recommendation-progress-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.73rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: #b1c0b8;
+}
+
+.recommendation-progress-track {
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  height: 8px;
+  background: rgba(86, 108, 120, 0.26);
+}
+
+.recommendation-progress-bar {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5ea76b, #b7f576);
+  transition: width 0.25s ease;
+}
+
+.recommendation-progress.active .recommendation-progress-bar {
+  animation: recommendation-bar-pulse 1.1s ease-in-out infinite alternate;
+}
+
+.recommendation-stats-preview {
+  margin: 0;
+  padding: 0.6rem 0.65rem;
+  border: 1px solid #2a3941;
+  border-radius: 0.5rem;
+  background: rgba(8, 14, 18, 0.72);
+  color: #dfe8e2;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow: auto;
+  min-height: 78px;
+  max-height: 170px;
+}
+
 #recommendation-trigger,
 #recommendation-example {
   flex: 0;
@@ -460,6 +523,15 @@ h3.subheading {
 
 body.busy {
   cursor: progress;
+}
+
+@keyframes recommendation-bar-pulse {
+  from {
+    filter: saturate(1);
+  }
+  to {
+    filter: saturate(1.24);
+  }
 }
 
 @media (max-width: 980px) {

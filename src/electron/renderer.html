@@ -111,15 +111,19 @@
                   <option value="explore-new">Explore New</option>
                 </select>
               </div>
-              <div class="control">
-                <label for="recommendation-scope">History Scope</label>
-                <select id="recommendation-scope">
-                  <option value="all">All Conversations</option>
-                  <option value="current-project">Current Project</option>
-                </select>
-              </div>
               <button id="recommendation-run-button" class="secondary">Generate</button>
             </div>
+            <section id="recommendation-progress" class="recommendation-progress" aria-live="polite">
+              <div class="recommendation-progress-top">
+                <span id="recommendation-progress-stage">Idle</span>
+                <span id="recommendation-progress-percent">0%</span>
+              </div>
+              <div class="recommendation-progress-track">
+                <span id="recommendation-progress-bar" class="recommendation-progress-bar"></span>
+              </div>
+              <p id="recommendation-progress-message" class="description">Waiting for run.</p>
+              <pre id="recommendation-progress-stats" class="recommendation-stats-preview">-</pre>
+            </section>
             <div id="recommendation-list" class="item-list" role="listbox" aria-label="Recommendations"></div>
           </aside>
           <section class="panel detail-panel">

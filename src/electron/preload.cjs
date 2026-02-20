@@ -4,6 +4,16 @@ contextBridge.exposeInMainWorld("skillsApi", {
   getSnapshot: () => ipcRenderer.invoke("skills:getSnapshot"),
   refresh: () => ipcRenderer.invoke("skills:refresh"),
   getRecommendations: (request) => ipcRenderer.invoke("skills:getRecommendations", request),
+  onRecommendationProgress: (listener) => {
+    if (typeof listener !== "function") {
+      return () => {};
+    }
+
+    const channel = "skills:recommendationProgress";
+    const wrapped = (_event, payload) => listener(payload);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
   installSkill: (skillId) => ipcRenderer.invoke("skills:install", skillId),
   disableSkill: (skillId) => ipcRenderer.invoke("skills:disable", skillId),
   enableSkill: (skillId) => ipcRenderer.invoke("skills:enable", skillId),
