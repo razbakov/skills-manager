@@ -39,6 +39,12 @@ const state = {
     installed: 0,
     available: 0,
   },
+  importPreview: {
+    open: false,
+    inputPath: "",
+    skills: [],
+    selectedIndexes: new Set(),
+  },
 };
 
 const tabButtons = Array.from(document.querySelectorAll(".tab"));
@@ -86,6 +92,7 @@ const sourceRemove = document.getElementById("source-remove");
 
 const refreshButton = document.getElementById("refresh-button");
 const exportButton = document.getElementById("export-button");
+const importButton = document.getElementById("import-button");
 const sourceAddButton = document.getElementById("source-add-button");
 const recommendationMode = document.getElementById("recommendation-mode");
 const recommendationRunButton = document.getElementById("recommendation-run-button");
@@ -116,6 +123,13 @@ const settingsPath = document.getElementById("settings-path");
 const settingsToggle = document.getElementById("settings-toggle");
 
 const updateButton = document.getElementById("update-button");
+const importModal = document.getElementById("import-modal");
+const importModalMeta = document.getElementById("import-modal-meta");
+const importList = document.getElementById("import-list");
+const importSelectAll = document.getElementById("import-select-all");
+const importSelectNone = document.getElementById("import-select-none");
+const importCancel = document.getElementById("import-cancel");
+const importConfirm = document.getElementById("import-confirm");
 
 function clearStatusTimer() {
   if (state.statusTimeout) {
@@ -304,6 +318,87 @@ function addEmptyState(listNode, message) {
   empty.className = "empty";
   empty.textContent = message;
   listNode.appendChild(empty);
+}
+
+function closeImportPreview() {
+  state.importPreview.open = false;
+  state.importPreview.inputPath = "";
+  state.importPreview.skills = [];
+  state.importPreview.selectedIndexes = new Set();
+}
+
+function getSelectedImportIndexes() {
+  return Array.from(state.importPreview.selectedIndexes).sort((a, b) => a - b);
+}
+
+function createImportPreviewRow(skill, selected) {
+  const row = document.createElement("label");
+  row.className = "import-row";
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.className = "import-row-check";
+  checkbox.checked = selected;
+  checkbox.dataset.importIndex = String(skill.index);
+
+  const content = document.createElement("div");
+  content.className = "import-row-content";
+
+  const title = document.createElement("span");
+  title.className = "import-row-title";
+  title.textContent = skill.name || "(unnamed skill)";
+
+  const description = document.createElement("span");
+  description.className = "import-row-description";
+  description.textContent = skill.description || "(no description)";
+
+  const metaParts = [];
+  if (skill.repoUrl) {
+    metaParts.push(skill.repoUrl);
+  } else {
+    metaParts.push("missing repo URL");
+  }
+  if (skill.skillPath) {
+    metaParts.push(skill.skillPath);
+  }
+
+  const meta = document.createElement("span");
+  meta.className = "import-row-meta";
+  meta.textContent = metaParts.join(" • ");
+
+  content.append(title, description, meta);
+  row.append(checkbox, content);
+  return row;
+}
+
+function renderImportPreview() {
+  const isOpen = state.importPreview.open;
+  importModal.classList.toggle("active", isOpen);
+  importModal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+
+  if (!isOpen) return;
+
+  const total = state.importPreview.skills.length;
+  const selectedCount = getSelectedImportIndexes().length;
+  const bundlePath = state.importPreview.inputPath || "";
+  importModalMeta.textContent =
+    `${total} skill${total === 1 ? "" : "s"} in ${bundlePath}. ${selectedCount} selected.`;
+
+  clearNode(importList);
+  if (total === 0) {
+    addEmptyState(importList, "No skills found in this bundle.");
+  } else {
+    state.importPreview.skills.forEach((skill) => {
+      importList.appendChild(
+        createImportPreviewRow(skill, state.importPreview.selectedIndexes.has(skill.index)),
+      );
+    });
+  }
+
+  importSelectAll.disabled = state.busy || total === 0;
+  importSelectNone.disabled = state.busy || selectedCount === 0;
+  importCancel.disabled = state.busy;
+  importConfirm.disabled = state.busy || selectedCount === 0;
 }
 
 function ensureSelectedRowInView(listNode) {
@@ -914,6 +1009,7 @@ function render() {
   renderSourcesView();
   renderRecommendationsView();
   renderSettingsView();
+  renderImportPreview();
 }
 
 function applySnapshot(snapshot) {
@@ -925,8 +1021,52 @@ function applySnapshot(snapshot) {
   render();
 }
 
+function formatImportSummary(result) {
+  if (result?.cancelled) {
+    return "Import canceled.";
+  }
+
+  const installed = Math.max(0, Math.round(toFiniteNumber(result?.installed)));
+  const alreadyInstalled = Math.max(0, Math.round(toFiniteNumber(result?.alreadyInstalled)));
+  const addedSources = Math.max(0, Math.round(toFiniteNumber(result?.addedSources)));
+  const missingRepoUrl = Math.max(0, Math.round(toFiniteNumber(result?.missingRepoUrl)));
+  const unsupportedRepoUrl = Math.max(0, Math.round(toFiniteNumber(result?.unsupportedRepoUrl)));
+  const missingSkills = Array.isArray(result?.missingSkills) ? result.missingSkills.length : 0;
+
+  const skipped = [];
+  if (missingRepoUrl > 0) skipped.push(`${missingRepoUrl} missing repo URL`);
+  if (unsupportedRepoUrl > 0) skipped.push(`${unsupportedRepoUrl} unsupported repo URL`);
+  if (missingSkills > 0) skipped.push(`${missingSkills} not found`);
+
+  const skippedSuffix = skipped.length > 0 ? ` Skipped: ${skipped.join(", ")}.` : "";
+  return `Imported bundle: installed ${installed}, already installed ${alreadyInstalled}, added sources ${addedSources}.${skippedSuffix}`;
+}
+
+function openImportPreview(preview) {
+  const skills = Array.isArray(preview?.skills)
+    ? preview.skills
+      .map((skill) => ({
+        index: Number(skill?.index),
+        name: typeof skill?.name === "string" ? skill.name : "",
+        description: typeof skill?.description === "string" ? skill.description : "",
+        repoUrl: typeof skill?.repoUrl === "string" ? skill.repoUrl : "",
+        skillPath: typeof skill?.skillPath === "string" ? skill.skillPath : "",
+      }))
+      .filter((skill) => Number.isInteger(skill.index) && skill.index >= 0)
+    : [];
+  const selectedIndexes = new Set(skills.map((skill) => skill.index));
+
+  state.importPreview.open = true;
+  state.importPreview.inputPath = typeof preview?.inputPath === "string" ? preview.inputPath : "";
+  state.importPreview.skills = skills;
+  state.importPreview.selectedIndexes = selectedIndexes;
+  render();
+}
+
 async function runTask(task, pendingMessage, successMessage) {
-  if (state.busy) return;
+  if (state.busy) {
+    return { ok: false, skipped: true };
+  }
   state.busy = true;
   document.body.classList.add("busy");
   setStatus(pendingMessage, "pending", 0);
@@ -954,8 +1094,10 @@ async function runTask(task, pendingMessage, successMessage) {
     } else {
       setStatus("Done.", "ok");
     }
+    return { ok: true, result };
   } catch (err) {
     setStatus(err?.message || "Operation failed.", "error", 4200);
+    return { ok: false, error: err };
   } finally {
     state.busy = false;
     document.body.classList.remove("busy");
@@ -1272,6 +1414,94 @@ exportButton.addEventListener("click", () => {
   );
 });
 
+importButton.addEventListener("click", () => {
+  if (state.busy) return;
+  setStatus("Selecting skill bundle...", "pending", 0);
+  void api.pickImportBundle()
+    .then((preview) => {
+      if (preview?.cancelled) {
+        setStatus("Import canceled.");
+        return;
+      }
+      openImportPreview(preview);
+      const count = state.importPreview.skills.length;
+      setStatus(`Loaded import preview (${count} skill${count === 1 ? "" : "s"}).`, "ok");
+    })
+    .catch((err) => {
+      setStatus(err?.message || "Could not open bundle preview.", "error", 4200);
+    });
+});
+
+importList.addEventListener("change", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  if (target.type !== "checkbox") return;
+  const index = Number(target.dataset.importIndex);
+  if (!Number.isInteger(index) || index < 0) return;
+
+  if (target.checked) {
+    state.importPreview.selectedIndexes.add(index);
+  } else {
+    state.importPreview.selectedIndexes.delete(index);
+  }
+  renderImportPreview();
+});
+
+importSelectAll.addEventListener("click", () => {
+  const selectedIndexes = new Set(
+    state.importPreview.skills
+      .map((skill) => Number(skill.index))
+      .filter((index) => Number.isInteger(index) && index >= 0),
+  );
+  state.importPreview.selectedIndexes = selectedIndexes;
+  renderImportPreview();
+});
+
+importSelectNone.addEventListener("click", () => {
+  state.importPreview.selectedIndexes = new Set();
+  renderImportPreview();
+});
+
+importCancel.addEventListener("click", () => {
+  closeImportPreview();
+  render();
+  setStatus("Import canceled.");
+});
+
+importModal.addEventListener("click", (event) => {
+  if (event.target !== importModal) return;
+  closeImportPreview();
+  render();
+  setStatus("Import canceled.");
+});
+
+importConfirm.addEventListener("click", () => {
+  const selectedIndexes = getSelectedImportIndexes();
+  if (!selectedIndexes.length) {
+    setStatus("Select at least one skill to import.", "error");
+    return;
+  }
+
+  const inputPath = state.importPreview.inputPath;
+  if (!inputPath) {
+    setStatus("Missing import file path.", "error");
+    return;
+  }
+
+  void (async () => {
+    const result = await runTask(
+      () => api.importInstalled({ inputPath, selectedIndexes }),
+      `Importing ${selectedIndexes.length} selected skill${selectedIndexes.length === 1 ? "" : "s"}...`,
+      (outcome) => formatImportSummary(outcome),
+    );
+
+    if (result?.ok) {
+      closeImportPreview();
+      render();
+    }
+  })();
+});
+
 installedOpenPath.addEventListener("click", () => {
   const selectedSkill = getSelectedInstalledSkill();
   if (!selectedSkill) return;
@@ -1426,6 +1656,16 @@ recommendationInstall.addEventListener("click", () => {
 });
 
 window.addEventListener("keydown", (event) => {
+  if (state.importPreview.open) {
+    if (event.key === "Escape") {
+      closeImportPreview();
+      render();
+      setStatus("Import canceled.");
+      event.preventDefault();
+    }
+    return;
+  }
+
   if ((event.ctrlKey || event.metaKey) && ["1", "2", "3", "4"].includes(event.key)) {
     const index = Number(event.key) - 1;
     switchTab(TAB_IDS[index]);

@@ -12,8 +12,9 @@ interface ParsedGitHubRepo {
   sourceName: string;
 }
 
-interface ImportedSkillDescriptor {
+export interface ImportedSkillDescriptor {
   name: string;
+  description?: string;
   repoUrl?: string;
   skillPath?: string;
 }
@@ -31,6 +32,10 @@ export interface ImportInstalledSkillsResult {
   missingRepoUrl: number;
   unsupportedRepoUrl: number;
   missingSkills: string[];
+}
+
+export interface ImportInstalledSkillsOptions {
+  selectedIndexes?: number[];
 }
 
 function parseGitHubRepoUrl(input: string): ParsedGitHubRepo | null {
@@ -105,8 +110,12 @@ function parseManifest(inputPath: string): ImportedSkillDescriptor[] {
     const row = entry as Record<string, unknown>;
     const install = (row.install as Record<string, unknown> | undefined) || {};
     const name = typeof row.name === "string" ? row.name : "";
+    const description = typeof row.description === "string" ? row.description : undefined;
 
     const descriptor: ImportedSkillDescriptor = { name };
+    if (description) {
+      descriptor.description = description;
+    }
     if (typeof install.repoUrl === "string") {
       descriptor.repoUrl = install.repoUrl;
     }
@@ -119,6 +128,17 @@ function parseManifest(inputPath: string): ImportedSkillDescriptor[] {
   return parsedDescriptors.filter(
     (entry): entry is ImportedSkillDescriptor => !!entry && !!entry.name.trim(),
   );
+}
+
+export function previewInstalledSkillsManifest(inputPath: string): {
+  inputPath: string;
+  skills: ImportedSkillDescriptor[];
+} {
+  const resolvedInputPath = resolve(inputPath);
+  return {
+    inputPath: resolvedInputPath,
+    skills: parseManifest(resolvedInputPath),
+  };
 }
 
 function isPathWithin(path: string, root: string): boolean {
@@ -146,15 +166,26 @@ function findSkillForImport(
 }
 
 export function defaultInstalledSkillsImportPath(cwd: string = process.cwd()): string {
-  return resolve(cwd, "skills.json");
+  return resolve(cwd, "installed-skills.json");
 }
 
 export async function importInstalledSkills(
   config: Config,
   inputPath: string,
+  options: ImportInstalledSkillsOptions = {},
 ): Promise<ImportInstalledSkillsResult> {
   const resolvedInputPath = resolve(inputPath);
-  const descriptors = parseManifest(resolvedInputPath);
+  const allDescriptors = parseManifest(resolvedInputPath);
+  const selectedIndexes = Array.isArray(options.selectedIndexes)
+    ? new Set(
+      options.selectedIndexes
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value >= 0 && value < allDescriptors.length),
+    )
+    : null;
+  const descriptors = selectedIndexes
+    ? allDescriptors.filter((_, index) => selectedIndexes.has(index))
+    : allDescriptors;
   const sourcesRoot = resolve(getSourcesRootPath(config));
 
   let missingRepoUrl = 0;
