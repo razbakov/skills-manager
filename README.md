@@ -11,9 +11,10 @@ All three tools follow the open [Agent Skills](https://agentskills.io/) standard
 - `skills ui` launches the desktop Electron UI.
 - `bun run electron` launches the desktop Electron UI.
 - `skills --export-installed [output-path]` exports installed skills to JSON.
-- `skills --import-installed [input-path]` imports skills from `skills.json` format.
+- `skills --import-installed [input-path]` imports skills from an exported `installed-skills.json` bundle.
 - `skills import [input-path]` is shorthand for import.
 - In the **Installed** tab, press `e` to export installed skills to `installed-skills.json` in the current working directory.
+- In the desktop UI toolbar, click **Import** to preview bundle contents, select all/none or individual skills, then import selected.
 - Exported entries include only install metadata (repository URL + optional skill path), not local filesystem paths.
 - On first run, if no config exists, `skills` auto-creates one and preloads currently available local sources.
 

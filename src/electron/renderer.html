@@ -26,7 +26,8 @@
       <div class="toolbar">
         <button id="update-button" class="secondary">Update</button>
         <button id="refresh-button" class="secondary">Refresh</button>
-        <button id="export-button">Export Installed</button>
+        <button id="export-button">Export</button>
+        <button id="import-button" class="secondary">Import</button>
       </div>
     </header>
 
@@ -191,6 +192,24 @@
     </main>
 
     <footer id="status-bar" class="status-bar">Ready.</footer>
+  </div>
+
+  <div id="import-modal" class="import-modal" aria-hidden="true">
+    <section class="import-modal-panel" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
+      <header class="import-modal-header">
+        <h2 id="import-modal-title">Import Skills Preview</h2>
+        <p id="import-modal-meta" class="description">Select skills to install from this bundle.</p>
+      </header>
+      <div class="actions import-modal-actions">
+        <button id="import-select-all">Select All</button>
+        <button id="import-select-none" class="secondary">Select None</button>
+      </div>
+      <div id="import-list" class="item-list import-list" role="list" aria-label="Skills in import bundle"></div>
+      <div class="actions import-modal-actions">
+        <button id="import-cancel" class="secondary">Cancel</button>
+        <button id="import-confirm">Import Selected</button>
+      </div>
+    </section>
   </div>
 
   <script type="module" src="./renderer.js"></script>

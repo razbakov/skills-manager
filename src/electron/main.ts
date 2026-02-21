@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from "electron";
 import { spawnSync } from "child_process";
 import { existsSync, readFileSync, readdirSync } from "fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "path";
@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import { addGitHubSource, adoptSkill, disableSkill, disableSource, enableSkill, enableSource, fixPartialInstalls, installSkill, removeSource, uninstallSkill } from "../actions";
 import { getSourcesRootPath, loadConfig, saveConfig, SUPPORTED_IDES, SUGGESTED_SOURCES, expandTilde } from "../config";
 import { defaultInstalledSkillsExportPath, exportInstalledSkills } from "../export";
+import { defaultInstalledSkillsImportPath, importInstalledSkills, previewInstalledSkillsManifest } from "../import";
 import { buildRecommendations, type RecommendationProgressEvent } from "../recommendations";
 import { scan } from "../scanner";
 import type { Config, Skill } from "../types";
@@ -78,6 +79,11 @@ interface RecommendationRequestPayload {
   mode?: unknown;
   projectPath?: unknown;
   limit?: unknown;
+}
+
+interface ImportInstalledPayload {
+  inputPath?: unknown;
+  selectedIndexes?: unknown;
 }
 
 const TARGET_NAME_MAP = new Map<string, string>(
@@ -583,6 +589,61 @@ function registerIpcHandlers(): void {
     const outputPath = exportInstalledSkills(skills, defaultInstalledSkillsExportPath());
     const installedCount = skills.filter((skill) => skill.installed).length;
     return { outputPath, installedCount };
+  });
+
+  ipcMain.handle("skills:pickImportBundle", async () => {
+    const dialogOptions: OpenDialogOptions = {
+      title: "Import Skill Bundle",
+      defaultPath: defaultInstalledSkillsImportPath(),
+      properties: ["openFile"],
+      filters: [
+        { name: "JSON Files", extensions: ["json"] },
+        { name: "All Files", extensions: ["*"] },
+      ],
+    };
+
+    const selection = mainWindow
+      ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions);
+    const inputPath = selection.filePaths[0];
+    if (selection.canceled || !inputPath) {
+      return { cancelled: true };
+    }
+
+    const preview = previewInstalledSkillsManifest(inputPath);
+    const skills = preview.skills.map((skill, index) => ({
+      index,
+      name: skill.name,
+      description: skill.description || "",
+      repoUrl: skill.repoUrl || "",
+      skillPath: skill.skillPath || "",
+    }));
+
+    return {
+      cancelled: false,
+      inputPath: preview.inputPath,
+      skills,
+    };
+  });
+
+  ipcMain.handle("skills:importInstalled", async (_event, payload: ImportInstalledPayload) => {
+    const inputPath = typeof payload?.inputPath === "string" ? payload.inputPath.trim() : "";
+    if (!inputPath) {
+      throw new Error("Missing import file path.");
+    }
+
+    const selectedIndexes = Array.isArray(payload?.selectedIndexes)
+      ? payload.selectedIndexes
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value >= 0)
+      : undefined;
+
+    const config = loadConfig();
+    const result = await importInstalledSkills(config, inputPath, {
+      ...(selectedIndexes ? { selectedIndexes } : {}),
+    });
+    const snapshot = await createSnapshot(config);
+    return { cancelled: false, ...result, snapshot };
   });
 
   ipcMain.handle("skills:getSkillMarkdown", async (_event, skillId: unknown) => {
