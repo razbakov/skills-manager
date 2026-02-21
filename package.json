@@ -6,7 +6,8 @@
     "start": "bun src/index.ts",
     "setup": "bun install && bun src/index.ts --install",
     "build": "cd src/electron-v2 && bun x vite build",
-    "electron": "bun run build && NODE_OPTIONS='--import tsx' electron src/electron/main.ts"
+    "electron": "bun run build && NODE_OPTIONS='--import tsx' electron src/electron/main.ts",
+    "test": "cd src/electron-v2 && bun x vitest run"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.0",
@@ -27,6 +28,7 @@
     "electron": "^36.0.0",
     "tsx": "^4.20.3",
     "typescript": "^5.7.0",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
   }
 }
