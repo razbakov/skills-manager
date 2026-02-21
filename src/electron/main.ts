@@ -1044,7 +1044,7 @@ function createMainWindow(): void {
     height: 820,
     minWidth: 980,
     minHeight: 620,
-    backgroundColor: "#0d1216",
+    backgroundColor: process.env.SKILLS_V2 === "1" ? "#ffffff" : "#0d1216",
     title: `Skills Manager v${getAppVersion()}`,
     webPreferences: {
       preload: join(currentDir, "preload.cjs"),
@@ -1055,7 +1055,11 @@ function createMainWindow(): void {
   });
 
   mainWindow.setMenuBarVisibility(false);
-  void mainWindow.loadFile(join(currentDir, "renderer.html"));
+  const useV2 = process.env.SKILLS_V2 === "1";
+  const rendererPath = useV2
+    ? join(currentDir, "..", "electron-v2", "dist", "index.html")
+    : join(currentDir, "renderer.html");
+  void mainWindow.loadFile(rendererPath);
   mainWindow.on("closed", () => {
     mainWindow = null;
   });

@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: oklch(1 0 0);
+  --color-foreground: oklch(0.145 0.014 285.82);
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.145 0.014 285.82);
+  --color-popover: oklch(1 0 0);
+  --color-popover-foreground: oklch(0.145 0.014 285.82);
+  --color-primary: oklch(0.541 0.2 277.12);
+  --color-primary-foreground: oklch(0.97 0.005 285.82);
+  --color-secondary: oklch(0.967 0.003 285.82);
+  --color-secondary-foreground: oklch(0.21 0.013 285.82);
+  --color-muted: oklch(0.967 0.003 285.82);
+  --color-muted-foreground: oklch(0.553 0.013 285.82);
+  --color-accent: oklch(0.967 0.003 285.82);
+  --color-accent-foreground: oklch(0.21 0.013 285.82);
+  --color-destructive: oklch(0.577 0.245 27.33);
+  --color-destructive-foreground: oklch(0.97 0.005 285.82);
+  --color-border: oklch(0.922 0.004 285.82);
+  --color-input: oklch(0.922 0.004 285.82);
+  --color-ring: oklch(0.541 0.2 277.12);
+  --color-sidebar-background: oklch(0.985 0.001 285.82);
+  --color-sidebar-foreground: oklch(0.553 0.013 285.82);
+  --color-sidebar-primary: oklch(0.541 0.2 277.12);
+  --color-sidebar-primary-foreground: oklch(0.97 0.005 285.82);
+  --color-sidebar-accent: oklch(0.967 0.003 285.82);
+  --color-sidebar-accent-foreground: oklch(0.21 0.013 285.82);
+  --color-sidebar-border: oklch(0.922 0.004 285.82);
+  --color-sidebar-ring: oklch(0.541 0.2 277.12);
+  --radius: 0.625rem;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
