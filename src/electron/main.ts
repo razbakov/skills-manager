@@ -1,4 +1,12 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  shell,
+  type OpenDialogOptions,
+  type SaveDialogOptions,
+} from "electron";
 import { spawnSync } from "child_process";
 import { existsSync, readFileSync, readdirSync } from "fs";
 import {
