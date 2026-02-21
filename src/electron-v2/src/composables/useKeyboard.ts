@@ -54,9 +54,13 @@ export function useKeyboard(options: KeyboardOptions) {
       return;
     }
 
-    // Arrow keys (when not in text input)
-    if ((event.key === "ArrowDown" || event.key === "ArrowUp") && !isTextInput(event.target)) {
+    // Arrow keys — always navigate the list, even from search input
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       options.moveSelection(event.key === "ArrowDown" ? 1 : -1);
+      // Blur search input so focus follows the selected item
+      if (isTextInput(event.target)) {
+        (event.target as HTMLElement).blur();
+      }
       event.preventDefault();
       return;
     }

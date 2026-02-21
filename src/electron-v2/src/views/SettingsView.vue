@@ -56,6 +56,7 @@ async function handleSetPersonalRepo() {
         <button
           v-for="setting in store.settings.value"
           :key="setting.id"
+          :data-selected="setting.id === store.selected.setting ? 'true' : undefined"
           class="w-full text-left px-3 py-2.5 border-b border-border/50 transition-colors cursor-pointer"
           :class="setting.id === store.selected.setting ? 'bg-accent' : 'hover:bg-accent/50'"
           @click="store.selected.setting = setting.id"

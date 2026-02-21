@@ -71,6 +71,7 @@ function formatStage(stage: string): string {
         <button
           v-for="rec in store.recommendations.data?.items ?? []"
           :key="rec.skillId"
+          :data-selected="rec.skillId === store.selected.recommendation ? 'true' : undefined"
           class="w-full text-left px-3 py-2.5 border-b border-border/50 transition-colors cursor-pointer"
           :class="rec.skillId === store.selected.recommendation ? 'bg-accent' : 'hover:bg-accent/50'"
           @click="store.selected.recommendation = rec.skillId"

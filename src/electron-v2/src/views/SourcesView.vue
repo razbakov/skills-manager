@@ -41,6 +41,7 @@ function handleKeydown(event: KeyboardEvent) {
         <button
           v-for="source in store.sources.value"
           :key="source.id"
+          :data-selected="source.id === store.selected.source ? 'true' : undefined"
           class="w-full text-left px-3 py-2.5 border-b border-border/50 transition-colors cursor-pointer"
           :class="source.id === store.selected.source ? 'bg-accent' : 'hover:bg-accent/50'"
           @click="store.selected.source = source.id"

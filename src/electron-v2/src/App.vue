@@ -46,6 +46,53 @@ function getTabCount(id: string): number | null {
   return null;
 }
 
+function getActiveList(): { ids: string[]; selectedKey: keyof typeof store.selected } | null {
+  const tab = store.activeTab.value;
+  if (tab === "installed") return { ids: store.installedSkills.value.map(s => s.id), selectedKey: "installed" };
+  if (tab === "available") return { ids: store.availableSkills.value.map(s => s.id), selectedKey: "available" };
+  if (tab === "sources") return { ids: store.sources.value.map(s => s.id), selectedKey: "source" };
+  if (tab === "recommendations") return { ids: (store.recommendations.data?.items ?? []).map(i => i.skillId), selectedKey: "recommendation" };
+  if (tab === "settings") return { ids: store.settings.value.map(s => s.id), selectedKey: "setting" };
+  return null;
+}
+
+function moveSelection(delta: number) {
+  const list = getActiveList();
+  if (!list || list.ids.length === 0) return;
+  const currentId = store.selected[list.selectedKey];
+  const idx = currentId ? list.ids.indexOf(currentId) : -1;
+  let next = idx === -1 ? (delta > 0 ? 0 : list.ids.length - 1) : idx + delta;
+  next = Math.max(0, Math.min(next, list.ids.length - 1));
+  store.selected[list.selectedKey] = list.ids[next];
+  requestAnimationFrame(() => {
+    const el = document.querySelector<HTMLElement>('[data-selected="true"]');
+    if (el) {
+      el.scrollIntoView({ block: "nearest" });
+      el.focus({ preventScroll: true });
+    }
+  });
+}
+
+function triggerPrimaryAction() {
+  const tab = store.activeTab.value;
+  if (tab === "installed") {
+    const s = store.selectedInstalledSkill.value;
+    if (s) s.disabled ? store.enableSkill(s.id) : store.disableSkill(s.id);
+  } else if (tab === "available") {
+    const s = store.selectedAvailableSkill.value;
+    if (s) store.installSkill(s.id);
+  } else if (tab === "sources") {
+    const s = store.selectedSource.value;
+    if (s) store.openPath(s.path);
+  } else if (tab === "recommendations") {
+    const r = store.selectedRecommendation.value;
+    if (r) store.installSkill(r.skillId);
+  } else if (tab === "settings") {
+    const s = store.selectedSetting.value;
+    if (s) store.toggleTarget(s.id);
+  }
+}
+
 useKeyboard({
   getActiveTab: () => store.activeTab.value,
   setActiveTab: (tab) => { store.activeTab.value = tab; },
@@ -53,8 +100,8 @@ useKeyboard({
     const el = document.querySelector<HTMLInputElement>('[data-search-input]');
     if (el) { el.focus(); el.select(); }
   },
-  moveSelection: () => {},
-  triggerPrimaryAction: () => {},
+  moveSelection,
+  triggerPrimaryAction,
   isImportOpen: () => store.importPreview.open,
   closeImport: () => store.closeImportPreview(),
 });

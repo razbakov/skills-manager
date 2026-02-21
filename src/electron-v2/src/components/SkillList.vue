@@ -49,6 +49,7 @@ function getStatusBadge(skill: SkillViewModel): { label: string; variant: "defau
       <button
         v-for="skill in skills"
         :key="skill.id"
+        :data-selected="skill.id === selectedId ? 'true' : undefined"
         class="w-full text-left px-3 py-2.5 border-b border-border/50 transition-colors cursor-pointer"
         :class="skill.id === selectedId ? 'bg-accent' : 'hover:bg-accent/50'"
         @click="$emit('select', skill.id)"
