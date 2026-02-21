@@ -939,7 +939,18 @@ async function runTask(task, pendingMessage, successMessage) {
       applySnapshot(snapshot);
     }
     if (successMessage) {
-      setStatus(successMessage(result), "ok");
+      const status = successMessage(result);
+      if (typeof status === "string") {
+        setStatus(status, "ok");
+      } else if (status && typeof status === "object") {
+        setStatus(
+          status.message || "Done.",
+          status.type || "ok",
+          Number.isFinite(status.durationMs) ? status.durationMs : 2600,
+        );
+      } else {
+        setStatus("Done.", "ok");
+      }
     } else {
       setStatus("Done.", "ok");
     }
@@ -1248,7 +1259,16 @@ exportButton.addEventListener("click", () => {
   void runTask(
     () => api.exportInstalled(),
     "Exporting installed skills...",
-    (result) => `Exported ${result.installedCount} installed skills to ${result.outputPath}.`,
+    (result) => {
+      if (result?.canceled) {
+        return {
+          message: "Export canceled.",
+          type: "info",
+          durationMs: 1800,
+        };
+      }
+      return `Exported ${result.installedCount} installed skills to ${result.outputPath}.`;
+    },
   );
 });
 

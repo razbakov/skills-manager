@@ -1,7 +1,7 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell, type SaveDialogOptions } from "electron";
 import { spawnSync } from "child_process";
 import { existsSync, readFileSync, readdirSync } from "fs";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "path";
 import { fileURLToPath } from "url";
 import { addGitHubSource, adoptSkill, disableSkill, disableSource, enableSkill, enableSource, fixPartialInstalls, installSkill, removeSource, uninstallSkill } from "../actions";
 import { getSourcesRootPath, loadConfig, saveConfig, SUPPORTED_IDES, SUGGESTED_SOURCES, expandTilde } from "../config";
@@ -578,11 +578,31 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.handle("skills:exportInstalled", async () => {
+    const defaultPath = defaultInstalledSkillsExportPath();
+    const focusedWindow = BrowserWindow.getFocusedWindow() ?? mainWindow;
+    const saveDialogOptions: SaveDialogOptions = {
+      title: "Export Installed Skills",
+      defaultPath,
+      buttonLabel: "Export",
+      filters: [{ name: "JSON", extensions: ["json"] }],
+      properties: ["showOverwriteConfirmation", "createDirectory"],
+    };
+    const selection = focusedWindow
+      ? await dialog.showSaveDialog(focusedWindow, saveDialogOptions)
+      : await dialog.showSaveDialog(saveDialogOptions);
+
+    if (selection.canceled || !selection.filePath) {
+      return { canceled: true };
+    }
+
+    const selectedPath = extname(selection.filePath).toLowerCase() === ".json"
+      ? selection.filePath
+      : `${selection.filePath}.json`;
     const config = loadConfig();
     const skills = await scan(config);
-    const outputPath = exportInstalledSkills(skills, defaultInstalledSkillsExportPath());
+    const outputPath = exportInstalledSkills(skills, selectedPath);
     const installedCount = skills.filter((skill) => skill.installed).length;
-    return { outputPath, installedCount };
+    return { canceled: false, outputPath, installedCount };
   });
 
   ipcMain.handle("skills:getSkillMarkdown", async (_event, skillId: unknown) => {
