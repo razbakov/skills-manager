@@ -4,10 +4,6 @@ title: "Startup: Create Default Config and Open Desktop App"
 status: draft
 ---
 
-# Startup: Create Default Config and Open Desktop App
-
-As a first-time user, I want the app to self-initialize on first run, so that I can start using Skills Manager without manual setup.
-
 ## Context
 
 First-run setup should be automatic and safe. Users should get a working app entry point and a complete baseline config.
@@ -21,8 +17,3 @@ First-run setup should be automatic and safe. Users should get a working app ent
 - Home-directory shorthand paths using `~` are accepted and resolved correctly.
 - Initial target defaults include only detected IDE targets.
 - After default config is created, the user can proceed without a manual config bootstrap step.
-
-## Out of Scope
-
-- Interactive setup wizard.
-- Migrating legacy config formats in this story.

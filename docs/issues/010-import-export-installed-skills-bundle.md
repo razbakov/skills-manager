@@ -4,13 +4,7 @@ title: "Import and Export: Transfer Installed Skills as a Bundle"
 status: draft
 ---
 
-# Import and Export: Transfer Installed Skills as a Bundle
-
 As a developer setting up or sharing environments, I want to export and import installed skills as a bundle, so that I can reproduce my setup quickly.
-
-## Context
-
-Users need a safe transfer flow with preview and outcome reporting, not a blind bulk action.
 
 ## Acceptance Criteria
 
@@ -22,8 +16,3 @@ Users need a safe transfer flow with preview and outcome reporting, not a blind 
 - Import result summary reports installed, already-installed, added-source, and skipped outcomes.
 - Importing selected skills installs them across currently enabled targets.
 - Invalid or unreadable bundle files show a clear error and do not apply partial hidden changes.
-
-## Out of Scope
-
-- Non-JSON bundle formats.
-- Automatic background sync between machines.

@@ -4,13 +4,7 @@ title: "Recommendations: Suggest Skills from Conversation History"
 status: draft
 ---
 
-# Recommendations: Suggest Skills from Conversation History
-
 As a developer with many skills, I want recommendations based on my local conversation history, so that I can quickly choose skills that match my real work.
-
-## Context
-
-Recommendation quality depends on context preparation and clear result explanations, not only on listing skills. Users also need visibility into recommendation progress.
 
 ## Acceptance Criteria
 
@@ -22,8 +16,3 @@ Recommendation quality depends on context preparation and clear result explanati
 - The UI shows run progress with stage, percent, and run statistics while generation is in progress.
 - Each recommendation supports `Open Skill` and `Install Skill` actions.
 - If generation fails, the app shows an error message, keeps prior results visible, and allows the user to run `Generate` again immediately.
-
-## Out of Scope
-
-- Team-shared recommendations across multiple users.
-- Recommendations from internet or marketplace telemetry.

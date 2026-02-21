@@ -4,13 +4,7 @@ title: "Sources: Manage GitHub Source Packages"
 status: draft
 ---
 
-# Sources: Manage GitHub Source Packages
-
 As a developer using multiple skill collections, I want to manage sources directly in the app, so that I can add and control packages without editing config files by hand.
-
-## Context
-
-Source management is a core workflow: users need to add repositories quickly, pause noisy sources, inspect source paths, and remove sources safely.
 
 ## Acceptance Criteria
 
@@ -22,8 +16,3 @@ Source management is a core workflow: users need to add repositories quickly, pa
 - Removing a source uninstalls related skills and removes the local cloned source directory.
 - The view shows suggested sources and each suggestion can be added directly with one action.
 - Invalid or unreachable repository inputs show a clear error and do not change the current source list.
-
-## Out of Scope
-
-- Non-GitHub source providers.
-- Editing source metadata beyond enable/disable and remove.

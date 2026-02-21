@@ -4,13 +4,7 @@ title: "Skills Manager: Browse and Search Skills in Desktop App"
 status: draft
 ---
 
-# Skills Manager: Browse and Search Skills in Desktop App
-
 As a developer using multiple AI coding tools, I want to browse installed and available skills in one desktop app, so that I can quickly find the right skill and understand where it comes from.
-
-## Context
-
-The product is desktop-first and needs predictable browsing across large skill collections. This story focuses only on discovery in the UI, not state-changing actions.
 
 ## Acceptance Criteria
 

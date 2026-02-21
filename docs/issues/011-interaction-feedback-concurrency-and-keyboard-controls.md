@@ -4,13 +4,7 @@ title: "Interaction: Feedback, Action Locking, and Keyboard Controls"
 status: draft
 ---
 
-# Interaction: Feedback, Action Locking, and Keyboard Controls
-
 As a keyboard-first user, I want clear action feedback and predictable shortcuts, so that I can manage skills quickly without accidental conflicting actions.
-
-## Context
-
-Skill operations can take time. Users need immediate status visibility and keyboard navigation that behaves consistently across tabs.
 
 ## Acceptance Criteria
 
@@ -22,8 +16,3 @@ Skill operations can take time. Users need immediate status visibility and keybo
 - `Enter` triggers the primary action for the selected item in the active tab.
 - `Escape` clears search inputs and closes the import preview modal when it is open.
 - Success and error feedback messages remain visible for at least 2 seconds unless replaced by a newer status message.
-
-## Out of Scope
-
-- User-defined shortcut remapping.
-- New visual themes or layout redesign.

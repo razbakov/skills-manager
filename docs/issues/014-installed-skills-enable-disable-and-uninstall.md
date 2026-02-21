@@ -4,13 +4,7 @@ title: "Installed Skills: Enable, Disable, and Uninstall"
 status: draft
 ---
 
-# Installed Skills: Enable, Disable, and Uninstall
-
 As a developer, I want to manage the state of installed skills from one place, so that I can quickly turn skills on, turn them off, or remove them.
-
-## Context
-
-Installed skill actions should be fast and reversible where possible, with predictable behavior across enabled targets.
 
 ## Acceptance Criteria
 
@@ -21,8 +15,3 @@ Installed skill actions should be fast and reversible where possible, with predi
 - After each action, installed list, detail state, and per-target coverage update without app restart.
 - `Adopt Skill` is shown only for unmanaged installed skills; managed skills do not show this action.
 - State-changing actions are blocked while another conflicting operation is already running.
-
-## Out of Scope
-
-- Source management actions.
-- Recommendation generation and recommendation-driven install.

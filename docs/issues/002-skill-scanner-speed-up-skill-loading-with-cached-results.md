@@ -4,13 +4,7 @@ title: "Skill Discovery: Build Deterministic Inventory with Cached Results"
 status: draft
 ---
 
-# Skill Discovery: Build Deterministic Inventory with Cached Results
-
 As a developer managing many skills, I want fast and reliable discovery that reuses cached results, so that inventory loads quickly without losing accuracy.
-
-## Context
-
-Skill collections can be large and nested. The app must discover skills reliably, reflect installed and disabled state, and stay responsive across repeated opens.
 
 ## Acceptance Criteria
 
@@ -22,8 +16,3 @@ Skill collections can be large and nested. The app must discover skills reliably
 - Discovery results are cached and reused when source content has not changed.
 - If cache data is missing or unreadable, discovery rebuilds cache automatically and the app still opens.
 - Installed and Available lists remain deterministic and alphabetically ordered after each refresh.
-
-## Out of Scope
-
-- New search UI behavior or filter controls.
-- Remote source syncing from internet marketplaces.
