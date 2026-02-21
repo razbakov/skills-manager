@@ -13,15 +13,28 @@
   <div class="app-shell">
     <header class="topbar">
       <div class="brand">
-        <p class="eyebrow">Desktop Console</p>
         <h1>Skills Manager</h1>
       </div>
       <nav class="tabs" aria-label="Skill views">
-        <button class="tab active" data-tab="installed">Installed</button>
-        <button class="tab" data-tab="available">Available</button>
-        <button class="tab" data-tab="sources">Sources</button>
-        <button class="tab" data-tab="recommendations">Recommendations</button>
-        <button class="tab" data-tab="settings">Settings</button>
+        <button class="tab active" data-tab="installed">
+          <span>Installed</span>
+          <span id="tab-count-installed" class="tab-count">0</span>
+        </button>
+        <button class="tab" data-tab="available">
+          <span>Available</span>
+          <span id="tab-count-available" class="tab-count">0</span>
+        </button>
+        <button class="tab" data-tab="sources">
+          <span>Sources</span>
+          <span id="tab-count-sources" class="tab-count">0</span>
+        </button>
+        <button class="tab" data-tab="recommendations">
+          <span>Recommendations</span>
+          <span id="tab-count-recommendations" class="tab-count">0</span>
+        </button>
+        <button class="tab" data-tab="settings">
+          <span>Settings</span>
+        </button>
       </nav>
       <div class="toolbar">
         <button id="update-button" class="secondary">Update</button>
@@ -34,7 +47,10 @@
     <main class="views">
       <section id="installed-view" class="tab-view active">
         <aside class="panel list-panel">
-          <label for="installed-search">Installed Search</label>
+          <div class="panel-heading">
+            <label for="installed-search">Installed Skills</label>
+            <span id="installed-list-count" class="list-count">0 shown</span>
+          </div>
           <input id="installed-search" type="text" placeholder="Name, description, source path" />
           <div id="installed-list" class="item-list" role="listbox" aria-label="Installed skills"></div>
         </aside>
@@ -60,13 +76,16 @@
           </div>
           <h3 class="subheading">SKILL.md Preview</h3>
           <pre id="installed-skill-md" class="markdown-preview">Select a skill to preview SKILL.md.</pre>
-          <p class="hint">Keyboard: Ctrl/Cmd+1,2,3,4 to switch tabs, / to focus search, arrows to move.</p>
+          <p class="hint">Keyboard: Ctrl/Cmd+1-5 switch tabs, / or Ctrl/Cmd+F focus search, arrows move, Enter triggers primary action.</p>
         </section>
       </section>
 
       <section id="available-view" class="tab-view">
         <aside class="panel list-panel">
-          <label for="available-search">Available Search</label>
+          <div class="panel-heading">
+            <label for="available-search">Available Skills</label>
+            <span id="available-list-count" class="list-count">0 shown</span>
+          </div>
           <input id="available-search" type="text" placeholder="Name, description, source path" />
           <div id="available-list" class="item-list" role="listbox" aria-label="Available skills"></div>
         </aside>
@@ -90,7 +109,10 @@
 
       <section id="sources-view" class="tab-view">
         <aside class="panel list-panel">
-          <label>Source Packages</label>
+          <div class="panel-heading">
+            <label>Source Packages</label>
+            <span id="sources-list-count" class="list-count">0 total</span>
+          </div>
           <div id="sources-list" class="item-list" role="listbox" aria-label="Sources"></div>
         </aside>
         <section class="panel detail-panel">
@@ -118,6 +140,10 @@
 
       <section id="recommendations-view" class="tab-view">
         <aside class="panel list-panel">
+          <div class="panel-heading">
+            <label>Recommendations</label>
+            <span id="recommendation-list-count" class="list-count">0 generated</span>
+          </div>
           <div class="recommendation-controls">
             <div class="control">
               <label for="recommendation-mode">Recommendation Mode</label>

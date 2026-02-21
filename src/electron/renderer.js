@@ -63,6 +63,14 @@ const sourcesList = document.getElementById("sources-list");
 const sourceSkillsList = document.getElementById("source-skills-list");
 const sourcesSuggestedList = document.getElementById("sources-suggested-list");
 const statusBar = document.getElementById("status-bar");
+const tabCountInstalled = document.getElementById("tab-count-installed");
+const tabCountAvailable = document.getElementById("tab-count-available");
+const tabCountSources = document.getElementById("tab-count-sources");
+const tabCountRecommendations = document.getElementById("tab-count-recommendations");
+const installedListCount = document.getElementById("installed-list-count");
+const availableListCount = document.getElementById("available-list-count");
+const sourcesListCount = document.getElementById("sources-list-count");
+const recommendationListCount = document.getElementById("recommendation-list-count");
 
 const installedTitle = document.getElementById("installed-title");
 const installedDescription = document.getElementById("installed-description");
@@ -268,11 +276,23 @@ function fuzzyScore(query, rawText) {
   return 0;
 }
 
+function compareByName(a, b) {
+  return (a.name || "").localeCompare(b.name || "", undefined, {
+    sensitivity: "base",
+    numeric: true,
+  });
+}
+
+function sortByName(items) {
+  return [...items].sort(compareByName);
+}
+
 function filterSkills(skills, query) {
-  if (!query.trim()) return skills;
+  const orderedSkills = sortByName(skills);
+  if (!query.trim()) return orderedSkills;
 
   const filtered = [];
-  for (const skill of skills) {
+  for (const skill of orderedSkills) {
     const score = Math.max(
       fuzzyScore(query, skill.name),
       fuzzyScore(query, skill.description || ""),
@@ -294,6 +314,12 @@ function filterSkills(skills, query) {
   });
 
   return filtered.map((entry) => entry.skill);
+}
+
+function formatListCount(shown, total) {
+  if (total === 0) return "0 shown";
+  if (shown === total) return `${total} total`;
+  return `${shown}/${total} shown`;
 }
 
 function findById(items, itemId) {
@@ -500,16 +526,23 @@ function createSkillListButton(skill, selected) {
   chip.className = chipMeta.className;
   chip.textContent = chipMeta.label;
 
-  top.append(name, chip);
+  const chips = document.createElement("span");
+  chips.className = "item-chips";
+  chips.append(chip);
+  top.append(name, chips);
 
   const description = document.createElement("span");
   description.className = "item-desc";
-  description.textContent =
-    skill.sourceName && skill.sourceName !== "unknown"
-      ? skill.sourceName
-      : (skill.pathLabel || compactPath(skill.sourcePath));
+  description.textContent = skill.description || "(no description)";
 
-  row.append(top, description);
+  const meta = document.createElement("span");
+  meta.className = "item-meta";
+  const sourceLabel =
+    skill.sourceName && skill.sourceName !== "unknown" ? skill.sourceName : "unknown source";
+  const pathLabel = skill.pathLabel || compactPath(skill.sourcePath);
+  meta.textContent = `${sourceLabel} • ${pathLabel}`;
+
+  row.append(top, description, meta);
   return row;
 }
 
@@ -530,20 +563,27 @@ function createSourceButton(source, selected) {
   chip.className = "chip";
   chip.textContent = `${source.installedCount}/${source.totalCount}`;
 
-  top.append(name, chip);
+  const chips = document.createElement("span");
+  chips.className = "item-chips";
+  chips.append(chip);
 
   if (source.enabled === false) {
     const disabledChip = document.createElement("span");
     disabledChip.className = "chip warn";
     disabledChip.textContent = "disabled";
-    top.append(disabledChip);
+    chips.append(disabledChip);
   }
+  top.append(name, chips);
 
   const desc = document.createElement("span");
   desc.className = "item-desc";
-  desc.textContent = source.repoUrl || source.path;
+  desc.textContent = source.repoUrl || "No repository URL";
 
-  row.append(top, desc);
+  const meta = document.createElement("span");
+  meta.className = "item-meta";
+  meta.textContent = source.path || "-";
+
+  row.append(top, desc, meta);
   return row;
 }
 
@@ -620,7 +660,10 @@ function createRecommendationButton(rec, selected) {
   confidenceChip.className = confidenceChipMeta.className;
   confidenceChip.textContent = confidenceChipMeta.label;
 
-  top.append(name, usageChip, confidenceChip);
+  const chips = document.createElement("span");
+  chips.className = "item-chips";
+  chips.append(usageChip, confidenceChip);
+  top.append(name, chips);
 
   const meta = document.createElement("span");
   meta.className = "item-meta";
@@ -637,9 +680,9 @@ function createRecommendationButton(rec, selected) {
 function ensureSelection() {
   if (!state.snapshot) return;
 
-  const installedSkills = state.snapshot.installedSkills;
-  const availableSkills = state.snapshot.availableSkills;
-  const sources = state.snapshot.sources;
+  const installedSkills = sortByName(state.snapshot.installedSkills);
+  const availableSkills = sortByName(state.snapshot.availableSkills);
+  const sources = sortByName(state.snapshot.sources);
 
   if (!findById(installedSkills, state.selected.installed)) {
     state.selected.installed = installedSkills[0]?.id || null;
@@ -694,6 +737,18 @@ function getSelectedSetting() {
   return findById(state.snapshot.settings, state.selected.setting) || null;
 }
 
+function renderHeader() {
+  const installedTotal = state.snapshot?.installedSkills?.length || 0;
+  const availableTotal = state.snapshot?.availableSkills?.length || 0;
+  const sourceTotal = state.snapshot?.sources?.length || 0;
+  const recommendationTotal = state.recommendations.data?.items?.length || 0;
+
+  if (tabCountInstalled) tabCountInstalled.textContent = String(installedTotal);
+  if (tabCountAvailable) tabCountAvailable.textContent = String(availableTotal);
+  if (tabCountSources) tabCountSources.textContent = String(sourceTotal);
+  if (tabCountRecommendations) tabCountRecommendations.textContent = String(recommendationTotal);
+}
+
 function renderTabs() {
   tabButtons.forEach((button) => {
     const isActive = button.dataset.tab === state.activeTab;
@@ -727,6 +782,13 @@ function renderInstalledView() {
   if (!state.snapshot) return;
 
   const filtered = filterSkills(state.snapshot.installedSkills, state.queries.installed);
+  if (!filtered.some((skill) => skill.id === state.selected.installed)) {
+    state.selected.installed = filtered[0]?.id || null;
+  }
+  if (installedListCount) {
+    installedListCount.textContent = formatListCount(filtered.length, state.snapshot.installedSkills.length);
+  }
+
   clearNode(installedList);
   if (filtered.length === 0) {
     addEmptyState(installedList, "No installed skills match your search.");
@@ -773,6 +835,13 @@ function renderAvailableView() {
   if (!state.snapshot) return;
 
   const filtered = filterSkills(state.snapshot.availableSkills, state.queries.available);
+  if (!filtered.some((skill) => skill.id === state.selected.available)) {
+    state.selected.available = filtered[0]?.id || null;
+  }
+  if (availableListCount) {
+    availableListCount.textContent = formatListCount(filtered.length, state.snapshot.availableSkills.length);
+  }
+
   clearNode(availableList);
   if (filtered.length === 0) {
     addEmptyState(availableList, "No available skills match your search.");
@@ -807,11 +876,19 @@ function renderAvailableView() {
 function renderSourcesView() {
   if (!state.snapshot) return;
 
+  const orderedSources = sortByName(state.snapshot.sources);
+  if (!orderedSources.some((source) => source.id === state.selected.source)) {
+    state.selected.source = orderedSources[0]?.id || null;
+  }
+  if (sourcesListCount) {
+    sourcesListCount.textContent = `${orderedSources.length} total`;
+  }
+
   clearNode(sourcesList);
-  if (state.snapshot.sources.length === 0) {
+  if (orderedSources.length === 0) {
     addEmptyState(sourcesList, "No sources discovered.");
   } else {
-    state.snapshot.sources.forEach((source) => {
+    orderedSources.forEach((source) => {
       sourcesList.appendChild(createSourceButton(source, source.id === state.selected.source));
     });
     ensureSelectedRowInView(sourcesList);
@@ -872,6 +949,11 @@ function renderRecommendationsView() {
   const progress = state.recommendations.progress || {};
   const progressPercent = clampPercent(progress.percent);
   const progressStats = progress.stats || state.recommendations.data?.stats || null;
+  const items = state.recommendations.data?.items || [];
+
+  if (recommendationListCount) {
+    recommendationListCount.textContent = `${items.length} generated`;
+  }
 
   recommendationRunButton.disabled = state.busy || state.recommendations.loading;
   recommendationMode.disabled = state.recommendations.loading;
@@ -890,7 +972,6 @@ function renderRecommendationsView() {
       `${progress.message || "Generating recommendations..."} (${progressPercent}%)`,
     );
   } else {
-    const items = state.recommendations.data?.items || [];
     if (items.length === 0) {
       addEmptyState(recommendationList, "No recommendations yet. Click Generate.");
     } else {
@@ -965,7 +1046,10 @@ function createSettingButton(setting, selected) {
   chip.className = chipMeta.className;
   chip.textContent = chipMeta.label;
 
-  top.append(name, chip);
+  const chips = document.createElement("span");
+  chips.className = "item-chips";
+  chips.append(chip);
+  top.append(name, chips);
 
   const desc = document.createElement("span");
   desc.className = "item-desc";
@@ -1069,6 +1153,7 @@ function renderSettingsView() {
 }
 
 function render() {
+  renderHeader();
   renderTabs();
   renderInstalledView();
   renderAvailableView();
@@ -1210,7 +1295,7 @@ function moveSelection(delta) {
   }
 
   if (state.activeTab === "sources") {
-    const list = state.snapshot.sources;
+    const list = sortByName(state.snapshot.sources);
     if (!list.length) return;
     const currentIndex = Math.max(0, list.findIndex((source) => source.id === state.selected.source));
     const nextIndex = Math.max(0, Math.min(list.length - 1, currentIndex + delta));
@@ -1253,6 +1338,17 @@ function focusCurrentSearch() {
   if (state.activeTab === "available") {
     availableSearch.focus();
     availableSearch.select();
+    return;
+  }
+
+  if (state.activeTab === "sources") {
+    sourceUrlInput.focus();
+    sourceUrlInput.select();
+    return;
+  }
+
+  if (state.activeTab === "recommendations") {
+    recommendationMode.focus();
   }
 }
 
@@ -1304,6 +1400,7 @@ async function loadRecommendations(showStatus = true) {
     },
     true,
   );
+  renderHeader();
   renderRecommendationsView();
 
   if (showStatus) {
@@ -1318,6 +1415,7 @@ async function loadRecommendations(showStatus = true) {
 
     state.recommendations.data = result || { items: [], historySummary: null };
     ensureSelection();
+    renderHeader();
     renderRecommendationsView();
 
     if (showStatus) {
@@ -1339,6 +1437,7 @@ async function loadRecommendations(showStatus = true) {
   } finally {
     state.recommendations.loading = false;
     state.recommendations.progress.active = false;
+    renderHeader();
     renderRecommendationsView();
   }
 }
@@ -1348,6 +1447,7 @@ const unsubscribeRecommendationProgress =
     ? api.onRecommendationProgress((progress) => {
       if (!progress || typeof progress !== "object") return;
       setRecommendationProgress(progress, state.recommendations.loading);
+      renderHeader();
       renderRecommendationsView();
     })
     : null;
@@ -1371,9 +1471,27 @@ installedSearch.addEventListener("input", () => {
   renderInstalledView();
 });
 
+installedSearch.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  if (!installedSearch.value) return;
+  installedSearch.value = "";
+  state.queries.installed = "";
+  renderInstalledView();
+  event.preventDefault();
+});
+
 availableSearch.addEventListener("input", () => {
   state.queries.available = availableSearch.value;
   renderAvailableView();
+});
+
+availableSearch.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  if (!availableSearch.value) return;
+  availableSearch.value = "";
+  state.queries.available = "";
+  renderAvailableView();
+  event.preventDefault();
 });
 
 installedList.addEventListener("click", (event) => {
@@ -1801,9 +1919,15 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
-  if ((event.ctrlKey || event.metaKey) && ["1", "2", "3", "4"].includes(event.key)) {
+  if ((event.ctrlKey || event.metaKey) && ["1", "2", "3", "4", "5"].includes(event.key)) {
     const index = Number(event.key) - 1;
     switchTab(TAB_IDS[index]);
+    event.preventDefault();
+    return;
+  }
+
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+    focusCurrentSearch();
     event.preventDefault();
     return;
   }
