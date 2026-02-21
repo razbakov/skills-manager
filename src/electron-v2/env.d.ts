@@ -30,7 +30,7 @@ interface SkillsApi {
   toggleTarget: (targetPath: string) => Promise<any>;
   setPersonalSkillsRepoFromUrl: (repoUrl: string) => Promise<any>;
   clearPersonalSkillsRepo: () => Promise<any>;
-  updateApp: () => Promise<{ updated: boolean }>;
+  updateApp: () => Promise<{ updated: boolean; message?: string; version?: string }>;
 }
 
 interface Window {

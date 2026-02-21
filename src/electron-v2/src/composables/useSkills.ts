@@ -352,10 +352,15 @@ async function clearPersonalRepo() {
 async function updateApp() {
   try {
     const result = await api.updateApp();
+    const backendMessage =
+      typeof result?.message === "string" && result.message.trim()
+        ? result.message.trim()
+        : null;
+
     if (result.updated) {
-      addToast("Update installed! Restarting...", "success");
+      addToast(backendMessage ?? "Update installed! Restarting...", "success");
     } else {
-      addToast("App is up to date.", "success");
+      addToast(backendMessage ?? "App is already up to date.", "info");
     }
   } catch (err: any) {
     addToast(err?.message ?? "Update failed.", "error", 5000);
