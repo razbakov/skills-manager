@@ -5,7 +5,7 @@ import { getSourcesRootPath } from "./config";
 import { scan } from "./scanner";
 import type { Config, Skill } from "./types";
 
-interface ParsedGitHubRepo {
+export interface ParsedGitHubRepo {
   owner: string;
   repo: string;
   canonicalUrl: string;
@@ -38,7 +38,7 @@ export interface ImportInstalledSkillsOptions {
   selectedIndexes?: number[];
 }
 
-function parseGitHubRepoUrl(input: string): ParsedGitHubRepo | null {
+export function parseGitHubRepoUrl(input: string): ParsedGitHubRepo | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
 
@@ -83,7 +83,7 @@ function parseGitHubRepoUrl(input: string): ParsedGitHubRepo | null {
   };
 }
 
-function parseManifest(inputPath: string): ImportedSkillDescriptor[] {
+export function parseManifest(inputPath: string): ImportedSkillDescriptor[] {
   const resolvedPath = resolve(inputPath);
   if (!existsSync(resolvedPath)) {
     throw new Error(`Import file not found: ${resolvedPath}`);

@@ -20,7 +20,7 @@ export interface InstalledSkillsManifest {
   installedSkills: InstalledSkillExport[];
 }
 
-function normalizeRepoUrl(raw: string): string {
+export function normalizeRepoUrl(raw: string): string {
   const trimmed = raw.trim();
   const githubSsh = trimmed.match(/^[^@]+@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/i);
   if (githubSsh) {

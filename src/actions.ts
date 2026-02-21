@@ -22,7 +22,7 @@ function getInstallDirName(skill: Skill): string {
   return skill.installName || basename(skill.sourcePath);
 }
 
-interface ParsedGitHubRepo {
+export interface ParsedGitHubRepo {
   owner: string;
   repo: string;
   canonicalUrl: string;
@@ -37,7 +37,7 @@ export interface AdoptSkillResult {
   commitMessage?: string;
 }
 
-function parseGitHubRepoUrl(input: string): ParsedGitHubRepo | null {
+export function parseGitHubRepoUrl(input: string): ParsedGitHubRepo | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
 
@@ -83,7 +83,7 @@ function parseGitHubRepoUrl(input: string): ParsedGitHubRepo | null {
   };
 }
 
-function normalizedGitHubUrl(value: string | undefined): string | null {
+export function normalizedGitHubUrl(value: string | undefined): string | null {
   if (!value) return null;
   const parsed = parseGitHubRepoUrl(value);
   return parsed ? parsed.canonicalUrl.toLowerCase() : null;

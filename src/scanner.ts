@@ -174,7 +174,7 @@ function addDirectorySnapshot(dir: string, directories: CachedDirectory[]): void
   }
 }
 
-function shouldSkipSkillScanDir(name: string): boolean {
+export function shouldSkipSkillScanDir(name: string): boolean {
   return SKIP_SKILL_SCAN_DIRS.has(name);
 }
 
@@ -312,9 +312,9 @@ async function scanSource(source: Source, cachedSource?: CachedSourceScan): Prom
 
   const discovery = canReuseRecursiveDiscovery
     ? {
-        files: cachedSource.files.map((entry) => entry.skillMdPath),
-        directories: cachedSource.directories,
-      }
+      files: cachedSource.files.map((entry) => entry.skillMdPath),
+      directories: cachedSource.directories,
+    }
     : findSkillMdFiles(sourcePath, recursive);
 
   const cachedFileMap = new Map<string, CachedSkillFile>();
@@ -461,7 +461,7 @@ function scanTarget(targetDir: string): InstalledEntry[] {
   return entries;
 }
 
-function newTargetStatus(targets: string[]): Record<string, "installed" | "disabled" | "not-installed"> {
+export function newTargetStatus(targets: string[]): Record<string, "installed" | "disabled" | "not-installed"> {
   const status: Record<string, "installed" | "disabled" | "not-installed"> = {};
   for (const target of targets) {
     status[target] = "not-installed";
@@ -477,7 +477,7 @@ interface UnmatchedGroup {
   targetStatus: Record<string, "installed" | "disabled" | "not-installed">;
 }
 
-function isInsideAnyTarget(sourcePath: string, targets: string[]): boolean {
+export function isInsideAnyTarget(sourcePath: string, targets: string[]): boolean {
   const resolved = resolve(sourcePath);
   return targets.some((t) => {
     const rt = resolve(t);
