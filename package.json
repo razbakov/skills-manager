@@ -8,7 +8,7 @@
     "setup": "bun install && bun src/index.ts --install",
     "build": "cd src/electron-v2 && bun x vite build",
     "build:renderer:pack": "cd src/electron-v2 && bun x vite build --outDir ../../dist/electron-v2/dist --emptyOutDir",
-    "build:main": "bun x esbuild src/electron/main.ts --bundle --platform=node --format=esm --target=node20 --external:electron --outfile=dist/electron/main.js && cp src/electron/preload.cjs dist/electron/preload.cjs",
+    "build:main": "bun scripts/build-main.mjs",
     "build:pack": "rm -rf dist/electron dist/electron-v2 && bun run build:renderer:pack && bun run build:main",
     "build:appdir": "rm -rf dist/package && mkdir -p dist/package/dist dist/package/dist/electron-v2 && cp -R dist/electron dist/package/dist/electron && cp -R dist/electron-v2/dist dist/package/dist/electron-v2/dist && bun -e \"const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); const appPkg = { name: pkg.name, version: pkg.version, main: 'dist/electron/main.js', type: 'module', description: pkg.description || 'Skills Manager desktop app', author: pkg.author || 'Skills Manager' }; fs.writeFileSync('dist/package/package.json', JSON.stringify(appPkg, null, 2) + '\\n');\"",
     "dist:dmg": "bun run build:pack && bun run build:appdir && CSC_IDENTITY_AUTO_DISCOVERY=false bun x electron-builder --mac dmg",
