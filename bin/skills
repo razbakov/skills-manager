@@ -13,4 +13,26 @@ while [ -L "${SOURCE_PATH}" ]; do
 done
 
 SCRIPT_DIR="$(cd -P -- "$(dirname -- "${SOURCE_PATH}")" && pwd)"
-exec bun "${SCRIPT_DIR}/../src/index.ts" "$@"
+
+resolve_bun() {
+  if command -v bun >/dev/null 2>&1; then
+    command -v bun
+    return 0
+  fi
+
+  if [ -n "${BUN_INSTALL:-}" ] && [ -x "${BUN_INSTALL%/}/bin/bun" ]; then
+    echo "${BUN_INSTALL%/}/bin/bun"
+    return 0
+  fi
+
+  if [ -x "${HOME}/.bun/bin/bun" ]; then
+    echo "${HOME}/.bun/bin/bun"
+    return 0
+  fi
+
+  echo "Unable to find Bun. Install Bun and ensure it is available on PATH: https://bun.sh/" >&2
+  exit 1
+}
+
+BUN_BIN="$(resolve_bun)"
+exec "${BUN_BIN}" "${SCRIPT_DIR}/../src/index.ts" "$@"

@@ -7,6 +7,7 @@ All three tools follow the open [Agent Skills](https://agentskills.io/) standard
 ## Usage
 
 - One-line setup: `curl -fsSL https://raw.githubusercontent.com/razbakov/skills-manager/main/scripts/install.sh | bash`
+- Installer bootstraps Bun automatically if it is missing and validates PATH for both `bun` and `skills`.
 - `skills` launches the TUI after setup.
 - `skills ui` launches the desktop Electron UI.
 - `bun run electron` launches the desktop Electron UI.
