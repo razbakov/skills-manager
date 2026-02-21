@@ -9,7 +9,7 @@ import { defaultInstalledSkillsExportPath, exportInstalledSkills } from "../expo
 import { buildRecommendations, type RecommendationProgressEvent } from "../recommendations";
 import { scan } from "../scanner";
 import type { Config, Skill } from "../types";
-import { updateApp, getAppVersion } from "../index";
+import { updateApp, getAppVersion } from "../updater";
 
 interface SkillViewModel {
   id: string;

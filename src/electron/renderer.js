@@ -744,6 +744,12 @@ function renderRecommendationsView() {
   recommendationInstall.disabled = state.busy || installed || !selectedSkill;
 }
 
+function buildTargetChip(setting) {
+  if (!setting.isDetected) return { label: "not detected", className: "chip muted" };
+  if (!setting.isTarget) return { label: "disabled", className: "chip warn" };
+  return { label: "enabled", className: "chip" };
+}
+
 function createSettingButton(setting, selected) {
   const row = document.createElement("button");
   row.type = "button";
@@ -755,13 +761,19 @@ function createSettingButton(setting, selected) {
 
   const name = document.createElement("span");
   name.className = "item-name";
-  name.textContent = `${setting.isTarget ? "[x]" : "[ ]"} ${setting.name}`;
+  name.textContent = setting.name;
+
+  const chipMeta = buildTargetChip(setting);
+  const chip = document.createElement("span");
+  chip.className = chipMeta.className;
+  chip.textContent = chipMeta.label;
+
+  top.append(name, chip);
 
   const desc = document.createElement("span");
   desc.className = "item-desc";
-  desc.textContent = setting.isDetected ? "Detected locally" : "Not detected";
+  desc.textContent = setting.targetPath;
 
-  top.append(name);
   row.append(top, desc);
   return row;
 }
@@ -794,7 +806,16 @@ function renderSettingsView() {
   settingsStatus.textContent = selectedSetting.isTarget ? "Enabled" : "Disabled";
   settingsPath.textContent = selectedSetting.targetPath;
   settingsToggle.disabled = state.busy;
-  settingsToggle.textContent = selectedSetting.isTarget ? "Disable Target" : "Enable Target";
+  // Match installed tab: warn class = destructive action (disable), default = constructive (enable)
+  if (selectedSetting.isTarget) {
+    settingsToggle.classList.add("warn");
+    settingsToggle.classList.remove("secondary");
+    settingsToggle.textContent = "Disable Target";
+  } else {
+    settingsToggle.classList.remove("warn");
+    settingsToggle.classList.add("secondary");
+    settingsToggle.textContent = "Enable Target";
+  }
 }
 
 function render() {
