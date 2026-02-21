@@ -15,11 +15,26 @@ export interface SuggestedSource {
 }
 
 export const SUGGESTED_SOURCES: SuggestedSource[] = [
-  { name: "benjaming/ai-skills", url: "https://github.com/benjaming/ai-skills" },
-  { name: "sickn33/antigravity-awesome-skills", url: "https://github.com/sickn33/antigravity-awesome-skills" },
-  { name: "ComposioHQ/awesome-claude-skills", url: "https://github.com/ComposioHQ/awesome-claude-skills" },
-  { name: "Shubhamsaboo/awesome-llm-apps", url: "https://github.com/Shubhamsaboo/awesome-llm-apps" },
-  { name: "anthropics/knowledge-work-plugins", url: "https://github.com/anthropics/knowledge-work-plugins" },
+  {
+    name: "benjaming/ai-skills",
+    url: "https://github.com/benjaming/ai-skills",
+  },
+  {
+    name: "sickn33/antigravity-awesome-skills",
+    url: "https://github.com/sickn33/antigravity-awesome-skills",
+  },
+  {
+    name: "ComposioHQ/awesome-claude-skills",
+    url: "https://github.com/ComposioHQ/awesome-claude-skills",
+  },
+  {
+    name: "Shubhamsaboo/awesome-llm-apps",
+    url: "https://github.com/Shubhamsaboo/awesome-llm-apps",
+  },
+  {
+    name: "anthropics/knowledge-work-plugins",
+    url: "https://github.com/anthropics/knowledge-work-plugins",
+  },
   { name: "cursor/plugins", url: "https://github.com/cursor/plugins" },
   { name: "anthropics/skills", url: "https://github.com/anthropics/skills" },
   { name: "dylanfeltus/skills", url: "https://github.com/dylanfeltus/skills" },
@@ -51,7 +66,8 @@ function normalizePathForMatch(path: string): string {
 function isSourcesRootSource(source: Source): boolean {
   return (
     source.name.toLowerCase() === "sources" ||
-    normalizePathForMatch(source.path) === normalizePathForMatch(DEFAULT_SOURCES_ROOT_PATH)
+    normalizePathForMatch(source.path) ===
+      normalizePathForMatch(DEFAULT_SOURCES_ROOT_PATH)
   );
 }
 
@@ -62,7 +78,9 @@ function isPathWithin(path: string, root: string): boolean {
 
 function hasSourceWithinSourcesRoot(sources: Source[]): boolean {
   const rootPath = expandTilde(DEFAULT_SOURCES_ROOT_PATH);
-  return sources.some((source) => isPathWithin(expandTilde(source.path), rootPath));
+  return sources.some((source) =>
+    isPathWithin(expandTilde(source.path), rootPath),
+  );
 }
 
 export function expandTilde(p: string): string {
@@ -101,7 +119,10 @@ export function loadConfig(): Config {
       ...(typeof s.url === "string" && s.url ? { url: s.url } : {}),
     }));
 
-  if (!sources.some(isSourcesRootSource) && !hasSourceWithinSourcesRoot(sources)) {
+  if (
+    !sources.some(isSourcesRootSource) &&
+    !hasSourceWithinSourcesRoot(sources)
+  ) {
     sources.push({
       name: "sources",
       path: DEFAULT_SOURCES_ROOT_PATH,
@@ -110,9 +131,13 @@ export function loadConfig(): Config {
   }
 
   const targetEntries = Array.isArray(parsed.targets) ? parsed.targets : [];
-  const targets = targetEntries.filter((target): target is string => typeof target === "string").map(expandTilde);
+  const targets = targetEntries
+    .filter((target): target is string => typeof target === "string")
+    .map(expandTilde);
 
-  const disabledSourceEntries = Array.isArray(parsed.disabledSources) ? parsed.disabledSources : [];
+  const disabledSourceEntries = Array.isArray(parsed.disabledSources)
+    ? parsed.disabledSources
+    : [];
   const disabledSources = disabledSourceEntries
     .filter((entry): entry is string => typeof entry === "string")
     .map(expandTilde);
@@ -150,7 +175,9 @@ function serializeConfig(config: Config): Record<string, unknown> {
     targets: config.targets.map((t) => t.replace(homedir(), "~")),
   };
   if (config.disabledSources.length > 0) {
-    serializable.disabledSources = config.disabledSources.map((p) => p.replace(homedir(), "~"));
+    serializable.disabledSources = config.disabledSources.map((p) =>
+      p.replace(homedir(), "~"),
+    );
   }
   return serializable;
 }
