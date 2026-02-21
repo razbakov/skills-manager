@@ -261,9 +261,13 @@ function compactPath(rawPath) {
 }
 
 function fuzzyScore(query, rawText) {
-  const text = rawText.toLowerCase();
-  const q = query.toLowerCase();
+  const q = query.trim().toLowerCase();
   if (!q) return 1;
+
+  const text = String(rawText || "").toLowerCase();
+  if (!text) return 0;
+  if (text === q) return 5;
+  if (text.startsWith(q)) return 4;
   if (text.includes(q)) return 3;
 
   let qi = 0;
@@ -293,24 +297,25 @@ function filterSkills(skills, query) {
 
   const filtered = [];
   for (const skill of orderedSkills) {
+    const nameScore = Math.max(
+      fuzzyScore(query, skill.name || ""),
+      fuzzyScore(query, skill.installName || ""),
+    );
     const score = Math.max(
-      fuzzyScore(query, skill.name),
+      nameScore,
       fuzzyScore(query, skill.description || ""),
       fuzzyScore(query, skill.sourcePath),
       fuzzyScore(query, skill.sourceName || ""),
-      fuzzyScore(query, skill.installName || ""),
     );
     if (score > 0) {
-      filtered.push({ skill, score });
+      filtered.push({ skill, score, nameScore });
     }
   }
 
   filtered.sort((a, b) => {
+    if (b.nameScore !== a.nameScore) return b.nameScore - a.nameScore;
     if (b.score !== a.score) return b.score - a.score;
-    return a.skill.name.localeCompare(b.skill.name, undefined, {
-      sensitivity: "base",
-      numeric: true,
-    });
+    return compareByName(a.skill, b.skill);
   });
 
   return filtered.map((entry) => entry.skill);
