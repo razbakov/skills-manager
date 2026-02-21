@@ -54,6 +54,7 @@ const installedList = document.getElementById("installed-list");
 const availableList = document.getElementById("available-list");
 const sourcesList = document.getElementById("sources-list");
 const sourceSkillsList = document.getElementById("source-skills-list");
+const sourcesSuggestedList = document.getElementById("sources-suggested-list");
 const statusBar = document.getElementById("status-bar");
 
 const installedTitle = document.getElementById("installed-title");
@@ -446,6 +447,33 @@ function createSourceSkillRow(skill) {
   return row;
 }
 
+function createSuggestedSourceRow(source) {
+  const row = document.createElement("div");
+  row.className = "suggested-source";
+
+  const info = document.createElement("div");
+  info.className = "suggested-source-info";
+
+  const name = document.createElement("span");
+  name.className = "suggested-source-name";
+  name.textContent = source.name;
+
+  const url = document.createElement("span");
+  url.className = "suggested-source-url";
+  url.textContent = source.url;
+
+  info.append(name, url);
+
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.className = "secondary";
+  addBtn.textContent = "Add";
+  addBtn.dataset.suggestedUrl = source.url;
+
+  row.append(info, addBtn);
+  return row;
+}
+
 function createRecommendationButton(rec, selected) {
   const row = document.createElement("button");
   row.type = "button";
@@ -651,24 +679,32 @@ function renderSourcesView() {
     sourceOpenRepo.disabled = true;
     clearNode(sourceSkillsList);
     addEmptyState(sourceSkillsList, "No source selected.");
-    return;
+  } else {
+    sourceTitle.textContent =
+      `${selectedSource.name} (${selectedSource.installedCount}/${selectedSource.totalCount})`;
+    sourceMeta.textContent = selectedSource.repoUrl || selectedSource.path;
+    sourceOpenPath.disabled = false;
+    sourceOpenRepo.disabled = !selectedSource.repoUrl;
+
+    clearNode(sourceSkillsList);
+    if (selectedSource.skills.length === 0) {
+      addEmptyState(sourceSkillsList, "No skills discovered for this source.");
+    } else {
+      selectedSource.skills.forEach((skill) => {
+        sourceSkillsList.appendChild(createSourceSkillRow(skill));
+      });
+    }
   }
 
-  sourceTitle.textContent =
-    `${selectedSource.name} (${selectedSource.installedCount}/${selectedSource.totalCount})`;
-  sourceMeta.textContent = selectedSource.repoUrl || selectedSource.path;
-  sourceOpenPath.disabled = false;
-  sourceOpenRepo.disabled = !selectedSource.repoUrl;
-
-  clearNode(sourceSkillsList);
-  if (selectedSource.skills.length === 0) {
-    addEmptyState(sourceSkillsList, "No skills discovered for this source.");
-    return;
+  clearNode(sourcesSuggestedList);
+  const suggestions = state.snapshot.suggestedSources || [];
+  if (suggestions.length === 0) {
+    addEmptyState(sourcesSuggestedList, "All suggested sources have been added.");
+  } else {
+    suggestions.forEach((source) => {
+      sourcesSuggestedList.appendChild(createSuggestedSourceRow(source));
+    });
   }
-
-  selectedSource.skills.forEach((skill) => {
-    sourceSkillsList.appendChild(createSourceSkillRow(skill));
-  });
 }
 
 function renderRecommendationsView() {
@@ -1092,6 +1128,17 @@ sourceSkillsList.addEventListener("click", (event) => {
   const manageButton = event.target.closest("[data-manage-skill-id]");
   if (!manageButton) return;
   jumpToSkill(manageButton.dataset.manageSkillId);
+});
+
+sourcesSuggestedList.addEventListener("click", (event) => {
+  const addBtn = event.target.closest("[data-suggested-url]");
+  if (!addBtn) return;
+  const repoUrl = addBtn.dataset.suggestedUrl;
+  void runTask(
+    () => api.addSource(repoUrl),
+    "Adding suggested source...",
+    (result) => `Added source ${result.sourceName}.`,
+  );
 });
 
 recommendationList.addEventListener("click", (event) => {

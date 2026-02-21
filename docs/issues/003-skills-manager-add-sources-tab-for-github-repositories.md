@@ -1,8 +1,8 @@
 ---
-type: Story
+
+## type: Story
 title: "Skills Manager: Add Sources Tab for GitHub Repositories"
 status: draft
----
 
 # Skills Manager: Add Sources Tab for GitHub Repositories
 
@@ -36,3 +36,4 @@ The current terminal interface has only two tabs: Installed and Available. Sourc
 - Editing or removing existing sources.
 - Support for private repositories that require authentication.
 - Adding sources from non-GitHub providers.
+

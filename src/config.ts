@@ -9,6 +9,25 @@ export interface SupportedIde {
   path: string;
 }
 
+export interface SuggestedSource {
+  name: string;
+  url: string;
+}
+
+export const SUGGESTED_SOURCES: SuggestedSource[] = [
+  { name: "benjaming/ai-skills", url: "https://github.com/benjaming/ai-skills" },
+  { name: "sickn33/antigravity-awesome-skills", url: "https://github.com/sickn33/antigravity-awesome-skills" },
+  { name: "ComposioHQ/awesome-claude-skills", url: "https://github.com/ComposioHQ/awesome-claude-skills" },
+  { name: "Shubhamsaboo/awesome-llm-apps", url: "https://github.com/Shubhamsaboo/awesome-llm-apps" },
+  { name: "anthropics/knowledge-work-plugins", url: "https://github.com/anthropics/knowledge-work-plugins" },
+  { name: "cursor/plugins", url: "https://github.com/cursor/plugins" },
+  { name: "anthropics/skills", url: "https://github.com/anthropics/skills" },
+  { name: "dylanfeltus/skills", url: "https://github.com/dylanfeltus/skills" },
+  { name: "openai/skills", url: "https://github.com/openai/skills" },
+  { name: "razbakov/skills", url: "https://github.com/razbakov/skills" },
+  { name: "obra/superpowers", url: "https://github.com/obra/superpowers" },
+];
+
 export const SUPPORTED_IDES: SupportedIde[] = [
   { name: "Cursor", path: "~/.cursor/skills" },
   { name: "Claude Code", path: "~/.claude/skills" },

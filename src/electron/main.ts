@@ -4,7 +4,7 @@ import { existsSync, readFileSync, readdirSync } from "fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "path";
 import { fileURLToPath } from "url";
 import { addGitHubSource, disableSkill, enableSkill, installSkill, uninstallSkill } from "../actions";
-import { getSourcesRootPath, loadConfig, saveConfig, SUPPORTED_IDES, expandTilde } from "../config";
+import { getSourcesRootPath, loadConfig, saveConfig, SUPPORTED_IDES, SUGGESTED_SOURCES, expandTilde } from "../config";
 import { defaultInstalledSkillsExportPath, exportInstalledSkills } from "../export";
 import { buildRecommendations, type RecommendationProgressEvent } from "../recommendations";
 import { scan } from "../scanner";
@@ -42,6 +42,11 @@ interface SettingViewModel {
   isDetected: boolean;
 }
 
+interface SuggestedSourceViewModel {
+  name: string;
+  url: string;
+}
+
 interface Snapshot {
   generatedAt: string;
   exportDefaultPath: string;
@@ -49,6 +54,7 @@ interface Snapshot {
   installedSkills: SkillViewModel[];
   availableSkills: SkillViewModel[];
   sources: SourceViewModel[];
+  suggestedSources: SuggestedSourceViewModel[];
   settings: SettingViewModel[];
 }
 
@@ -290,6 +296,17 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
     };
   });
 
+  const existingUrls = new Set(
+    sources
+      .map((s) => s.repoUrl)
+      .filter((url): url is string => !!url)
+      .map((url) => normalizeRepoUrl(url)),
+  );
+
+  const suggestedSources = SUGGESTED_SOURCES
+    .filter((s) => !existingUrls.has(normalizeRepoUrl(s.url)))
+    .map((s) => ({ name: s.name, url: s.url }));
+
   return {
     generatedAt: new Date().toISOString(),
     exportDefaultPath: defaultInstalledSkillsExportPath(),
@@ -297,6 +314,7 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
     installedSkills: allSkillModels.filter((skill) => skill.installed),
     availableSkills: allSkillModels.filter((skill) => !skill.installed),
     sources,
+    suggestedSources,
     settings,
   };
 }

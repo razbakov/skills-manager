@@ -501,6 +501,39 @@ h3.subheading {
   font-size: 0.7rem;
 }
 
+.suggested-source {
+  padding: 0.52rem 0.66rem;
+  border-bottom: 1px solid #27363f;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.suggested-source-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.suggested-source-name {
+  font-size: 0.82rem;
+}
+
+.suggested-source-url {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggested-source button {
+  padding: 0.35rem 0.54rem;
+  font-size: 0.7rem;
+}
+
 .status-bar {
   border-top: 1px solid var(--border);
   background: rgba(20, 30, 34, 0.86);
