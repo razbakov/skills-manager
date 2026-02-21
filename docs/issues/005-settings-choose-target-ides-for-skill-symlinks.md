@@ -19,8 +19,6 @@ Skills Manager supports multiple agent families. Users need clear target detecti
 - Users can enable or disable each target regardless of detection status.
 - Target enablement changes are saved and still present after app restart.
 - Install, uninstall, enable, and disable skill actions apply only to currently enabled targets.
-- In Installed details, `All IDEs` is shown when a skill is active in every enabled target.
-- If a skill is active in only some enabled targets, the detail view shows which targets are installed or disabled.
 
 ## Out of Scope
 

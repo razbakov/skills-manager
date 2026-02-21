@@ -21,7 +21,7 @@ Skill operations can take time. Users need immediate status visibility and keybo
 - `ArrowUp` and `ArrowDown` move selection in the active list without using the mouse.
 - `Enter` triggers the primary action for the selected item in the active tab.
 - `Escape` clears search inputs and closes the import preview modal when it is open.
-- Feedback messages remain visible long enough for users to confirm action outcome.
+- Success and error feedback messages remain visible for at least 2 seconds unless replaced by a newer status message.
 
 ## Out of Scope
 

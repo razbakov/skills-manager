@@ -21,7 +21,7 @@ Recommendation quality depends on context preparation and clear result explanati
 - Each recommendation shows fit reason, usage status, confidence, evidence source, and usage matches.
 - The UI shows run progress with stage, percent, and run statistics while generation is in progress.
 - Each recommendation supports `Open Skill` and `Install Skill` actions.
-- If generation fails, the app shows a retry-friendly error and keeps prior results visible.
+- If generation fails, the app shows an error message, keeps prior results visible, and allows the user to run `Generate` again immediately.
 
 ## Out of Scope
 
