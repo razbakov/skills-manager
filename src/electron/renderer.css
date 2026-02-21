@@ -115,6 +115,36 @@ body {
   background: linear-gradient(120deg, #24403f, #1a282f);
 }
 
+.settings-groups {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: rgba(15, 25, 29, 0.85);
+  margin-bottom: 0.75rem;
+}
+
+.settings-group-btn {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0.5rem 0.8rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.settings-group-btn + .settings-group-btn {
+  border-left: 1px solid var(--border);
+}
+
+.settings-group-btn:hover {
+  color: var(--text-main);
+}
+
+.settings-group-btn.active {
+  color: var(--text-highlight);
+  background: linear-gradient(120deg, #24403f, #1a282f);
+}
+
 .toolbar {
   display: inline-flex;
   gap: 0.6rem;
@@ -328,6 +358,10 @@ h3.subheading {
   color: var(--text-muted);
   font-size: 0.85rem;
   line-height: 1.38;
+}
+
+.settings-left-note {
+  margin-top: 0.7rem;
 }
 
 .meta-grid {

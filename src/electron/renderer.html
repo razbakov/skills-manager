@@ -170,23 +170,81 @@
 
       <section id="settings-view" class="tab-view">
         <aside class="panel list-panel">
-          <label>Target IDEs</label>
+          <label>Settings</label>
+          <div class="settings-groups" role="tablist" aria-label="Settings groups">
+            <button
+              id="settings-group-ides"
+              class="settings-group-btn active"
+              type="button"
+              role="tab"
+              aria-selected="true"
+            >
+              IDE Config
+            </button>
+            <button
+              id="settings-group-personal"
+              class="settings-group-btn"
+              type="button"
+              role="tab"
+              aria-selected="false"
+            >
+              Personal Repo
+            </button>
+          </div>
+          <label id="settings-list-label">Target IDEs</label>
           <div id="settings-list" class="item-list" role="listbox" aria-label="Settings targets"></div>
+          <p id="settings-left-note" class="description settings-left-note">
+            Enable or disable IDE targets for new symlink installs.
+          </p>
         </aside>
         <section class="panel detail-panel">
-          <h2 id="settings-title">No target selected</h2>
-          <p id="settings-description" class="description">Select a target IDE to learn more about its status.</p>
-          <dl class="meta-grid">
-            <dt>Status</dt>
-            <dd id="settings-status">-</dd>
-            <dt>Path</dt>
-            <dd id="settings-path">-</dd>
-          </dl>
-          <div class="actions">
-            <button id="settings-toggle" class="warn" disabled>Disable Target</button>
-          </div>
-          <h3 class="subheading">Note</h3>
-          <p class="description">Turning off an IDE prevents new skills from being symlinked there.</p>
+          <section id="settings-ides-panel">
+            <h2 id="settings-title">No target selected</h2>
+            <p id="settings-description" class="description">Select a target IDE to learn more about its status.</p>
+            <dl class="meta-grid">
+              <dt>Status</dt>
+              <dd id="settings-status">-</dd>
+              <dt>Path</dt>
+              <dd id="settings-path">-</dd>
+            </dl>
+            <div class="actions">
+              <button id="settings-toggle" class="warn" disabled>Disable Target</button>
+            </div>
+            <h3 class="subheading">Note</h3>
+            <p class="description">Turning off an IDE prevents new skills from being symlinked there.</p>
+          </section>
+          <section id="settings-personal-panel" style="display: none;">
+            <h2>Personal Skills Repository</h2>
+            <p class="description">
+              Used when adopting unmanaged skills. Adopted skills are moved to
+              <code>&lt;repo&gt;/skills</code> and committed automatically.
+            </p>
+            <div class="source-add">
+              <label for="settings-personal-url">GitHub Repository URL</label>
+              <div class="source-add-row">
+                <input
+                  id="settings-personal-url"
+                  type="text"
+                  placeholder="https://github.com/owner/repo"
+                />
+                <button id="settings-personal-set-url">Use Repo</button>
+              </div>
+            </div>
+            <dl class="meta-grid">
+              <dt>Status</dt>
+              <dd id="settings-personal-status">Not configured</dd>
+              <dt>Path</dt>
+              <dd id="settings-personal-path">-</dd>
+            </dl>
+            <div class="actions">
+              <button id="settings-personal-open" class="secondary" disabled>Open Path</button>
+              <button id="settings-personal-clear" class="warn" disabled>Clear</button>
+            </div>
+            <h3 class="subheading">Note</h3>
+            <p class="description">
+              The URL is added to sources if needed. If already present, that source is reused.
+            </p>
+          </section>
         </section>
       </section>
     </main>

@@ -31,5 +31,8 @@ contextBridge.exposeInMainWorld("skillsApi", {
   openPath: (targetPath) => ipcRenderer.invoke("shell:openPath", targetPath),
   openExternal: (targetUrl) => ipcRenderer.invoke("shell:openExternal", targetUrl),
   toggleTarget: (targetPath) => ipcRenderer.invoke("skills:toggleTarget", targetPath),
+  setPersonalSkillsRepoFromUrl: (repoUrl) =>
+    ipcRenderer.invoke("skills:setPersonalSkillsRepoFromUrl", repoUrl),
+  clearPersonalSkillsRepo: () => ipcRenderer.invoke("skills:clearPersonalSkillsRepo"),
   updateApp: () => ipcRenderer.invoke("skills:updateApp"),
 });

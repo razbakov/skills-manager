@@ -33,6 +33,7 @@ const state = {
       stats: null,
     },
   },
+  settingsGroup: "ides",
   statusTimeout: null,
   skillMdCache: new Map(),
   previewRequestVersion: {
@@ -116,11 +117,23 @@ const recommendationManage = document.getElementById("recommendation-manage");
 const recommendationInstall = document.getElementById("recommendation-install");
 
 const settingsList = document.getElementById("settings-list");
+const settingsListLabel = document.getElementById("settings-list-label");
+const settingsLeftNote = document.getElementById("settings-left-note");
+const settingsGroupIdes = document.getElementById("settings-group-ides");
+const settingsGroupPersonal = document.getElementById("settings-group-personal");
+const settingsIdesPanel = document.getElementById("settings-ides-panel");
+const settingsPersonalPanel = document.getElementById("settings-personal-panel");
 const settingsTitle = document.getElementById("settings-title");
 const settingsDescription = document.getElementById("settings-description");
 const settingsStatus = document.getElementById("settings-status");
 const settingsPath = document.getElementById("settings-path");
 const settingsToggle = document.getElementById("settings-toggle");
+const settingsPersonalUrl = document.getElementById("settings-personal-url");
+const settingsPersonalSetUrl = document.getElementById("settings-personal-set-url");
+const settingsPersonalStatus = document.getElementById("settings-personal-status");
+const settingsPersonalPath = document.getElementById("settings-personal-path");
+const settingsPersonalOpen = document.getElementById("settings-personal-open");
+const settingsPersonalClear = document.getElementById("settings-personal-clear");
 
 const updateButton = document.getElementById("update-button");
 const importModal = document.getElementById("import-modal");
@@ -965,40 +978,93 @@ function createSettingButton(setting, selected) {
 function renderSettingsView() {
   if (!state.snapshot) return;
 
-  clearNode(settingsList);
-  if (state.snapshot.settings.length === 0) {
-    addEmptyState(settingsList, "No target IDEs discovered.");
-  } else {
-    state.snapshot.settings.forEach((setting) => {
-      settingsList.appendChild(createSettingButton(setting, setting.id === state.selected.setting));
-    });
-    ensureSelectedRowInView(settingsList);
+  const isIdeGroup = state.settingsGroup === "ides";
+  settingsGroupIdes.classList.toggle("active", isIdeGroup);
+  settingsGroupPersonal.classList.toggle("active", !isIdeGroup);
+  settingsGroupIdes.setAttribute("aria-selected", isIdeGroup ? "true" : "false");
+  settingsGroupPersonal.setAttribute("aria-selected", isIdeGroup ? "false" : "true");
+
+  settingsIdesPanel.style.display = isIdeGroup ? "" : "none";
+  settingsPersonalPanel.style.display = isIdeGroup ? "none" : "";
+  settingsListLabel.textContent = isIdeGroup ? "Target IDEs" : "Settings";
+  settingsList.style.display = isIdeGroup ? "" : "none";
+  settingsLeftNote.textContent = isIdeGroup
+    ? "Enable or disable IDE targets for new symlink installs."
+    : "Configure where adopted unmanaged skills are moved and auto-committed.";
+  settingsLeftNote.style.marginTop = isIdeGroup ? "0.7rem" : "0";
+
+  if (isIdeGroup) {
+    clearNode(settingsList);
+    if (state.snapshot.settings.length === 0) {
+      addEmptyState(settingsList, "No target IDEs discovered.");
+    } else {
+      state.snapshot.settings.forEach((setting) => {
+        settingsList.appendChild(createSettingButton(setting, setting.id === state.selected.setting));
+      });
+      ensureSelectedRowInView(settingsList);
+    }
   }
 
   const selectedSetting = getSelectedSetting();
-  if (!selectedSetting) {
-    settingsTitle.textContent = "No target selected";
-    settingsDescription.textContent = "Select a target IDE to learn more about its status.";
-    settingsStatus.textContent = "-";
-    settingsPath.textContent = "-";
-    settingsToggle.disabled = true;
-    return;
+  const personalRepo = state.snapshot.personalRepo || {
+    configured: false,
+    path: "",
+    exists: false,
+    isGitRepo: false,
+  };
+
+  if (isIdeGroup) {
+    if (!selectedSetting) {
+      settingsTitle.textContent = "No target selected";
+      settingsDescription.textContent = "Select a target IDE to learn more about its status.";
+      settingsStatus.textContent = "-";
+      settingsPath.textContent = "-";
+      settingsToggle.disabled = true;
+    } else {
+      settingsTitle.textContent = selectedSetting.name;
+      settingsDescription.textContent = selectedSetting.isDetected ? "Detected locally." : "Not detected locally.";
+      settingsStatus.textContent = selectedSetting.isTarget ? "Enabled" : "Disabled";
+      settingsPath.textContent = selectedSetting.targetPath;
+      settingsToggle.disabled = state.busy;
+      // Match installed tab: warn class = destructive action (disable), default = constructive (enable)
+      if (selectedSetting.isTarget) {
+        settingsToggle.classList.add("warn");
+        settingsToggle.classList.remove("secondary");
+        settingsToggle.textContent = "Disable Target";
+      } else {
+        settingsToggle.classList.remove("warn");
+        settingsToggle.classList.add("secondary");
+        settingsToggle.textContent = "Enable Target";
+      }
+    }
   }
 
-  settingsTitle.textContent = selectedSetting.name;
-  settingsDescription.textContent = selectedSetting.isDetected ? "Detected locally." : "Not detected locally.";
-  settingsStatus.textContent = selectedSetting.isTarget ? "Enabled" : "Disabled";
-  settingsPath.textContent = selectedSetting.targetPath;
-  settingsToggle.disabled = state.busy;
-  // Match installed tab: warn class = destructive action (disable), default = constructive (enable)
-  if (selectedSetting.isTarget) {
-    settingsToggle.classList.add("warn");
-    settingsToggle.classList.remove("secondary");
-    settingsToggle.textContent = "Disable Target";
+  if (!personalRepo.configured) {
+    settingsPersonalStatus.textContent = "Not configured";
+    settingsPersonalPath.textContent = "-";
+    settingsPersonalOpen.disabled = true;
+    settingsPersonalClear.disabled = true;
   } else {
-    settingsToggle.classList.remove("warn");
-    settingsToggle.classList.add("secondary");
-    settingsToggle.textContent = "Enable Target";
+    let status = "Configured";
+    if (!personalRepo.exists && !personalRepo.isGitRepo) {
+      status = "Invalid (path missing, not a git repo)";
+    } else if (!personalRepo.exists) {
+      status = "Invalid (path missing)";
+    } else if (!personalRepo.isGitRepo) {
+      status = "Invalid (not a git repo)";
+    }
+
+    settingsPersonalStatus.textContent = status;
+    settingsPersonalPath.textContent = personalRepo.path || "-";
+    settingsPersonalOpen.disabled = state.busy || !personalRepo.exists;
+    settingsPersonalClear.disabled = state.busy;
+  }
+
+  settingsPersonalSetUrl.disabled = state.busy;
+  settingsPersonalUrl.disabled = state.busy;
+  if (!personalRepo.configured) {
+    settingsPersonalOpen.disabled = true;
+    settingsPersonalClear.disabled = true;
   }
 }
 
@@ -1167,6 +1233,7 @@ function moveSelection(delta) {
   }
 
   if (state.activeTab === "settings") {
+    if (state.settingsGroup !== "ides") return;
     const list = state.snapshot.settings;
     if (!list.length) return;
     const currentIndex = Math.max(0, list.findIndex((s) => s.id === state.selected.setting));
@@ -1361,7 +1428,18 @@ settingsList.addEventListener("click", (event) => {
   renderSettingsView();
 });
 
+settingsGroupIdes.addEventListener("click", () => {
+  state.settingsGroup = "ides";
+  renderSettingsView();
+});
+
+settingsGroupPersonal.addEventListener("click", () => {
+  state.settingsGroup = "personal";
+  renderSettingsView();
+});
+
 settingsToggle.addEventListener("click", () => {
+  if (state.settingsGroup !== "ides") return;
   const selectedSetting = getSelectedSetting();
   if (!selectedSetting) return;
 
@@ -1370,6 +1448,52 @@ settingsToggle.addEventListener("click", () => {
     "Toggling target...",
     () => `Target ${selectedSetting.name} toggled.`
   );
+});
+
+settingsPersonalSetUrl.addEventListener("click", () => {
+  const repoUrl = settingsPersonalUrl.value.trim();
+  if (!repoUrl) {
+    setStatus("Enter a GitHub repository URL.", "error");
+    return;
+  }
+
+  void runTask(
+    () => api.setPersonalSkillsRepoFromUrl(repoUrl),
+    "Setting personal skills repository...",
+    (result) => {
+      settingsPersonalUrl.value = "";
+      if (result?.addedSource) {
+        return `Added source ${result?.sourceName || "(unknown)"} and set as personal repository.`;
+      }
+      return `Using existing source ${result?.sourceName || "(unknown)"} as personal repository.`;
+    },
+  );
+});
+
+settingsPersonalUrl.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  settingsPersonalSetUrl.click();
+});
+
+settingsPersonalClear.addEventListener("click", () => {
+  const currentPath = state.snapshot?.personalRepo?.path || "";
+  if (!state.snapshot?.personalRepo?.configured) return;
+
+  void runTask(
+    () => api.clearPersonalSkillsRepo(),
+    "Clearing personal skills repository...",
+    () =>
+      currentPath
+        ? `Cleared personal repository (${currentPath}).`
+        : "Cleared personal repository.",
+  );
+});
+
+settingsPersonalOpen.addEventListener("click", () => {
+  const currentPath = state.snapshot?.personalRepo?.path || "";
+  if (!currentPath) return;
+  void api.openPath(currentPath);
 });
 
 updateButton.addEventListener("click", () => {
@@ -1720,7 +1844,11 @@ window.addEventListener("keydown", (event) => {
       return;
     }
     if (state.activeTab === "settings") {
-      settingsToggle.click();
+      if (state.settingsGroup === "ides") {
+        settingsToggle.click();
+      } else {
+        settingsPersonalSetUrl.click();
+      }
       event.preventDefault();
       return;
     }

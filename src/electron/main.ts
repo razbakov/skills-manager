@@ -102,6 +102,13 @@ interface SuggestedSourceViewModel {
   url: string;
 }
 
+interface PersonalRepoViewModel {
+  configured: boolean;
+  path: string;
+  exists: boolean;
+  isGitRepo: boolean;
+}
+
 interface Snapshot {
   generatedAt: string;
   exportDefaultPath: string;
@@ -111,6 +118,7 @@ interface Snapshot {
   sources: SourceViewModel[];
   suggestedSources: SuggestedSourceViewModel[];
   settings: SettingViewModel[];
+  personalRepo: PersonalRepoViewModel;
 }
 
 interface SourceListEntry {
@@ -138,14 +146,6 @@ const TARGET_NAME_MAP = new Map<string, string>(
 let mainWindow: BrowserWindow | null = null;
 let latestSnapshotSkillIds = new Set<string>();
 
-function describeCount(
-  count: number,
-  singular: string,
-  plural: string,
-): string {
-  return `${count} ${count === 1 ? singular : plural}`;
-}
-
 function getGitRepoRoot(candidatePath: string): string | null {
   const result = spawnSync(
     "git",
@@ -161,83 +161,29 @@ function getGitRepoRoot(candidatePath: string): string | null {
   return resolve(rootPath);
 }
 
-async function promptForPersonalSkillsRepoIfNeeded(): Promise<void> {
-  const config = loadConfig();
-  if (config.personalSkillsRepoPrompted) return;
+function buildPersonalRepoViewModel(config: Config): PersonalRepoViewModel {
+  const repoPath = config.personalSkillsRepo
+    ? resolve(config.personalSkillsRepo)
+    : "";
 
-  let unmanagedCount = 0;
-  try {
-    unmanagedCount = (await scan(config)).filter(
-      (skill) => skill.unmanaged,
-    ).length;
-  } catch {
-    unmanagedCount = 0;
+  if (!repoPath) {
+    return {
+      configured: false,
+      path: "",
+      exists: false,
+      isGitRepo: false,
+    };
   }
 
-  const unmanagedDetail =
-    unmanagedCount > 0
-      ? `Detected ${describeCount(unmanagedCount, "unmanaged skill", "unmanaged skills")} that can be adopted.`
-      : "No unmanaged skills detected yet.";
+  const exists = existsSync(repoPath);
+  const repoRoot = exists ? getGitRepoRoot(repoPath) : null;
 
-  const introChoice = await dialog.showMessageBox({
-    type: "question",
-    title: "Personal Skills Repository",
-    message: "Set your personal skills repository?",
-    detail:
-      `${unmanagedDetail}\n\n` +
-      "When you adopt unmanaged skills, they will be moved to <repo>/skills and committed automatically.",
-    buttons: ["Choose Repo", "Skip for now"],
-    defaultId: 0,
-    cancelId: 1,
-  });
-
-  if (introChoice.response !== 0) {
-    config.personalSkillsRepoPrompted = true;
-    saveConfig(config);
-    return;
-  }
-
-  while (true) {
-    const selection = await dialog.showOpenDialog({
-      title: "Select Personal Skills Repository",
-      buttonLabel: "Use Repository",
-      properties: ["openDirectory"],
-    });
-
-    if (selection.canceled || !selection.filePaths[0]) {
-      config.personalSkillsRepoPrompted = true;
-      saveConfig(config);
-      return;
-    }
-
-    const selectedPath = selection.filePaths[0];
-    const repoRoot = getGitRepoRoot(selectedPath);
-    if (!repoRoot) {
-      const retryChoice = await dialog.showMessageBox({
-        type: "warning",
-        title: "Repository Required",
-        message: "Selected folder is not inside a git repository.",
-        detail:
-          "Choose an existing git repository (or a subfolder inside one) so adopted skills can be committed.",
-        buttons: ["Choose Another Folder", "Skip for now"],
-        defaultId: 0,
-        cancelId: 1,
-      });
-
-      if (retryChoice.response !== 0) {
-        config.personalSkillsRepoPrompted = true;
-        saveConfig(config);
-        return;
-      }
-      continue;
-    }
-
-    config.personalSkillsRepo = repoRoot;
-    config.personalSkillsRepoPrompted = true;
-    ensurePersonalSkillsRepoSource(config);
-    saveConfig(config);
-    return;
-  }
+  return {
+    configured: true,
+    path: repoPath,
+    exists,
+    isGitRepo: Boolean(repoRoot && resolve(repoRoot) === repoPath),
+  };
 }
 
 function sortSkillsByName(list: Skill[]): Skill[] {
@@ -270,6 +216,80 @@ function normalizeRepoUrl(raw: string): string {
   } catch {
     return trimmed;
   }
+}
+
+function parseGitHubSourceName(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const githubSsh = trimmed.match(
+    /^[^@]+@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/i,
+  );
+  if (githubSsh) {
+    const owner = githubSsh[1];
+    const repo = githubSsh[2].replace(/\.git$/i, "");
+    if (!owner || !repo) return null;
+    return `${repo}@${owner}`;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    const host = parsed.hostname.toLowerCase();
+    if (host !== "github.com" && host !== "www.github.com") {
+      return null;
+    }
+
+    const segments = parsed.pathname
+      .replace(/^\/+|\/+$/g, "")
+      .split("/")
+      .filter(Boolean);
+    if (segments.length !== 2) return null;
+
+    const owner = segments[0];
+    const repo = segments[1].replace(/\.git$/i, "");
+    if (!owner || !repo) return null;
+    return `${repo}@${owner}`;
+  } catch {
+    return null;
+  }
+}
+
+function removePersonalRepoSourceAlias(config: Config, repoPath: string | null): void {
+  if (!repoPath) return;
+  const resolvedRepoPath = resolve(repoPath);
+  config.sources = config.sources.filter((source) => {
+    const sourcePath = resolve(source.path);
+    const sourceName = source.name.trim().toLowerCase();
+    return !(sourcePath === resolvedRepoPath && sourceName === "personal");
+  });
+}
+
+function findExistingGitHubSource(
+  config: Config,
+  repoUrl: string,
+): SourceListEntry | null {
+  const displayedSources = getDisplayedSources(config);
+  const normalizedTargetUrl = normalizeRepoUrl(repoUrl).toLowerCase();
+
+  const matchedByUrl = displayedSources.find(
+    (source) =>
+      !!source.repoUrl &&
+      normalizeRepoUrl(source.repoUrl).toLowerCase() === normalizedTargetUrl,
+  );
+  if (matchedByUrl) {
+    return matchedByUrl;
+  }
+
+  const sourceName = parseGitHubSourceName(repoUrl);
+  if (!sourceName) return null;
+  const sourceNameLower = sourceName.toLowerCase();
+  const formattedNameLower = formatPackageNameAsOwnerRepo(sourceName).toLowerCase();
+
+  const matchedByName = displayedSources.find((source) => {
+    const lowered = source.name.trim().toLowerCase();
+    return lowered === sourceNameLower || lowered === formattedNameLower;
+  });
+  return matchedByName || null;
 }
 
 function getRepoUrl(sourcePath: string): string | null {
@@ -549,6 +569,8 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
     (s) => !existingUrls.has(normalizeRepoUrl(s.url)),
   ).map((s) => ({ name: s.name, url: s.url }));
 
+  const personalRepo = buildPersonalRepoViewModel(config);
+
   return {
     generatedAt: new Date().toISOString(),
     exportDefaultPath: defaultInstalledSkillsExportPath(),
@@ -558,6 +580,7 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
     sources,
     suggestedSources,
     settings,
+    personalRepo,
   };
 }
 
@@ -919,6 +942,91 @@ function registerIpcHandlers(): void {
     return createSnapshot(config);
   });
 
+  ipcMain.handle(
+    "skills:setPersonalSkillsRepoFromUrl",
+    async (_event, repoUrl: unknown) => {
+      if (typeof repoUrl !== "string" || !repoUrl.trim()) {
+        throw new Error("Enter a GitHub repository URL.");
+      }
+
+      const rawRepoUrl = repoUrl.trim();
+      let sourcePath: string | null = null;
+      let sourceName: string | null = null;
+      let addedSource = false;
+
+      const config = loadConfig();
+      const existingSource = findExistingGitHubSource(config, rawRepoUrl);
+      if (existingSource) {
+        sourcePath = resolve(existingSource.path);
+        sourceName = existingSource.name;
+      } else {
+        try {
+          const source = addGitHubSource(rawRepoUrl, config);
+          sourcePath = resolve(source.path);
+          sourceName = formatPackageNameAsOwnerRepo(source.name);
+          addedSource = true;
+        } catch (err: any) {
+          if (err?.message !== "Source already added") {
+            throw err;
+          }
+
+          const duplicateSource = findExistingGitHubSource(config, rawRepoUrl);
+          if (!duplicateSource) {
+            throw new Error(
+              "Source already exists, but could not be resolved. Refresh and try again.",
+            );
+          }
+          sourcePath = resolve(duplicateSource.path);
+          sourceName = duplicateSource.name;
+        }
+      }
+
+      if (!sourcePath) {
+        throw new Error("Could not determine source path for this repository.");
+      }
+
+      const sourceRepoRoot = getGitRepoRoot(sourcePath);
+      if (!sourceRepoRoot) {
+        throw new Error(
+          `Selected source is not a git repository: ${sourcePath}`,
+        );
+      }
+
+      const repoRoot = resolve(sourceRepoRoot);
+      const previousRepoPath = config.personalSkillsRepo
+        ? resolve(config.personalSkillsRepo)
+        : null;
+      if (previousRepoPath && previousRepoPath !== repoRoot) {
+        removePersonalRepoSourceAlias(config, previousRepoPath);
+      }
+
+      config.personalSkillsRepo = repoRoot;
+      config.personalSkillsRepoPrompted = true;
+      ensurePersonalSkillsRepoSource(config);
+      saveConfig(config);
+      const snapshot = await createSnapshot(config);
+
+      return {
+        snapshot,
+        repoPath: repoRoot,
+        sourceName: sourceName || formatPackageNameAsOwnerRepo(basename(repoRoot)),
+        addedSource,
+      };
+    },
+  );
+
+  ipcMain.handle("skills:clearPersonalSkillsRepo", async () => {
+    const config = loadConfig();
+    const previousRepoPath = config.personalSkillsRepo
+      ? resolve(config.personalSkillsRepo)
+      : null;
+    removePersonalRepoSourceAlias(config, previousRepoPath);
+    delete config.personalSkillsRepo;
+    config.personalSkillsRepoPrompted = true;
+    saveConfig(config);
+    return createSnapshot(config);
+  });
+
   ipcMain.handle("skills:updateApp", async () => {
     const result = updateApp();
     if (result.updated) {
@@ -955,13 +1063,7 @@ function createMainWindow(): void {
 
 registerIpcHandlers();
 
-app.whenReady().then(async () => {
-  try {
-    await promptForPersonalSkillsRepoIfNeeded();
-  } catch (err: any) {
-    console.error(err?.message || err);
-  }
-
+app.whenReady().then(() => {
   createMainWindow();
 
   app.on("activate", () => {
