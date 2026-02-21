@@ -4,24 +4,15 @@ A management layer for AI agent skills — discover, install, scope, rate, and u
 
 All three tools follow the open [Agent Skills](https://agentskills.io/) standard (`SKILL.md`), but none solves the management problem: how to find the right skill, avoid duplicates, track where it came from, or know if it's any good.
 
+## Setup
+
+```
+curl -fsSL https://raw.githubusercontent.com/razbakov/skills-manager/main/scripts/install.sh | bash
+```
+
 ## Usage
 
-- One-line setup: `curl -fsSL https://raw.githubusercontent.com/razbakov/skills-manager/main/scripts/install.sh | bash`
-- Installer bootstraps Bun automatically if it is missing and validates PATH for both `bun` and `skills`.
-- `skills` launches the TUI after setup.
-- `skills ui` launches the desktop Electron UI.
-- `bun run electron` launches the desktop Electron UI.
-- `skills --export-installed [output-path]` exports installed skills to JSON.
-- `skills --import-installed [input-path]` imports skills from an exported `installed-skills.json` bundle.
-- `skills import [input-path]` is shorthand for import.
-- In the **Installed** tab, press `e` to export installed skills to `installed-skills.json` in the current working directory.
-- In the desktop UI toolbar, click **Import** to preview bundle contents, select all/none or individual skills, then import selected.
-- Exported entries include only install metadata (repository URL + optional skill path), not local filesystem paths.
-- On first run, if no config exists, `skills` auto-creates one and preloads currently available local sources.
-
-## Desktop UI
-
-Electron desktop interface (`skills ui`) with Installed, Available, and Sources tabs:
+Run `skills` to launch application
 
 ![Skills Manager desktop UI](docs/images/desktop-ui.png)
 
@@ -41,4 +32,4 @@ See **[Research](docs/research.md)** for how tools handle skills today, **[User 
 - **[Scope Management](docs/scopes.md)**: Enable or disable skills at three levels — personal, organization, and project — with clear precedence rules across all supported tools.
 - **[Provenance Tracking](docs/provenance.md)**: Every skill records its source repo, author, version, and update channel.
 - **[Quality Scores](docs/quality.md)**: Community and automated ratings for security, efficiency, and best practices, with benchmarks across models and harnesses.
-- **[Development Mode](docs/dev-mode.md)**: TUI/GUI for authoring, testing, and previewing skills before publishing.
+- **[Development Mode](docs/dev-mode.md)**: GUI for authoring, testing, and previewing skills before publishing.

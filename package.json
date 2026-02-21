@@ -8,8 +8,6 @@
     "electron": "NODE_OPTIONS='--import tsx' electron src/electron/main.ts"
   },
   "dependencies": {
-    "@opentui/core": "^0.1.80",
-    "fuse.js": "^7.0.0",
     "gray-matter": "^4.0.3",
     "js-yaml": "^4.1.0"
   },
