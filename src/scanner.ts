@@ -477,6 +477,14 @@ interface UnmatchedGroup {
   targetStatus: Record<string, "installed" | "disabled" | "not-installed">;
 }
 
+function isInsideAnyTarget(sourcePath: string, targets: string[]): boolean {
+  const resolved = resolve(sourcePath);
+  return targets.some((t) => {
+    const rt = resolve(t);
+    return resolved === rt || resolved.startsWith(rt + "/");
+  });
+}
+
 export async function scan(config: Config): Promise<Skill[]> {
   const cache = loadScanCache();
   const nextCache: ScanCache = {
@@ -548,6 +556,7 @@ export async function scan(config: Config): Promise<Skill[]> {
       installName: detectedInstallName,
       installed: anyInstalled,
       disabled: anyInstalled && allDisabled,
+      unmanaged: isInsideAnyTarget(raw.sourcePath, config.targets),
       targetStatus,
     });
   }
@@ -603,6 +612,7 @@ export async function scan(config: Config): Promise<Skill[]> {
       installName: group.installName,
       installed: anyInstalled,
       disabled: allDisabled,
+      unmanaged: true,
       targetStatus: group.targetStatus,
     });
   }

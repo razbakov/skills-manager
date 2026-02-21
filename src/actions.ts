@@ -149,11 +149,11 @@ export function installSkill(skill: Skill, config: Config): void {
     ensureDir(target);
     const linkPath = join(target, dirName);
 
-    if (existsSync(linkPath)) continue;
+    if (entryExists(linkPath)) continue;
 
     // Also check .disabled — if it's there, enable it instead
     const disabledPath = join(target, ".disabled", dirName);
-    if (existsSync(disabledPath)) {
+    if (entryExists(disabledPath)) {
       renameSync(disabledPath, linkPath);
       continue;
     }
@@ -190,21 +190,27 @@ export function disableSkill(skill: Skill, config: Config): void {
   const dirName = getInstallDirName(skill);
 
   for (const target of config.targets) {
-    const linkPath = join(target, dirName);
-    if (!existsSync(linkPath)) continue;
-
+    ensureDir(target);
     const disabledDir = join(target, ".disabled");
     ensureDir(disabledDir);
-
     const disabledPath = join(disabledDir, dirName);
-    renameSync(linkPath, disabledPath);
+
+    if (entryExists(disabledPath)) continue;
+
+    const linkPath = join(target, dirName);
+    if (entryExists(linkPath)) {
+      // Active → move to disabled
+      renameSync(linkPath, disabledPath);
+    } else {
+      // Not installed at all → create directly in .disabled/
+      symlinkSync(skill.sourcePath, disabledPath);
+    }
   }
 
+  skill.installed = true;
   skill.disabled = true;
   for (const target of config.targets) {
-    if (skill.targetStatus[target] === "installed") {
-      skill.targetStatus[target] = "disabled";
-    }
+    skill.targetStatus[target] = "disabled";
   }
 }
 
@@ -212,19 +218,106 @@ export function enableSkill(skill: Skill, config: Config): void {
   const dirName = getInstallDirName(skill);
 
   for (const target of config.targets) {
-    const disabledPath = join(target, ".disabled", dirName);
-    if (!existsSync(disabledPath)) continue;
-
+    ensureDir(target);
     const linkPath = join(target, dirName);
-    renameSync(disabledPath, linkPath);
-  }
 
-  skill.disabled = false;
-  for (const target of config.targets) {
-    if (skill.targetStatus[target] === "disabled") {
-      skill.targetStatus[target] = "installed";
+    if (entryExists(linkPath)) continue;
+
+    const disabledPath = join(target, ".disabled", dirName);
+    if (entryExists(disabledPath)) {
+      // Disabled → move to active
+      renameSync(disabledPath, linkPath);
+    } else {
+      // Not installed at all → create symlink
+      symlinkSync(skill.sourcePath, linkPath);
     }
   }
+
+  skill.installed = true;
+  skill.disabled = false;
+  for (const target of config.targets) {
+    skill.targetStatus[target] = "installed";
+  }
+}
+
+export function fixPartialInstalls(skills: Skill[], config: Config): void {
+  if (config.targets.length <= 1) return;
+
+  for (const skill of skills) {
+    if (!skill.installed) continue;
+    if (skill.unmanaged) continue;
+
+    const isPartialActive =
+      !skill.disabled &&
+      !config.targets.every((t) => skill.targetStatus[t] === "installed");
+
+    const isPartialDisabled =
+      skill.disabled &&
+      !config.targets.every((t) => skill.targetStatus[t] === "disabled");
+
+    if (isPartialActive) {
+      enableSkill(skill, config);
+    } else if (isPartialDisabled) {
+      disableSkill(skill, config);
+    }
+  }
+}
+
+// Unlike existsSync, returns true even for broken symlinks.
+function entryExists(p: string): boolean {
+  try {
+    lstatSync(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function adoptSkill(skill: Skill, config: Config, sourcesRoot: string): void {
+  if (!skill.unmanaged) return;
+
+  const dirName = getInstallDirName(skill);
+  const adoptDir = join(resolve(sourcesRoot), "local");
+  ensureDir(adoptDir);
+  const newSourcePath = join(adoptDir, dirName);
+
+  if (entryExists(newSourcePath)) {
+    throw new Error(
+      `A skill named "${dirName}" already exists in the local source. Rename it first.`,
+    );
+  }
+
+  // Find where the skill lives as a real (non-symlink) directory
+  let originalPath: string | null = null;
+  for (const target of config.targets) {
+    for (const candidate of [join(target, dirName), join(target, ".disabled", dirName)]) {
+      try {
+        const st = lstatSync(candidate);
+        if (!st.isSymbolicLink()) {
+          originalPath = candidate;
+          break;
+        }
+      } catch { /* not present */ }
+    }
+    if (originalPath) break;
+  }
+
+  if (!originalPath) {
+    throw new Error("Cannot find the skill directory to adopt.");
+  }
+
+  // Move to the managed sources directory
+  renameSync(originalPath, newSourcePath);
+
+  // Replace original location with a symlink
+  symlinkSync(newSourcePath, originalPath);
+
+  // Update skill state so installSkill works correctly
+  skill.sourcePath = newSourcePath;
+  skill.unmanaged = false;
+
+  // Propagate to all remaining targets
+  installSkill(skill, config);
 }
 
 function removeIfSymlink(path: string): void {

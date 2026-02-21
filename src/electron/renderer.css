@@ -351,6 +351,16 @@ h3.subheading {
   overflow-wrap: anywhere;
 }
 
+/* Allow a <div> wrapper inside the grid so it can be shown/hidden,
+   while still letting its dt/dd children participate in the grid columns. */
+.meta-grid > div {
+  display: contents;
+}
+
+.meta-grid > div[style*="display: none"] {
+  display: none;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;

@@ -66,12 +66,47 @@ export async function startUI(config: Config) {
     return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
   }
 
+  function formatTargetLabels(s: Skill): string | null {
+    if (config.targets.length <= 1) return null;
+
+    const ideNameMap = new Map<string, string>();
+    for (const ide of SUPPORTED_IDES) {
+      ideNameMap.set(expandTilde(ide.path), ide.name);
+    }
+
+    const allInstalled = config.targets.every((t) => s.targetStatus[t] === "installed");
+    if (allInstalled) return "All IDEs";
+
+    const parts: string[] = [];
+    for (const target of config.targets) {
+      const status = s.targetStatus[target];
+      if (!status || status === "not-installed") continue;
+      const name = ideNameMap.get(target) || target.split("/").pop() || target;
+      parts.push(status === "disabled" ? `${name} (off)` : name);
+    }
+
+    return parts.length > 0 ? parts.join(" · ") : null;
+  }
+
   function formatInstalledOption(s: Skill) {
     const skillDescription = s.description || "(no description)";
-    const displayName = s.disabled ? `${s.name} (disabled)` : s.name;
+    const isPartial =
+      !s.unmanaged &&
+      config.targets.length > 1 &&
+      !s.disabled &&
+      !config.targets.every((t) => s.targetStatus[t] === "installed");
+    const displayName = s.unmanaged
+      ? `${s.name} (local)`
+      : s.disabled
+        ? `${s.name} (disabled)`
+        : isPartial
+          ? `${s.name} (partial)`
+          : s.name;
+    const targetLabels = formatTargetLabels(s);
+    const suffix = targetLabels ? `  [${targetLabels}]` : "";
     return {
       name: displayName,
-      description: `${getSourceRelativePath(s)} — ${skillDescription}`,
+      description: `${getSourceRelativePath(s)} — ${skillDescription}${suffix}`,
       value: s,
     };
   }

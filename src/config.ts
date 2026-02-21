@@ -45,13 +45,13 @@ export const SUGGESTED_SOURCES: SuggestedSource[] = [
 
 export const SUPPORTED_IDES: SupportedIde[] = [
   { name: "Cursor", path: "~/.cursor/skills" },
-  { name: "Claude Code", path: "~/.claude/skills" },
-  { name: "Codex (OpenAI)", path: "~/.codex/skills" },
-  { name: "Gemini CLI", path: "~/.gemini/skills" },
+  { name: "Claude", path: "~/.claude/skills" },
+  { name: "Codex", path: "~/.codex/skills" },
+  { name: "Gemini", path: "~/.gemini/skills" },
   { name: "Antigravity", path: "~/.gemini/antigravity/skills" },
-  { name: "GitHub Copilot / VS Code", path: "~/.copilot/skills" },
+  { name: "VSCode", path: "~/.copilot/skills" },
   { name: "Amp", path: "~/.config/agents/skills" },
-  { name: "Goose (Block)", path: "~/.config/goose/skills" },
+  { name: "Goose", path: "~/.config/goose/skills" },
   { name: "OpenCode", path: "~/.config/opencode/skills" },
 ];
 

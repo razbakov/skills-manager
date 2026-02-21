@@ -3,13 +3,18 @@ import { spawnSync } from "child_process";
 import { existsSync, readFileSync, readdirSync } from "fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "path";
 import { fileURLToPath } from "url";
-import { addGitHubSource, disableSkill, disableSource, enableSkill, enableSource, installSkill, removeSource, uninstallSkill } from "../actions";
+import { addGitHubSource, adoptSkill, disableSkill, disableSource, enableSkill, enableSource, fixPartialInstalls, installSkill, removeSource, uninstallSkill } from "../actions";
 import { getSourcesRootPath, loadConfig, saveConfig, SUPPORTED_IDES, SUGGESTED_SOURCES, expandTilde } from "../config";
 import { defaultInstalledSkillsExportPath, exportInstalledSkills } from "../export";
 import { buildRecommendations, type RecommendationProgressEvent } from "../recommendations";
 import { scan } from "../scanner";
 import type { Config, Skill } from "../types";
 import { updateApp, getAppVersion } from "../updater";
+
+interface TargetLabel {
+  name: string;
+  status: "installed" | "disabled";
+}
 
 interface SkillViewModel {
   id: string;
@@ -21,6 +26,9 @@ interface SkillViewModel {
   installName: string;
   installed: boolean;
   disabled: boolean;
+  partiallyInstalled: boolean;
+  unmanaged: boolean;
+  targetLabels: TargetLabel[];
 }
 
 interface SourceViewModel {
@@ -71,6 +79,10 @@ interface RecommendationRequestPayload {
   projectPath?: unknown;
   limit?: unknown;
 }
+
+const TARGET_NAME_MAP = new Map<string, string>(
+  SUPPORTED_IDES.map((ide) => [expandTilde(ide.path), ide.name]),
+);
 
 let mainWindow: BrowserWindow | null = null;
 let latestSnapshotSkillIds = new Set<string>();
@@ -244,6 +256,22 @@ function getSkillPathLabel(skill: Skill, config: Config, resolvedSourcesRoot: st
 
 function toSkillViewModel(skill: Skill, config: Config, resolvedSourcesRoot: string): SkillViewModel {
   const sourcePath = resolve(skill.sourcePath);
+
+  const targetLabels: TargetLabel[] = [];
+  for (const targetPath of config.targets) {
+    const status = skill.targetStatus[targetPath];
+    if (status === "installed" || status === "disabled") {
+      const ideName = TARGET_NAME_MAP.get(targetPath) || basename(targetPath);
+      targetLabels.push({ name: ideName, status });
+    }
+  }
+
+  const partiallyInstalled =
+    config.targets.length > 1 &&
+    skill.installed &&
+    !skill.disabled &&
+    !config.targets.every((t) => skill.targetStatus[t] === "installed");
+
   return {
     id: sourcePath,
     name: skill.name,
@@ -254,6 +282,9 @@ function toSkillViewModel(skill: Skill, config: Config, resolvedSourcesRoot: str
     installName: skill.installName || "",
     installed: skill.installed,
     disabled: skill.disabled,
+    partiallyInstalled,
+    unmanaged: skill.unmanaged,
+    targetLabels,
   };
 }
 
@@ -428,6 +459,8 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("skills:refresh", async () => {
     const config = loadConfig();
+    const skills = await scan(config);
+    fixPartialInstalls(skills, config);
     return createSnapshot(config);
   });
 
@@ -499,6 +532,10 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("skills:uninstall", async (_event, skillId: unknown) =>
     mutateSkill(skillId, (skill, config) => uninstallSkill(skill, config)),
+  );
+
+  ipcMain.handle("skills:adopt", async (_event, skillId: unknown) =>
+    mutateSkill(skillId, (skill, config) => adoptSkill(skill, config, getSourcesRootPath(config))),
   );
 
   ipcMain.handle("skills:addSource", async (_event, repoUrl: unknown) => {

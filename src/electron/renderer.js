@@ -61,7 +61,10 @@ const installedTitle = document.getElementById("installed-title");
 const installedDescription = document.getElementById("installed-description");
 const installedSource = document.getElementById("installed-source");
 const installedPath = document.getElementById("installed-path");
+const installedIdesRow = document.getElementById("installed-ides-row");
+const installedIdes = document.getElementById("installed-ides");
 const installedOpenPath = document.getElementById("installed-open-path");
+const installedAdopt = document.getElementById("installed-adopt");
 const installedToggle = document.getElementById("installed-toggle");
 const installedUninstall = document.getElementById("installed-uninstall");
 const installedSkillMd = document.getElementById("installed-skill-md");
@@ -272,7 +275,9 @@ function findById(items, itemId) {
 
 function buildSkillChip(skill) {
   if (!skill.installed) return { label: "available", className: "chip muted" };
+  if (skill.unmanaged) return { label: "local", className: "chip muted" };
   if (skill.disabled) return { label: "disabled", className: "chip warn" };
+  if (skill.partiallyInstalled) return { label: "partial", className: "chip warn" };
   return { label: "installed", className: "chip" };
 }
 
@@ -594,6 +599,22 @@ function renderTabs() {
   }
 }
 
+function formatInstalledIdes(skill) {
+  if (!skill || !skill.targetLabels || skill.targetLabels.length === 0) return "-";
+
+  const configuredCount = state.snapshot?.settings?.filter((s) => s.isTarget).length ?? 0;
+  const allInstalled =
+    configuredCount > 1 &&
+    skill.targetLabels.length === configuredCount &&
+    skill.targetLabels.every((t) => t.status === "installed");
+
+  if (allInstalled) return "All IDEs";
+
+  return skill.targetLabels
+    .map((t) => (t.status === "disabled" ? `${t.name} (disabled)` : t.name))
+    .join(", ");
+}
+
 function renderInstalledView() {
   if (!state.snapshot) return;
 
@@ -608,12 +629,17 @@ function renderInstalledView() {
     ensureSelectedRowInView(installedList);
   }
 
+  const configuredTargetCount = state.snapshot?.settings?.filter((s) => s.isTarget).length ?? 0;
+  installedIdesRow.style.display = configuredTargetCount <= 1 ? "none" : "";
+
   const selectedSkill = getSelectedInstalledSkill();
   if (!selectedSkill) {
     installedTitle.textContent = "No installed skill selected";
     installedDescription.textContent = "Pick a skill to manage enable, disable, or uninstall state.";
     installedSource.textContent = "-";
     installedPath.textContent = "-";
+    installedIdes.textContent = "-";
+    installedAdopt.disabled = true;
     installedToggle.disabled = true;
     installedUninstall.disabled = true;
     installedOpenPath.disabled = true;
@@ -626,7 +652,9 @@ function renderInstalledView() {
   installedDescription.textContent = selectedSkill.description || "(no description)";
   installedSource.textContent = selectedSkill.sourceName || "-";
   installedPath.textContent = selectedSkill.pathLabel || compactPath(selectedSkill.sourcePath);
-  installedToggle.disabled = state.busy;
+  installedIdes.textContent = formatInstalledIdes(selectedSkill);
+  installedAdopt.disabled = state.busy || !selectedSkill.unmanaged;
+  installedToggle.disabled = state.busy || selectedSkill.unmanaged;
   installedUninstall.disabled = state.busy;
   installedOpenPath.disabled = false;
   installedToggle.textContent = selectedSkill.disabled ? "Enable Skill" : "Disable Skill";
@@ -1302,6 +1330,16 @@ installedUninstall.addEventListener("click", () => {
     () => api.uninstallSkill(selectedSkill.id),
     `Uninstalling ${selectedSkill.name}...`,
     () => `Uninstalled ${selectedSkill.name}.`,
+  );
+});
+
+installedAdopt.addEventListener("click", () => {
+  const selectedSkill = getSelectedInstalledSkill();
+  if (!selectedSkill) return;
+  void runTask(
+    () => api.adoptSkill(selectedSkill.id),
+    `Adopting ${selectedSkill.name}...`,
+    () => `Adopted ${selectedSkill.name}. It is now managed and installed everywhere.`,
   );
 });
 

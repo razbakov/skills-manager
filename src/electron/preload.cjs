@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld("skillsApi", {
   disableSkill: (skillId) => ipcRenderer.invoke("skills:disable", skillId),
   enableSkill: (skillId) => ipcRenderer.invoke("skills:enable", skillId),
   uninstallSkill: (skillId) => ipcRenderer.invoke("skills:uninstall", skillId),
+  adoptSkill: (skillId) => ipcRenderer.invoke("skills:adopt", skillId),
   addSource: (repoUrl) => ipcRenderer.invoke("skills:addSource", repoUrl),
   disableSource: (sourceId) => ipcRenderer.invoke("skills:disableSource", sourceId),
   enableSource: (sourceId) => ipcRenderer.invoke("skills:enableSource", sourceId),

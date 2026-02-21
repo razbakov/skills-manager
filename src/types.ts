@@ -19,5 +19,6 @@ export interface Skill {
   installName?: string;
   installed: boolean;
   disabled: boolean;
+  unmanaged: boolean;
   targetStatus: Record<string, "installed" | "disabled" | "not-installed">;
 }
