@@ -4,7 +4,9 @@ import {
   mkdirSync,
   renameSync,
   existsSync,
+  readdirSync,
   lstatSync,
+  readlinkSync,
   rmSync,
 } from "fs";
 import { spawnSync } from "child_process";
@@ -269,6 +271,56 @@ export function fixPartialInstalls(skills: Skill[], config: Config): void {
       disableSkill(skill, config);
     }
   }
+}
+
+function cleanupBrokenSymlinksInDir(dir: string): number {
+  if (!existsSync(dir)) return 0;
+
+  let removed = 0;
+  let entries: ReturnType<typeof readdirSync>;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+
+  for (const entry of entries) {
+    if (entry.name.startsWith(".")) continue;
+
+    const entryPath = join(dir, entry.name);
+    try {
+      if (!lstatSync(entryPath).isSymbolicLink()) continue;
+
+      let isBroken = false;
+      try {
+        const linkTarget = readlinkSync(entryPath);
+        const resolvedTarget = resolve(dir, linkTarget);
+        isBroken = !existsSync(resolvedTarget);
+      } catch {
+        isBroken = true;
+      }
+
+      if (isBroken) {
+        unlinkSync(entryPath);
+        removed += 1;
+      }
+    } catch {
+      // Ignore entries that changed during iteration.
+    }
+  }
+
+  return removed;
+}
+
+export function cleanupBrokenTargetSymlinks(config: Config): number {
+  let removed = 0;
+
+  for (const target of config.targets) {
+    removed += cleanupBrokenSymlinksInDir(target);
+    removed += cleanupBrokenSymlinksInDir(join(target, ".disabled"));
+  }
+
+  return removed;
 }
 
 // Unlike existsSync, returns true even for broken symlinks.

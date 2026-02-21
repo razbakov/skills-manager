@@ -22,6 +22,7 @@ import { fileURLToPath } from "url";
 import {
   addGitHubSource,
   adoptSkill,
+  cleanupBrokenTargetSymlinks,
   disableSkill,
   disableSource,
   enableSkill,
@@ -676,6 +677,7 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("skills:refresh", async () => {
     const config = loadConfig();
+    cleanupBrokenTargetSymlinks(config);
     const skills = await scan(config);
     fixPartialInstalls(skills, config);
     return createSnapshot(config);
