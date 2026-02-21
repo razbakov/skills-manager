@@ -9,7 +9,7 @@ As a developer with many skills, I want recommendations based on my local conver
 
 ## Acceptance Criteria
 
-- The `Recommendations` tab includes `Recommendation Mode` with `standard` and `explore-new`, plus a `Generate` action.
+- The `Recommendations` tab includes a `Generate` action that is prioritizing the strongest fit and recurring relevance based on history.
 - Recommendation generation uses local Cursor (`~/.cursor/projects` transcripts) and Codex (`~/.codex/history.jsonl` and `~/.codex/sessions`) conversation history together with current skill inventory.
 - Query inputs are sanitized to remove system noise (e.g. `<user_query>` tags) and deduplicated before the model run.
 - Final ranking comes from an external agent CLI prompt, which provides fit reason, usage status, confidence, and matches.
