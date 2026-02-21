@@ -14,8 +14,3 @@ As a developer using multiple AI coding tools, I want to browse installed and av
 - The detail panel shows source and path labels plus an in-app `SKILL.md` preview for the selected skill.
 - Keyboard navigation works in both tabs: arrow keys move selection and search remains focused when requested.
 - Opening or refreshing the app keeps list counts and selected detail state in sync with the visible list.
-
-## Out of Scope
-
-- Installing, enabling, disabling, uninstalling, or adopting skills.
-- External marketplace search beyond configured local sources.
