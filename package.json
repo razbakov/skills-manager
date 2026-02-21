@@ -41,6 +41,7 @@
   "build": {
     "appId": "io.github.razbakov.skills-manager",
     "productName": "Skills Manager",
+    "artifactName": "Skills.Manager-${version}-${arch}.${ext}",
     "npmRebuild": false,
     "directories": {
       "app": "dist/package",
