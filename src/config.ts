@@ -1,5 +1,5 @@
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from "fs";
-import { isAbsolute, join, relative } from "path";
+import { isAbsolute, join, relative, resolve } from "path";
 import { homedir } from "os";
 import yaml from "js-yaml";
 import type { Config, Source } from "./types";
@@ -83,6 +83,36 @@ function hasSourceWithinSourcesRoot(sources: Source[]): boolean {
   );
 }
 
+function sortSourcesByName(sources: Source[]): Source[] {
+  return [...sources].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, {
+      sensitivity: "base",
+      numeric: true,
+    }),
+  );
+}
+
+export function ensurePersonalSkillsRepoSource(config: Config): void {
+  if (!config.personalSkillsRepo) return;
+
+  const resolvedRepoPath = resolve(config.personalSkillsRepo);
+  config.personalSkillsRepo = resolvedRepoPath;
+
+  const existingSource = config.sources.find(
+    (source) => resolve(source.path) === resolvedRepoPath,
+  );
+  if (existingSource) {
+    existingSource.recursive = true;
+    return;
+  }
+
+  config.sources.push({
+    name: "personal",
+    path: resolvedRepoPath,
+    recursive: true,
+  });
+}
+
 export function expandTilde(p: string): string {
   if (p.startsWith("~/")) return join(homedir(), p.slice(2));
   if (p === "~") return homedir();
@@ -142,7 +172,25 @@ export function loadConfig(): Config {
     .filter((entry): entry is string => typeof entry === "string")
     .map(expandTilde);
 
-  return { sources, targets, disabledSources };
+  const personalSkillsRepo =
+    typeof parsed.personalSkillsRepo === "string" && parsed.personalSkillsRepo.trim()
+      ? expandTilde(parsed.personalSkillsRepo.trim())
+      : undefined;
+  const personalSkillsRepoPrompted =
+    parsed.personalSkillsRepoPrompted === true || !!personalSkillsRepo;
+
+  const config: Config = {
+    sources,
+    targets,
+    disabledSources,
+    ...(personalSkillsRepo ? { personalSkillsRepo } : {}),
+    personalSkillsRepoPrompted,
+  };
+
+  ensurePersonalSkillsRepoSource(config);
+  config.sources = sortSourcesByName(config.sources);
+
+  return config;
 }
 
 export function getConfigPath(): string {
@@ -165,6 +213,9 @@ export function ensureConfigDir(): void {
 }
 
 function serializeConfig(config: Config): Record<string, unknown> {
+  ensurePersonalSkillsRepoSource(config);
+  config.sources = sortSourcesByName(config.sources);
+
   const serializable: Record<string, unknown> = {
     sources: config.sources.map((s) => ({
       name: s.name,
@@ -178,6 +229,12 @@ function serializeConfig(config: Config): Record<string, unknown> {
     serializable.disabledSources = config.disabledSources.map((p) =>
       p.replace(homedir(), "~"),
     );
+  }
+  if (config.personalSkillsRepo) {
+    serializable.personalSkillsRepo = config.personalSkillsRepo.replace(homedir(), "~");
+  }
+  if (config.personalSkillsRepoPrompted) {
+    serializable.personalSkillsRepoPrompted = true;
   }
   return serializable;
 }

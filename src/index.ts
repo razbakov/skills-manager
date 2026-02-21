@@ -247,6 +247,7 @@ async function main() {
           existsSync(dirname(targetPath)),
         ),
         disabledSources: [],
+        personalSkillsRepoPrompted: false,
       };
 
       writeDefaultConfig(defaultConfig);

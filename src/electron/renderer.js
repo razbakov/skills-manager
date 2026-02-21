@@ -1589,7 +1589,18 @@ installedAdopt.addEventListener("click", () => {
   void runTask(
     () => api.adoptSkill(selectedSkill.id),
     `Adopting ${selectedSkill.name}...`,
-    () => `Adopted ${selectedSkill.name}. It is now managed and installed everywhere.`,
+    (result) => {
+      const adoption = result?.adoption;
+      if (adoption?.usedPersonalRepo) {
+        if (adoption.committed) {
+          return `Adopted ${selectedSkill.name} and committed to ${adoption.repoPath}.`;
+        }
+        return adoption.commitMessage || `Adopted ${selectedSkill.name}, but commit did not complete.`;
+      }
+
+      return adoption?.commitMessage ||
+        `Adopted ${selectedSkill.name}. It is now managed and installed everywhere.`;
+    },
   );
 });
 

@@ -32,6 +32,7 @@ import {
   uninstallSkill,
 } from "../actions";
 import {
+  ensurePersonalSkillsRepoSource,
   getSourcesRootPath,
   loadConfig,
   saveConfig,
@@ -136,6 +137,108 @@ const TARGET_NAME_MAP = new Map<string, string>(
 
 let mainWindow: BrowserWindow | null = null;
 let latestSnapshotSkillIds = new Set<string>();
+
+function describeCount(
+  count: number,
+  singular: string,
+  plural: string,
+): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function getGitRepoRoot(candidatePath: string): string | null {
+  const result = spawnSync(
+    "git",
+    ["-C", candidatePath, "rev-parse", "--show-toplevel"],
+    { encoding: "utf-8" },
+  );
+  if (result.error || result.status !== 0) {
+    return null;
+  }
+
+  const rootPath = result.stdout?.toString().trim();
+  if (!rootPath) return null;
+  return resolve(rootPath);
+}
+
+async function promptForPersonalSkillsRepoIfNeeded(): Promise<void> {
+  const config = loadConfig();
+  if (config.personalSkillsRepoPrompted) return;
+
+  let unmanagedCount = 0;
+  try {
+    unmanagedCount = (await scan(config)).filter(
+      (skill) => skill.unmanaged,
+    ).length;
+  } catch {
+    unmanagedCount = 0;
+  }
+
+  const unmanagedDetail =
+    unmanagedCount > 0
+      ? `Detected ${describeCount(unmanagedCount, "unmanaged skill", "unmanaged skills")} that can be adopted.`
+      : "No unmanaged skills detected yet.";
+
+  const introChoice = await dialog.showMessageBox({
+    type: "question",
+    title: "Personal Skills Repository",
+    message: "Set your personal skills repository?",
+    detail:
+      `${unmanagedDetail}\n\n` +
+      "When you adopt unmanaged skills, they will be moved to <repo>/skills and committed automatically.",
+    buttons: ["Choose Repo", "Skip for now"],
+    defaultId: 0,
+    cancelId: 1,
+  });
+
+  if (introChoice.response !== 0) {
+    config.personalSkillsRepoPrompted = true;
+    saveConfig(config);
+    return;
+  }
+
+  while (true) {
+    const selection = await dialog.showOpenDialog({
+      title: "Select Personal Skills Repository",
+      buttonLabel: "Use Repository",
+      properties: ["openDirectory"],
+    });
+
+    if (selection.canceled || !selection.filePaths[0]) {
+      config.personalSkillsRepoPrompted = true;
+      saveConfig(config);
+      return;
+    }
+
+    const selectedPath = selection.filePaths[0];
+    const repoRoot = getGitRepoRoot(selectedPath);
+    if (!repoRoot) {
+      const retryChoice = await dialog.showMessageBox({
+        type: "warning",
+        title: "Repository Required",
+        message: "Selected folder is not inside a git repository.",
+        detail:
+          "Choose an existing git repository (or a subfolder inside one) so adopted skills can be committed.",
+        buttons: ["Choose Another Folder", "Skip for now"],
+        defaultId: 0,
+        cancelId: 1,
+      });
+
+      if (retryChoice.response !== 0) {
+        config.personalSkillsRepoPrompted = true;
+        saveConfig(config);
+        return;
+      }
+      continue;
+    }
+
+    config.personalSkillsRepo = repoRoot;
+    config.personalSkillsRepoPrompted = true;
+    ensurePersonalSkillsRepoSource(config);
+    saveConfig(config);
+    return;
+  }
+}
 
 function sortSkillsByName(list: Skill[]): Skill[] {
   return [...list].sort((a, b) =>
@@ -628,11 +731,22 @@ function registerIpcHandlers(): void {
     mutateSkill(skillId, (skill, config) => uninstallSkill(skill, config)),
   );
 
-  ipcMain.handle("skills:adopt", async (_event, skillId: unknown) =>
-    mutateSkill(skillId, (skill, config) =>
-      adoptSkill(skill, config, getSourcesRootPath(config)),
-    ),
-  );
+  ipcMain.handle("skills:adopt", async (_event, skillId: unknown) => {
+    if (typeof skillId !== "string" || !skillId.trim()) {
+      throw new Error("Missing skill identifier.");
+    }
+
+    const config = loadConfig();
+    const skills = await scan(config);
+    const skill = findSkillById(skills, skillId);
+    if (!skill) {
+      throw new Error("Skill not found. Refresh and try again.");
+    }
+
+    const adoption = adoptSkill(skill, config, getSourcesRootPath(config));
+    const snapshot = await createSnapshot(config);
+    return { snapshot, adoption };
+  });
 
   ipcMain.handle("skills:addSource", async (_event, repoUrl: unknown) => {
     if (typeof repoUrl !== "string" || !repoUrl.trim()) {
@@ -841,7 +955,13 @@ function createMainWindow(): void {
 
 registerIpcHandlers();
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  try {
+    await promptForPersonalSkillsRepoIfNeeded();
+  } catch (err: any) {
+    console.error(err?.message || err);
+  }
+
   createMainWindow();
 
   app.on("activate", () => {

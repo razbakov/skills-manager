@@ -8,7 +8,7 @@ import {
   rmSync,
 } from "fs";
 import { spawnSync } from "child_process";
-import { join, basename, resolve } from "path";
+import { isAbsolute, join, basename, resolve, relative } from "path";
 import { getSourcesRootPath, saveConfig } from "./config";
 import type { Config, Skill, Source } from "./types";
 
@@ -27,6 +27,14 @@ interface ParsedGitHubRepo {
   repo: string;
   canonicalUrl: string;
   sourceName: string;
+}
+
+export interface AdoptSkillResult {
+  destinationPath: string;
+  usedPersonalRepo: boolean;
+  repoPath?: string;
+  committed: boolean;
+  commitMessage?: string;
 }
 
 function parseGitHubRepoUrl(input: string): ParsedGitHubRepo | null {
@@ -273,17 +281,97 @@ function entryExists(p: string): boolean {
   }
 }
 
-export function adoptSkill(skill: Skill, config: Config, sourcesRoot: string): void {
-  if (!skill.unmanaged) return;
+function formatGitFailure(result: ReturnType<typeof spawnSync>): string {
+  const stderr = result.stderr?.toString().trim();
+  const stdout = result.stdout?.toString().trim();
+  if (stderr) return stderr;
+  if (stdout) return stdout;
+  if (result.error?.message) return result.error.message;
+  return "Unknown git error.";
+}
+
+function tryCommitAdoptedSkill(repoPath: string, destinationPath: string, skillName: string): {
+  committed: boolean;
+  message: string;
+} {
+  const relativePath = relative(repoPath, destinationPath);
+  if (!relativePath || relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    return {
+      committed: false,
+      message: `Adopted, but commit skipped because ${destinationPath} is outside ${repoPath}.`,
+    };
+  }
+
+  const addResult = spawnSync(
+    "git",
+    ["-C", repoPath, "add", "--", relativePath],
+    { encoding: "utf-8" },
+  );
+  if (addResult.error || addResult.status !== 0) {
+    return {
+      committed: false,
+      message: `Adopted, but git add failed: ${formatGitFailure(addResult)}`,
+    };
+  }
+
+  const diffResult = spawnSync(
+    "git",
+    ["-C", repoPath, "diff", "--cached", "--quiet", "--", relativePath],
+    { encoding: "utf-8" },
+  );
+  if (diffResult.status === 0) {
+    return {
+      committed: false,
+      message: "Adopted, but no staged changes were found to commit.",
+    };
+  }
+  if (diffResult.error || diffResult.status !== 1) {
+    return {
+      committed: false,
+      message: `Adopted, but git diff failed: ${formatGitFailure(diffResult)}`,
+    };
+  }
+
+  const commitResult = spawnSync(
+    "git",
+    ["-C", repoPath, "commit", "--only", "-m", `chore(skills): adopt ${skillName}`, "--", relativePath],
+    { encoding: "utf-8" },
+  );
+  if (commitResult.error || commitResult.status !== 0) {
+    return {
+      committed: false,
+      message: `Adopted, but git commit failed: ${formatGitFailure(commitResult)}`,
+    };
+  }
+
+  return {
+    committed: true,
+    message: "Adopted and committed to personal repository.",
+  };
+}
+
+export function adoptSkill(skill: Skill, config: Config, sourcesRoot: string): AdoptSkillResult {
+  if (!skill.unmanaged) {
+    return {
+      destinationPath: resolve(skill.sourcePath),
+      usedPersonalRepo: Boolean(config.personalSkillsRepo),
+      ...(config.personalSkillsRepo ? { repoPath: resolve(config.personalSkillsRepo) } : {}),
+      committed: false,
+      commitMessage: "Skill is already managed.",
+    };
+  }
 
   const dirName = getInstallDirName(skill);
-  const adoptDir = join(resolve(sourcesRoot), "local");
+  const personalRepoPath = config.personalSkillsRepo ? resolve(config.personalSkillsRepo) : null;
+  const adoptDir = personalRepoPath
+    ? join(personalRepoPath, "skills")
+    : join(resolve(sourcesRoot), "local");
   ensureDir(adoptDir);
   const newSourcePath = join(adoptDir, dirName);
 
   if (entryExists(newSourcePath)) {
     throw new Error(
-      `A skill named "${dirName}" already exists in the local source. Rename it first.`,
+      `A skill named "${dirName}" already exists at ${newSourcePath}. Rename it first.`,
     );
   }
 
@@ -318,6 +406,24 @@ export function adoptSkill(skill: Skill, config: Config, sourcesRoot: string): v
 
   // Propagate to all remaining targets
   installSkill(skill, config);
+
+  if (!personalRepoPath) {
+    return {
+      destinationPath: newSourcePath,
+      usedPersonalRepo: false,
+      committed: false,
+      commitMessage: "Adopted into local managed source. Configure a personal repo to auto-commit.",
+    };
+  }
+
+  const commitResult = tryCommitAdoptedSkill(personalRepoPath, newSourcePath, skill.name);
+  return {
+    destinationPath: newSourcePath,
+    usedPersonalRepo: true,
+    repoPath: personalRepoPath,
+    committed: commitResult.committed,
+    commitMessage: commitResult.message,
+  };
 }
 
 function removeIfSymlink(path: string): void {

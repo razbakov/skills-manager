@@ -9,6 +9,8 @@ export interface Config {
   sources: Source[];
   targets: string[];
   disabledSources: string[];
+  personalSkillsRepo?: string;
+  personalSkillsRepoPrompted: boolean;
 }
 
 export interface Skill {
