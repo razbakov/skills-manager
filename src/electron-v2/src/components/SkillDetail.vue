@@ -1,13 +1,24 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { useSkills } from "@/composables/useSkills";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Pencil, Trash2, Power, PowerOff, ArrowRightLeft } from "lucide-vue-next";
-import type { SkillViewModel } from "@/types";
+import {
+  Pencil,
+  Trash2,
+  Power,
+  PowerOff,
+  ArrowRightLeft,
+  Sparkles,
+  FileText,
+  Gauge,
+  Zap,
+  TriangleAlert,
+} from "lucide-vue-next";
+import type { SkillViewModel, SkillReviewSnapshot } from "@/types";
 
 const props = defineProps<{
   skill: SkillViewModel | null;
@@ -17,16 +28,20 @@ const props = defineProps<{
 const store = useSkills();
 const markdown = ref("Select a skill to preview SKILL.md.");
 const loadingMd = ref(false);
+const detailTab = ref<"preview" | "review">("preview");
 
 watch(
   () => props.skill?.id,
   async (id) => {
+    detailTab.value = "preview";
     if (!id) {
       markdown.value = "Select a skill to preview SKILL.md.";
       return;
     }
     loadingMd.value = true;
-    markdown.value = await store.getSkillMarkdown(id);
+    const markdownPromise = store.getSkillMarkdown(id);
+    void store.loadSkillReview(id);
+    markdown.value = await markdownPromise;
     loadingMd.value = false;
   },
   { immediate: true },
@@ -38,6 +53,58 @@ function formatInstalledIdes(skill: SkillViewModel): string {
   const allInstalled = count > 1 && skill.targetLabels.length === count && skill.targetLabels.every((t) => t.status === "installed");
   if (allInstalled) return "All IDEs";
   return skill.targetLabels.map((t) => (t.status === "disabled" ? `${t.name} (disabled)` : t.name)).join(", ");
+}
+
+const currentReview = computed<SkillReviewSnapshot | null>(() => {
+  const skillId = props.skill?.id;
+  if (!skillId) return null;
+  return store.skillReviews.bySkillId[skillId] ?? null;
+});
+
+const isReviewingCurrentSkill = computed(() => {
+  const skillId = props.skill?.id;
+  if (!skillId) return false;
+  return store.skillReviews.loadingSkillId === skillId;
+});
+
+function reviewBadgeVariant(score: number): "default" | "secondary" | "warning" {
+  if (score >= 80) return "default";
+  if (score >= 60) return "secondary";
+  return "warning";
+}
+
+function formatOverallScoreFive(score: number): string {
+  const fiveScale = Math.max(0, Math.min(5, score / 20));
+  return fiveScale.toFixed(1);
+}
+
+function overallBandLabel(score: number): string {
+  if (score >= 90) return "Exceptional";
+  if (score >= 80) return "Strong";
+  if (score >= 70) return "Good";
+  if (score >= 60) return "Needs polish";
+  return "Needs revision";
+}
+
+function overallToneClass(score: number): string {
+  if (score >= 85) {
+    return "bg-emerald-50 text-emerald-900 border-emerald-200";
+  }
+  if (score >= 70) {
+    return "bg-amber-50 text-amber-900 border-amber-200";
+  }
+  return "bg-rose-50 text-rose-900 border-rose-200";
+}
+
+function dimensionToneClass(score: number): string {
+  if (score >= 4.5) return "bg-emerald-100 text-emerald-800";
+  if (score >= 3.5) return "bg-amber-100 text-amber-800";
+  return "bg-rose-100 text-rose-800";
+}
+
+function openReviewTab(skillId: string) {
+  detailTab.value = "review";
+  store.reviewSkill(skillId);
 }
 </script>
 
@@ -75,6 +142,15 @@ function formatInstalledIdes(skill: SkillViewModel): string {
           <Button variant="outline" size="sm" @click="store.editSkill(skill.id)">
             <Pencil class="h-3.5 w-3.5" />
             Edit
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            :disabled="isReviewingCurrentSkill || store.busy.value"
+            @click="openReviewTab(skill.id)"
+          >
+            <Sparkles class="h-3.5 w-3.5" />
+            {{ isReviewingCurrentSkill ? 'Reviewing...' : 'Review' }}
           </Button>
 
           <template v-if="mode === 'installed'">
@@ -117,15 +193,155 @@ function formatInstalledIdes(skill: SkillViewModel): string {
 
         <Separator class="mb-5" />
 
-        <!-- SKILL.md Preview -->
-        <div>
-          <h3 class="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">SKILL.md Preview</h3>
+        <div class="mb-4 rounded-xl border bg-muted/30 p-1 inline-flex gap-1">
+          <button
+            class="px-3 py-1.5 text-xs rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5"
+            :class="
+              detailTab === 'preview'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            "
+            @click="detailTab = 'preview'"
+          >
+            <FileText class="h-3.5 w-3.5" />
+            <span>SKILL.md</span>
+          </button>
+          <button
+            class="px-3 py-1.5 text-xs rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5"
+            :class="
+              detailTab === 'review'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            "
+            @click="detailTab = 'review'"
+          >
+            <Sparkles class="h-3.5 w-3.5" />
+            <span>AI Review</span>
+            <Badge
+              v-if="currentReview"
+              :variant="reviewBadgeVariant(currentReview.overallScore)"
+              class="text-[10px]"
+            >
+              {{ formatOverallScoreFive(currentReview.overallScore) }}
+            </Badge>
+          </button>
+        </div>
+
+        <template v-if="detailTab === 'preview'">
           <Card>
-            <CardContent class="p-4">
-              <pre class="text-xs leading-relaxed whitespace-pre-wrap text-foreground/80 max-h-80 overflow-auto">{{ markdown }}</pre>
+            <CardContent class="p-4 !pt-4">
+              <pre
+                v-if="!loadingMd"
+                class="text-xs leading-relaxed whitespace-pre-wrap text-foreground/80 max-h-[32rem] overflow-auto"
+              >{{ markdown }}</pre>
+              <p v-else class="text-xs text-muted-foreground">Loading SKILL.md...</p>
             </CardContent>
           </Card>
-        </div>
+        </template>
+
+        <template v-else>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-xs font-medium text-muted-foreground uppercase tracking-wider">AI Review</h3>
+          </div>
+
+          <div v-if="isReviewingCurrentSkill" class="text-sm text-muted-foreground mb-3">
+            Running AI review...
+          </div>
+
+          <div v-if="!currentReview && !isReviewingCurrentSkill" class="text-sm text-muted-foreground">
+            Run Review to generate multi-dimension feedback for this skill.
+          </div>
+
+          <template v-if="currentReview">
+            <Card class="border-0 bg-gradient-to-br from-slate-50 via-white to-slate-100 mb-4">
+              <CardContent class="p-4 md:p-5 !pt-4 md:!pt-5">
+                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                  <div class="min-w-0">
+                    <p class="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Overall Assessment</p>
+                    <p class="text-base font-semibold text-foreground mb-1">{{ overallBandLabel(currentReview.overallScore) }}</p>
+                    <p class="text-sm text-foreground/75 leading-relaxed">{{ currentReview.summary }}</p>
+                  </div>
+                  <div
+                    class="shrink-0 rounded-xl border px-4 py-3 min-w-28 text-center"
+                    :class="overallToneClass(currentReview.overallScore)"
+                  >
+                    <div class="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider mb-1">
+                      <Gauge class="h-3.5 w-3.5" />
+                      Score
+                    </div>
+                    <p class="text-2xl font-semibold leading-none">{{ formatOverallScoreFive(currentReview.overallScore) }}</p>
+                    <p class="text-[11px] opacity-80 mt-1">out of 5</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-3">
+              <Card v-for="dimension in currentReview.dimensions" :key="dimension.id" class="border-border/70">
+                <CardContent class="p-3.5 !pt-3.5">
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="text-sm font-medium">{{ dimension.label }}</span>
+                    <span
+                      class="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                      :class="dimensionToneClass(dimension.score)"
+                    >
+                      {{ dimension.score }}/5
+                    </span>
+                  </div>
+                  <p class="text-xs text-foreground/75 mt-2">{{ dimension.summary }}</p>
+
+                  <div v-if="dimension.issues.length" class="mt-2">
+                    <p class="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Main Gap</p>
+                    <p class="text-xs text-foreground/80">{{ dimension.issues[0] }}</p>
+                  </div>
+
+                  <div v-if="dimension.suggestions.length" class="mt-2">
+                    <p class="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Next Move</p>
+                    <p class="text-xs text-foreground/85">{{ dimension.suggestions[0] }}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+              <Card v-if="currentReview.quickWins.length" class="border-emerald-200/70 bg-emerald-50/40">
+                <CardContent class="p-3.5 !pt-3.5">
+                  <div class="inline-flex items-center gap-2 text-[11px] text-emerald-800 uppercase tracking-wider mb-2">
+                    <Zap class="h-3.5 w-3.5" />
+                    Quick Wins
+                  </div>
+                  <ul class="space-y-1.5">
+                    <li
+                      v-for="item in currentReview.quickWins.slice(0, 4)"
+                      :key="item"
+                      class="text-xs text-foreground/85 leading-relaxed"
+                    >
+                      {{ item }}
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+
+              <Card v-if="currentReview.risks.length" class="border-rose-200/70 bg-rose-50/40">
+                <CardContent class="p-3.5 !pt-3.5">
+                  <div class="inline-flex items-center gap-2 text-[11px] text-rose-800 uppercase tracking-wider mb-2">
+                    <TriangleAlert class="h-3.5 w-3.5" />
+                    Risks
+                  </div>
+                  <ul class="space-y-1.5">
+                    <li
+                      v-for="item in currentReview.risks.slice(0, 4)"
+                      :key="item"
+                      class="text-xs text-foreground/85 leading-relaxed"
+                    >
+                      {{ item }}
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+          </template>
+        </template>
       </template>
     </div>
   </ScrollArea>

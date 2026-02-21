@@ -55,6 +55,7 @@ import {
   buildRecommendations,
   type RecommendationProgressEvent,
 } from "../recommendations";
+import { loadSavedSkillReview, reviewSkill } from "../skill-review";
 import { scan } from "../scanner";
 import type { Config, Skill } from "../types";
 import { updateApp, getAppVersion } from "../updater";
@@ -748,6 +749,34 @@ function registerIpcHandlers(): void {
       }
     },
   );
+
+  ipcMain.handle("skills:reviewSkill", async (_event, skillId: unknown) => {
+    if (typeof skillId !== "string" || !skillId.trim()) {
+      throw new Error("Missing skill identifier.");
+    }
+
+    const config = loadConfig();
+    const skills = await scan(config);
+    const skill = findSkillById(skills, skillId);
+    if (!skill) {
+      throw new Error("Skill not found. Refresh and try again.");
+    }
+
+    return reviewSkill(skill, { projectPath: process.cwd() });
+  });
+
+  ipcMain.handle("skills:getSkillReview", async (_event, skillId: unknown) => {
+    if (typeof skillId !== "string" || !skillId.trim()) {
+      throw new Error("Missing skill identifier.");
+    }
+
+    const resolvedSkillId = resolve(skillId);
+    if (!latestSnapshotSkillIds.has(resolvedSkillId)) {
+      throw new Error("Skill not found. Refresh and try again.");
+    }
+
+    return loadSavedSkillReview(resolvedSkillId);
+  });
 
   ipcMain.handle("skills:install", async (_event, skillId: unknown) =>
     mutateSkill(skillId, (skill, config) => installSkill(skill, config)),

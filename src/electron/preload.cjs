@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld("skillsApi", {
   getSnapshot: () => ipcRenderer.invoke("skills:getSnapshot"),
   refresh: () => ipcRenderer.invoke("skills:refresh"),
   getRecommendations: (request) => ipcRenderer.invoke("skills:getRecommendations", request),
+  reviewSkill: (skillId) => ipcRenderer.invoke("skills:reviewSkill", skillId),
+  getSkillReview: (skillId) => ipcRenderer.invoke("skills:getSkillReview", skillId),
   onRecommendationProgress: (listener) => {
     if (typeof listener !== "function") {
       return () => { };

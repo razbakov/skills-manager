@@ -1,0 +1,66 @@
+{
+  "summary": "Well-structured BDD/documentation-first skill with six ordered phases (vision → architecture → data → integration tests → unit tests → implementation). Clear human-in-the-loop behavior, explicit test-DB safety, and concrete paths/commands. Some steps are vague and coverage of edge cases (flaky tests, rollbacks, multi-file refactors) is light.",
+  "overallScore": 78,
+  "dimensions": [
+    {
+      "id": "clarity",
+      "score": 4,
+      "summary": "Phase order and sectioning are clear; a few phrases are ambiguous.",
+      "strengths": ["Numbered phases with explicit dependencies", "Dedicated <behavior>, <safety>, <technology-defaults> blocks", "Concrete Gherkin and interaction examples"],
+      "issues": ["\"One file per step\" may be too rigid for cross-file refactors", "\"Appropriate directory\" for types is underspecified", "\"Update as vision evolves\" is vague"],
+      "suggestions": ["Specify allowed exceptions for multi-file steps", "Name preferred type directory or say 'per project convention'", "Add a short checklist for when to update README"]
+    },
+    {
+      "id": "coverage",
+      "score": 4,
+      "summary": "Covers the main workflow and docs/testing standards; edge cases are thin.",
+      "strengths": ["Full pipeline from vision to implementation", "Commit and documentation standards included", "Test DB and workspace-root safety covered"],
+      "issues": ["No guidance on flaky tests or rerun policy", "No rollback/revert or backup-before-migrations", "Conflict resolution or merge scenarios not addressed"],
+      "suggestions": ["Add one line on rerunning or skipping flaky tests", "Mention backup or reversible migrations before schema changes", "Optional note on pausing to resolve conflicts before continuing"]
+    },
+    {
+      "id": "actionability",
+      "score": 4,
+      "summary": "Paths and commands are specific; a few steps rely on judgment.",
+      "strengths": ["Exact paths (docs/architecture.md, __tests__/integration/)", "Copy-pasteable pnpm test commands and Gherkin snippet", "Typical interaction example with ordered steps"],
+      "issues": ["\"Confirm with the user before adopting\" adds friction without criteria", "\"Follow project's existing testing conventions\" requires discovery", "No explicit command for unit test run"],
+      "suggestions": ["Clarify when to confirm tech defaults (e.g. first run only)", "Add 'check existing test layout first' as an explicit step", "Include pnpm test:unit or equivalent in running-tests if applicable"]
+    },
+    {
+      "id": "safety",
+      "score": 4,
+      "summary": "Test DB and execution context are guarded; destructive or broad changes are not.",
+      "strengths": ["Explicit run tests against test database", "Execute from workspace root, avoid cd", "Human-in-the-loop prevents runaway changes"],
+      "issues": ["No guardrails for destructive migrations or DROP/TRUNCATE", "No explicit scope limit (e.g. one feature at a time)", "Technology defaults could push new dependencies without explicit consent"],
+      "suggestions": ["Add warning to avoid production DB and destructive migrations without confirmation", "State scope (e.g. one feature or one phase step) explicitly", "Require explicit user approval before adding new packages from defaults"]
+    },
+    {
+      "id": "maintainability",
+      "score": 4,
+      "summary": "Single-source-of-truth and doc structure help; tech stack is hardcoded.",
+      "strengths": ["Code as source of truth for models; docs link, don't duplicate", "Reusable doc-structure and writing-style blocks", "Phase list is a single ordered section"],
+      "issues": ["Technology defaults are inline — changing stack requires editing skill text", "Phase count is fixed; inserting a phase would touch multiple references", "next-steps.md location implied but not defined"],
+      "suggestions": ["Consider externalizing technology defaults or marking them as 'example stack'", "Document where next-steps.md lives (e.g. docs/next-steps.md)", "Keep phase numbers in one place or use stable phase names"]
+    },
+    {
+      "id": "signal-to-noise",
+      "score": 4,
+      "summary": "Focused and practical; minor repetition and one potentially irrelevant block.",
+      "strengths": ["Phases and rules are directly usable", "Examples are short and illustrative", "No long prose or duplicate phase descriptions"],
+      "issues": ["\"One step at a time\" and \"Wait for user to confirm\" overlap", "Technology defaults may not apply to non-Nuxt/Prisma projects", "Commit/doco sections could be referenced rather than inlined if shared elsewhere"],
+      "suggestions": ["Merge 'one step at a time' and 'wait for confirm' into a single sentence", "Prefix technology defaults with 'Example stack; override per project'", "If commit/docs rules are shared across skills, link to a common doc"]
+    }
+  ],
+  "quickWins": [
+    "Add docs/next-steps.md to the doc-structure or project-context so path is explicit",
+    "Include a single line in <safety> about avoiding production DB and destructive migrations",
+    "Add pnpm test:unit (or project equivalent) to <running-tests>",
+    "Merge the two 'wait for user' formulations in <behavior> into one sentence",
+    "Clarify when to confirm technology defaults (e.g. 'on first use or when starting a new project')"
+  ],
+  "risks": [
+    "Teams on different stacks may follow technology defaults by mistake without explicit confirmation",
+    "Strict 'one file per step' could block reasonable refactors or cause unnecessary step fragmentation",
+    "No explicit rollback or backup guidance increases chance of destructive migration mistakes"
+  ]
+}

@@ -10,6 +10,8 @@ interface SkillsApi {
   getSnapshot: () => Promise<any>;
   refresh: () => Promise<any>;
   getRecommendations: (request: any) => Promise<any>;
+  reviewSkill: (skillId: string) => Promise<any>;
+  getSkillReview: (skillId: string) => Promise<any>;
   onRecommendationProgress: (listener: (payload: any) => void) => () => void;
   installSkill: (skillId: string) => Promise<any>;
   disableSkill: (skillId: string) => Promise<any>;

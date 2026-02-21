@@ -110,6 +110,35 @@ export interface RecommendationProgress {
   stats: RecommendationRunStats | null;
 }
 
+export type SkillReviewDimensionId =
+  | "clarity"
+  | "coverage"
+  | "actionability"
+  | "safety"
+  | "maintainability"
+  | "signal-to-noise";
+
+export interface SkillReviewDimension {
+  id: SkillReviewDimensionId;
+  label: string;
+  score: number;
+  summary: string;
+  strengths: string[];
+  issues: string[];
+  suggestions: string[];
+}
+
+export interface SkillReviewSnapshot {
+  generatedAt: string;
+  skillId: string;
+  skillName: string;
+  summary: string;
+  overallScore: number;
+  quickWins: string[];
+  risks: string[];
+  dimensions: SkillReviewDimension[];
+}
+
 export interface ImportPreviewSkill {
   index: number;
   name: string;

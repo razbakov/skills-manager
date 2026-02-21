@@ -1,9 +1,10 @@
-import { ref, computed, reactive, onUnmounted } from "vue";
+import { ref, computed, reactive } from "vue";
 import type {
   Snapshot,
   TabId,
   RecommendationData,
   RecommendationProgress,
+  SkillReviewSnapshot,
   ImportPreviewSkill,
   SkillViewModel,
   SourceViewModel,
@@ -53,6 +54,10 @@ const importPreview = reactive({
 });
 
 const skillMdCache = new Map<string, string>();
+const skillReviews = reactive({
+  loadingSkillId: null as string | null,
+  bySkillId: {} as Record<string, SkillReviewSnapshot>,
+});
 
 // ── Derived ──
 const installedSkills = computed(() =>
@@ -143,6 +148,13 @@ function ensureSelection() {
 function applySnapshot(snap: Snapshot) {
   snapshot.value = snap;
   skillMdCache.clear();
+  skillReviews.loadingSkillId = null;
+  const activeSkillIds = new Set((snap.skills ?? []).map((skill) => skill.id));
+  for (const skillId of Object.keys(skillReviews.bySkillId)) {
+    if (!activeSkillIds.has(skillId)) {
+      delete skillReviews.bySkillId[skillId];
+    }
+  }
   ensureSelection();
 }
 
@@ -381,6 +393,46 @@ async function getSkillMarkdown(skillId: string): Promise<string> {
   }
 }
 
+async function loadSkillReview(skillId: string): Promise<SkillReviewSnapshot | null> {
+  const cached = skillReviews.bySkillId[skillId];
+  if (cached) return cached;
+
+  try {
+    const result = await api.getSkillReview(skillId);
+    if (result && typeof result === "object") {
+      const review = result as SkillReviewSnapshot;
+      skillReviews.bySkillId[skillId] = review;
+      return review;
+    }
+  } catch {
+    // Ignore lookup errors and keep UI usable when no cached review exists.
+  }
+
+  return null;
+}
+
+async function reviewSkill(skillId: string) {
+  if (skillReviews.loadingSkillId) return;
+  const name = snapshot.value?.skills.find((s) => s.id === skillId)?.name ?? "skill";
+  skillReviews.loadingSkillId = skillId;
+  addToast(`Reviewing ${name}...`, "pending", 0);
+
+  try {
+    const result = await api.reviewSkill(skillId);
+    if (result && typeof result === "object") {
+      skillReviews.bySkillId[skillId] = result as SkillReviewSnapshot;
+      addToast(`Review ready for ${name}.`, "success");
+    } else {
+      addToast("Skill review returned invalid data.", "error", 5000);
+    }
+  } catch (err: any) {
+    addToast(err?.message ?? "Could not review skill.", "error", 5000);
+  } finally {
+    toasts.value = toasts.value.filter((t) => t.type !== "pending");
+    skillReviews.loadingSkillId = null;
+  }
+}
+
 function editSkill(skillId: string) {
   api.editSkill(skillId).catch((err: any) => {
     addToast(err?.message ?? "Could not open in editor.", "error");
@@ -488,6 +540,7 @@ export function useSkills() {
     toasts,
     recommendations,
     importPreview,
+    skillReviews,
 
     // Derived
     installedSkills,
@@ -528,6 +581,8 @@ export function useSkills() {
     clearPersonalRepo,
     updateApp,
     getSkillMarkdown,
+    loadSkillReview,
+    reviewSkill,
     editSkill,
     openPath,
     openExternal,
