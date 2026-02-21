@@ -7,8 +7,8 @@ All three tools follow the open [Agent Skills](https://agentskills.io/) standard
 ## Usage
 
 - One-line setup: `curl -fsSL https://raw.githubusercontent.com/razbakov/skills-manager/main/scripts/install.sh | bash`
-- `skills` launches the TUI after setup.
-- `skills ui` launches the desktop Electron UI.
+- `skills` launches the desktop Electron UI after setup.
+- `skills ui` also launches the desktop Electron UI.
 - `bun run electron` launches the desktop Electron UI.
 - `skills --export-installed [output-path]` exports installed skills to JSON.
 - `skills --import-installed [input-path]` imports skills from `skills.json` format.
@@ -39,4 +39,4 @@ See **[Research](docs/research.md)** for how tools handle skills today, **[User 
 - **[Scope Management](docs/scopes.md)**: Enable or disable skills at three levels — personal, organization, and project — with clear precedence rules across all supported tools.
 - **[Provenance Tracking](docs/provenance.md)**: Every skill records its source repo, author, version, and update channel.
 - **[Quality Scores](docs/quality.md)**: Community and automated ratings for security, efficiency, and best practices, with benchmarks across models and harnesses.
-- **[Development Mode](docs/dev-mode.md)**: TUI/GUI for authoring, testing, and previewing skills before publishing.
+- **[Development Mode](docs/dev-mode.md)**: GUI for authoring, testing, and previewing skills before publishing.

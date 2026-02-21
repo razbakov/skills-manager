@@ -1,9 +1,8 @@
 import { getConfigPath, getDefaultSourcesRootPath, loadConfig, writeDefaultConfig, SUPPORTED_IDES, expandTilde } from "./config";
-import { startUI } from "./ui";
 import { scan } from "./scanner";
 import { defaultInstalledSkillsExportPath, exportInstalledSkills } from "./export";
 import { defaultInstalledSkillsImportPath, importInstalledSkills } from "./import";
-import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, symlinkSync, readFileSync } from "fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, symlinkSync } from "fs";
 import { spawnSync } from "child_process";
 import { homedir } from "os";
 import { dirname, join, resolve } from "path";
@@ -14,7 +13,6 @@ import { updateApp, getAppVersion } from "./updater";
 interface CliArgs {
   installCommand: boolean;
   updateCommand: boolean;
-  launchDesktopUi: boolean;
   exportInstalled: boolean;
   importInstalled: boolean;
   outputPath: string;
@@ -25,7 +23,6 @@ function parseArgs(argv: string[]): CliArgs {
   const command = argv[0];
   const installCommand = argv.includes("--install") || argv[0] === "install";
   const updateCommand = command === "update";
-  const launchDesktopUi = command === "ui" || argv.includes("--ui");
   let exportInstalled = false;
   let outputPath: string | undefined;
   let importInstalled = false;
@@ -77,7 +74,6 @@ function parseArgs(argv: string[]): CliArgs {
   return {
     installCommand,
     updateCommand,
-    launchDesktopUi,
     exportInstalled,
     importInstalled,
     outputPath: outputPath || defaultInstalledSkillsExportPath(),
@@ -285,12 +281,7 @@ async function main() {
       return;
     }
 
-    if (args.launchDesktopUi) {
-      launchElectronUi();
-      return;
-    }
-
-    await startUI(config);
+    launchElectronUi();
   } catch (err: any) {
     console.error(err.message || err);
     process.exit(1);
