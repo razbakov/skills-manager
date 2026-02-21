@@ -23,6 +23,7 @@ import {
   addGitHubSource,
   adoptSkill,
   cleanupBrokenTargetSymlinks,
+  cleanupInvalidSourceEntries,
   disableSkill,
   disableSource,
   enableSkill,
@@ -677,6 +678,14 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("skills:refresh", async () => {
     const config = loadConfig();
+    const sourceCleanup = cleanupInvalidSourceEntries(config);
+    if (
+      sourceCleanup.removedSources > 0 ||
+      sourceCleanup.removedDisabledSources > 0 ||
+      sourceCleanup.clearedPersonalRepo
+    ) {
+      saveConfig(config);
+    }
     cleanupBrokenTargetSymlinks(config);
     const skills = await scan(config);
     fixPartialInstalls(skills, config);

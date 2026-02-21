@@ -1,10 +1,18 @@
 import { describe, it, expect } from "bun:test";
 import {
     cleanupBrokenTargetSymlinks,
+    cleanupInvalidSourceEntries,
     normalizedGitHubUrl,
     parseGitHubRepoUrl,
 } from "./actions";
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync, lstatSync } from "fs";
+import {
+    lstatSync,
+    mkdtempSync,
+    mkdirSync,
+    rmSync,
+    symlinkSync,
+    writeFileSync,
+} from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import type { Config } from "./types";
@@ -81,6 +89,82 @@ describe("actions.ts testing (issue 003)", () => {
             };
 
             expect(cleanupBrokenTargetSymlinks(config)).toBe(0);
+        });
+    });
+
+    describe("cleanupInvalidSourceEntries", () => {
+        it("should remove missing, broken, and non-directory sources", () => {
+            const root = mkdtempSync(join(tmpdir(), "skills-manager-sources-"));
+            try {
+                const validSource = join(root, "valid-source");
+                const validSourceTarget = join(root, "valid-target");
+                const validSourceSymlink = join(root, "valid-source-link");
+                const brokenSourceSymlink = join(root, "broken-source-link");
+                const missingSource = join(root, "missing-source");
+                const fileSource = join(root, "not-a-directory.txt");
+
+                mkdirSync(validSource, { recursive: true });
+                mkdirSync(validSourceTarget, { recursive: true });
+                symlinkSync(validSourceTarget, validSourceSymlink);
+                symlinkSync(join(root, "missing-target"), brokenSourceSymlink);
+                writeFileSync(fileSource, "not a directory");
+
+                const config: Config = {
+                    sources: [
+                        { name: "valid", path: validSource },
+                        { name: "valid-link", path: validSourceSymlink },
+                        { name: "broken-link", path: brokenSourceSymlink },
+                        { name: "missing", path: missingSource },
+                        { name: "file", path: fileSource },
+                    ],
+                    targets: [],
+                    disabledSources: [validSource, brokenSourceSymlink, missingSource, fileSource],
+                    personalSkillsRepo: missingSource,
+                    personalSkillsRepoPrompted: false,
+                };
+
+                const result = cleanupInvalidSourceEntries(config);
+
+                expect(result.removedSources).toBe(3);
+                expect(result.removedDisabledSources).toBe(3);
+                expect(result.clearedPersonalRepo).toBeTrue();
+                expect(config.sources.map((source) => source.path)).toEqual([validSource, validSourceSymlink]);
+                expect(config.disabledSources).toEqual([validSource]);
+                expect(config.personalSkillsRepo).toBeUndefined();
+                expect(config.personalSkillsRepoPrompted).toBeTrue();
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        it("should leave valid entries unchanged", () => {
+            const root = mkdtempSync(join(tmpdir(), "skills-manager-sources-"));
+            try {
+                const sourcePath = join(root, "source");
+                mkdirSync(sourcePath, { recursive: true });
+
+                const config: Config = {
+                    sources: [{ name: "source", path: sourcePath }],
+                    targets: [],
+                    disabledSources: [sourcePath],
+                    personalSkillsRepo: sourcePath,
+                    personalSkillsRepoPrompted: false,
+                };
+
+                const result = cleanupInvalidSourceEntries(config);
+
+                expect(result).toEqual({
+                    removedSources: 0,
+                    removedDisabledSources: 0,
+                    clearedPersonalRepo: false,
+                });
+                expect(config.sources.map((source) => source.path)).toEqual([sourcePath]);
+                expect(config.disabledSources).toEqual([sourcePath]);
+                expect(config.personalSkillsRepo).toBe(sourcePath);
+                expect(config.personalSkillsRepoPrompted).toBeFalse();
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
         });
     });
 });

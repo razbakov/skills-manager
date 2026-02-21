@@ -7,6 +7,7 @@ import {
   readdirSync,
   lstatSync,
   readlinkSync,
+  statSync,
   rmSync,
 } from "fs";
 import { spawnSync } from "child_process";
@@ -321,6 +322,58 @@ export function cleanupBrokenTargetSymlinks(config: Config): number {
   }
 
   return removed;
+}
+
+function isValidSourceDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+export interface SourceCleanupResult {
+  removedSources: number;
+  removedDisabledSources: number;
+  clearedPersonalRepo: boolean;
+}
+
+export function cleanupInvalidSourceEntries(config: Config): SourceCleanupResult {
+  const resolvedPersonalRepo = config.personalSkillsRepo
+    ? resolve(config.personalSkillsRepo)
+    : null;
+
+  let removedSources = 0;
+  config.sources = config.sources.filter((source) => {
+    const sourcePath = resolve(source.path);
+    const keep = isValidSourceDirectory(sourcePath);
+    if (!keep) {
+      removedSources += 1;
+    }
+    return keep;
+  });
+
+  let removedDisabledSources = 0;
+  config.disabledSources = config.disabledSources.filter((path) => {
+    const keep = isValidSourceDirectory(resolve(path));
+    if (!keep) {
+      removedDisabledSources += 1;
+    }
+    return keep;
+  });
+
+  let clearedPersonalRepo = false;
+  if (resolvedPersonalRepo && !isValidSourceDirectory(resolvedPersonalRepo)) {
+    delete config.personalSkillsRepo;
+    config.personalSkillsRepoPrompted = true;
+    clearedPersonalRepo = true;
+  }
+
+  return {
+    removedSources,
+    removedDisabledSources,
+    clearedPersonalRepo,
+  };
 }
 
 // Unlike existsSync, returns true even for broken symlinks.
