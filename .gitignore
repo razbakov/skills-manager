@@ -4,3 +4,5 @@ node_modules
 .skills-manager
 sources
 src/electron-v2/dist
+dist
+release

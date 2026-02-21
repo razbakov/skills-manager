@@ -16,6 +16,15 @@ Run `skills` to launch application
 
 ![Skills Manager desktop UI](docs/images/desktop-ui.png)
 
+## Build DMG (macOS)
+
+```
+bun install
+bun run dist:dmg
+```
+
+This outputs a DMG installer in `release/`.
+
 ## Problem
 
 See **[Research](docs/research.md)** for how tools handle skills today, **[User Problems](docs/problems.md)** for 14 documented pain points, **[Landscape](docs/landscape.md)** for existing directories and tools, and **[Competitors](docs/competitors.md)** for detailed analysis of current solutions and their gaps.

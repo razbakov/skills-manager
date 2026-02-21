@@ -4,9 +4,26 @@ import { homedir } from "os";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 
+function resolveAppRoot(): string {
+    let current = dirname(fileURLToPath(import.meta.url));
+
+    while (true) {
+        if (existsSync(join(current, "package.json"))) {
+            return current;
+        }
+
+        const parent = dirname(current);
+        if (parent === current) {
+            return dirname(fileURLToPath(import.meta.url));
+        }
+
+        current = parent;
+    }
+}
+
 export function getAppVersion(): string {
     try {
-        const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+        const appRoot = resolveAppRoot();
         const pkg = JSON.parse(readFileSync(join(appRoot, "package.json"), "utf8"));
         return pkg.version || "unknown";
     } catch {
@@ -65,7 +82,15 @@ function runCommandOrThrow(
 }
 
 export function updateApp(): { updated: boolean; message: string; version: string } {
-    const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+    const appRoot = resolveAppRoot();
+    if (!existsSync(join(appRoot, ".git"))) {
+        return {
+            updated: false,
+            message: "Auto-update is only available in a git checkout.",
+            version: getAppVersion(),
+        };
+    }
+
     const pullResult = runCommandOrThrow("git", ["pull", "--ff-only"], appRoot, "Git pull failed");
     const pullOutput = `${pullResult.stdout}\n${pullResult.stderr}`.trim();
     const alreadyUpToDate =
