@@ -3,7 +3,7 @@ import { scan } from "./scanner";
 import { defaultInstalledSkillsExportPath, exportInstalledSkills } from "./export";
 import { defaultInstalledSkillsImportPath, importInstalledSkills } from "./import";
 import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, symlinkSync } from "fs";
-import { spawnSync } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import { homedir } from "os";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
@@ -142,24 +142,25 @@ function launchElectronUi(): void {
   const projectRoot = resolve(srcDir, "..");
   ensureUiBundle(projectRoot);
   const electronBin = join(projectRoot, "node_modules", ".bin", "electron");
+  if (!existsSync(electronBin)) {
+    throw new Error(`Electron binary not found at ${electronBin}. Run bun install and try again.`);
+  }
 
   const env = { ...process.env };
-  // Ensure the tsx loader is active for Node/Electron 
+  // Ensure the tsx loader is active for Node/Electron.
   env.NODE_OPTIONS = env.NODE_OPTIONS ? `${env.NODE_OPTIONS} --import tsx` : "--import tsx";
-
-  const result = spawnSync(electronBin, ["src/electron/main.ts"], {
+  const child = spawn(electronBin, ["src/electron/main.ts"], {
     cwd: projectRoot,
-    stdio: "inherit",
+    stdio: "ignore",
     env,
+    detached: true,
   });
 
-  if (result.error) {
-    throw new Error(`Could not launch Electron UI: ${result.error.message}`);
+  if (!child.pid) {
+    throw new Error("Could not launch Electron UI.");
   }
 
-  if (typeof result.status === "number" && result.status !== 0) {
-    throw new Error(`Electron UI exited with code ${result.status}.`);
-  }
+  child.unref();
 }
 
 function resolveBunBinary(): string {
