@@ -1,6 +1,7 @@
 ---
 type: Story
 title: "Sources: Manage GitHub Source Packages"
+estimation: 5
 status: draft
 ---
 

@@ -1,6 +1,7 @@
 ---
 type: Story
 title: "Skills Manager: Update App from UI and CLI"
+estimation: 3
 status: draft
 ---
 

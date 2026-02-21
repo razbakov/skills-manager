@@ -1,6 +1,7 @@
 ---
 type: Story
 title: "Recommendations: Suggest Skills from Conversation History"
+estimation: 8
 status: draft
 ---
 

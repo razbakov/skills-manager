@@ -1,6 +1,7 @@
 ---
 type: Story
 title: "Skills Manager: Browse and Search Skills in Desktop App"
+estimation: 3
 status: draft
 ---
 

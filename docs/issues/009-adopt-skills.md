@@ -1,6 +1,7 @@
 ---
 type: Story
 title: "Installed Skills: Adopt Unmanaged Skills into Managed Sources"
+estimation: 5
 status: draft
 ---
 

@@ -1,6 +1,7 @@
 ---
 type: Story
 title: "Interaction: Feedback, Action Locking, and Keyboard Controls"
+estimation: 3
 status: draft
 ---
 

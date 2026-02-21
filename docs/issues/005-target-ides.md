@@ -1,6 +1,7 @@
 ---
 type: Story
 title: "Settings: Choose Enabled Target IDEs"
+estimation: 3
 status: draft
 ---
 

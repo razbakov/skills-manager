@@ -1,6 +1,7 @@
 ---
 type: Story
 title: "Import and Export: Transfer Installed Skills as a Bundle"
+estimation: 5
 status: draft
 ---
 

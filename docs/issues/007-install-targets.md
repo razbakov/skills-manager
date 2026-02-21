@@ -1,6 +1,7 @@
 ---
 type: Story
 title: "Installed Skills: Show Target Coverage and Disabled State"
+estimation: 3
 status: draft
 ---
 

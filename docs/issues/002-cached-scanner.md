@@ -1,6 +1,7 @@
 ---
 type: Story
 title: "Skill Discovery: Build Deterministic Inventory with Cached Results"
+estimation: 5
 status: draft
 ---
 

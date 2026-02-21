@@ -1,6 +1,7 @@
 ---
 type: Story
 title: "Settings: Configure Personal Repository for Adopted Skills"
+estimation: 3
 status: draft
 ---
 

@@ -1,6 +1,7 @@
 ---
 type: Story
 title: "Available Skills: Install Across Enabled Targets"
+estimation: 3
 status: draft
 ---
 

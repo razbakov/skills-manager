@@ -1,6 +1,7 @@
 ---
 type: Story
 title: "Installed Skills: Enable, Disable, and Uninstall"
+estimation: 3
 status: draft
 ---
 
