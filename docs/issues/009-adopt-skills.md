@@ -9,10 +9,11 @@ As a developer with unmanaged local skills, I want to adopt those skills into ma
 
 ## Acceptance Criteria
 
-- Unmanaged installed skills expose an `Adopt Skill` action in the Installed view.
-- If a personal repository is configured, adoption moves the skill into that repository under its managed skills path.
-- If no personal repository is configured, adoption moves the skill into the local managed source area.
-- After adoption, the skill is normalized across enabled targets so install state is consistent.
-- Adopted skills appear as managed skills with source and path labels in app inventory.
-- When a valid personal repository is configured, adoption attempts an automatic commit.
-- If automatic commit fails, adoption still completes and the user sees a clear follow-up message.
+- Unmanaged installed skills (real directories in targets) expose an `Adopt Skill` action in the `Installed` view.
+- Adoption moves the skill directory from its current target location into the managed area (personal repository or `sources/local`).
+- The original target directory is replaced with a symlink to the new managed location.
+- After adoption, the skill is normalized across all enabled targets via symlinks to ensure consistent installation state.
+- Adopted skills appear as managed skills with source and path labels in the inventory.
+- Adoption in a personal repository attempts an automatic commit with message `chore(skills): adopt <name>`.
+- The commit uses `git commit --only` to ensure that only the adopted skill is committed, even if other changes exist in the repository.
+- If the commit fails (e.g., due to git errors), adoption still completes and a follow-up message is shown.

@@ -9,11 +9,11 @@ As a developer setting up or sharing environments, I want to export and import i
 
 ## Acceptance Criteria
 
-- Export is available from both desktop UI and CLI.
-- Export writes a JSON manifest that includes schema version, generation timestamp, and install metadata when available.
-- Import is available from both desktop UI and CLI.
-- Desktop import starts with a preview that allows selecting which skills to import.
-- During import, the app auto-adds missing supported GitHub sources from bundle metadata before skill install.
-- Import result summary reports installed, already-installed, added-source, and skipped outcomes.
-- Importing selected skills installs them across currently enabled targets.
-- Invalid or unreadable bundle files show a clear error and do not apply partial hidden changes.
+- Export is available from both desktop UI and CLI, producing a JSON manifest with Schema Version 3.
+- Export manifest includes schema version, generation timestamp, and install metadata resolved via `git remote get-url origin`.
+- Export correctly handles GitHub SSH vs HTTPS URLs and normalizes them for the manifest.
+- Import starts with a desktop preview modal that allows selecting which skills to import via `selectedIndexes`.
+- During import, the app automatically clones missing GitHub sources via `addGitHubSource` using manifest metadata.
+- Import result summary reports `installed`, `already-installed`, `added-sources`, and `skipped` outcomes.
+- Imported skills are installed to all currently enabled targets after their sources are cloned.
+- Invalid or unreadable bundle files show a clear JSON parsing error and do not apply any changes.
