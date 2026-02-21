@@ -140,6 +140,7 @@ function installGlobalCommand(): InstallCommandResult {
 function launchElectronUi(): void {
   const srcDir = dirname(fileURLToPath(import.meta.url));
   const projectRoot = resolve(srcDir, "..");
+  ensureUiBundle(projectRoot);
   const electronBin = join(projectRoot, "node_modules", ".bin", "electron");
 
   const env = { ...process.env };
@@ -158,6 +159,45 @@ function launchElectronUi(): void {
 
   if (typeof result.status === "number" && result.status !== 0) {
     throw new Error(`Electron UI exited with code ${result.status}.`);
+  }
+}
+
+function resolveBunBinary(): string {
+  const bunInstall = process.env.BUN_INSTALL?.trim();
+  if (bunInstall) {
+    const bunPath = resolve(bunInstall, "bin", "bun");
+    if (existsSync(bunPath)) {
+      return bunPath;
+    }
+  }
+
+  const homeBunPath = join(homedir(), ".bun", "bin", "bun");
+  if (existsSync(homeBunPath)) {
+    return homeBunPath;
+  }
+
+  return "bun";
+}
+
+function ensureUiBundle(projectRoot: string): void {
+  const bundleIndex = join(projectRoot, "src", "electron-v2", "dist", "index.html");
+  if (existsSync(bundleIndex)) {
+    return;
+  }
+
+  const bunBinary = resolveBunBinary();
+  const buildResult = spawnSync(bunBinary, ["x", "vite", "build"], {
+    cwd: join(projectRoot, "src", "electron-v2"),
+    stdio: "inherit",
+    encoding: "utf-8",
+  });
+
+  if (buildResult.error) {
+    throw new Error(`Could not build UI bundle: ${buildResult.error.message}`);
+  }
+
+  if (typeof buildResult.status === "number" && buildResult.status !== 0) {
+    throw new Error(`Could not build UI bundle: exited with code ${buildResult.status}.`);
   }
 }
 

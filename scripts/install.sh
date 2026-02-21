@@ -151,6 +151,7 @@ echo "Installing dependencies and global command"
 (
   cd "$INSTALL_DIR"
   "$BUN_CMD" install
+  "$BUN_CMD" run build
   "$BUN_CMD" src/index.ts --install
 )
 
