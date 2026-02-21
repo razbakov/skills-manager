@@ -9,7 +9,7 @@ import {
 } from "fs";
 import { spawnSync } from "child_process";
 import { join, basename, resolve } from "path";
-import { getSourcesRootPath } from "./config";
+import { getSourcesRootPath, saveConfig } from "./config";
 import type { Config, Skill, Source } from "./types";
 
 function ensureDir(dir: string): void {
@@ -236,4 +236,38 @@ function removeIfSymlink(path: string): void {
   } catch {
     // doesn't exist or can't access
   }
+}
+
+export function disableSource(sourcePath: string, config: Config): void {
+  const resolved = resolve(sourcePath);
+  if (!config.disabledSources.includes(resolved)) {
+    config.disabledSources.push(resolved);
+  }
+  saveConfig(config);
+}
+
+export function enableSource(sourcePath: string, config: Config): void {
+  const resolved = resolve(sourcePath);
+  config.disabledSources = config.disabledSources.filter((p) => resolve(p) !== resolved);
+  saveConfig(config);
+}
+
+export function removeSource(sourcePath: string, config: Config, skills: Skill[]): void {
+  const resolved = resolve(sourcePath);
+
+  for (const skill of skills) {
+    const skillResolved = resolve(skill.sourcePath);
+    if (skillResolved === resolved || skillResolved.startsWith(resolved + "/")) {
+      if (skill.installed || skill.disabled) {
+        uninstallSkill(skill, config);
+      }
+    }
+  }
+
+  if (existsSync(resolved)) {
+    rmSync(resolved, { recursive: true, force: true });
+  }
+
+  config.disabledSources = config.disabledSources.filter((p) => resolve(p) !== resolved);
+  saveConfig(config);
 }

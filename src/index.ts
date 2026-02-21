@@ -246,6 +246,7 @@ async function main() {
         targets: SUPPORTED_IDES.map((ide) => expandTilde(ide.path)).filter((targetPath) =>
           existsSync(dirname(targetPath)),
         ),
+        disabledSources: [],
       };
 
       writeDefaultConfig(defaultConfig);

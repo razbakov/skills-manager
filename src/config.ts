@@ -112,7 +112,12 @@ export function loadConfig(): Config {
   const targetEntries = Array.isArray(parsed.targets) ? parsed.targets : [];
   const targets = targetEntries.filter((target): target is string => typeof target === "string").map(expandTilde);
 
-  return { sources, targets };
+  const disabledSourceEntries = Array.isArray(parsed.disabledSources) ? parsed.disabledSources : [];
+  const disabledSources = disabledSourceEntries
+    .filter((entry): entry is string => typeof entry === "string")
+    .map(expandTilde);
+
+  return { sources, targets, disabledSources };
 }
 
 export function getConfigPath(): string {
@@ -135,7 +140,7 @@ export function ensureConfigDir(): void {
 }
 
 function serializeConfig(config: Config): Record<string, unknown> {
-  const serializable = {
+  const serializable: Record<string, unknown> = {
     sources: config.sources.map((s) => ({
       name: s.name,
       path: s.path.replace(homedir(), "~"),
@@ -144,6 +149,9 @@ function serializeConfig(config: Config): Record<string, unknown> {
     })),
     targets: config.targets.map((t) => t.replace(homedir(), "~")),
   };
+  if (config.disabledSources.length > 0) {
+    serializable.disabledSources = config.disabledSources.map((p) => p.replace(homedir(), "~"));
+  }
   return serializable;
 }
 

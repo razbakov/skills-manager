@@ -8,6 +8,7 @@ export interface Source {
 export interface Config {
   sources: Source[];
   targets: string[];
+  disabledSources: string[];
 }
 
 export interface Skill {

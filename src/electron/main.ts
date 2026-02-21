@@ -3,7 +3,7 @@ import { spawnSync } from "child_process";
 import { existsSync, readFileSync, readdirSync } from "fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "path";
 import { fileURLToPath } from "url";
-import { addGitHubSource, disableSkill, enableSkill, installSkill, uninstallSkill } from "../actions";
+import { addGitHubSource, disableSkill, disableSource, enableSkill, enableSource, installSkill, removeSource, uninstallSkill } from "../actions";
 import { getSourcesRootPath, loadConfig, saveConfig, SUPPORTED_IDES, SUGGESTED_SOURCES, expandTilde } from "../config";
 import { defaultInstalledSkillsExportPath, exportInstalledSkills } from "../export";
 import { buildRecommendations, type RecommendationProgressEvent } from "../recommendations";
@@ -29,6 +29,7 @@ interface SourceViewModel {
   path: string;
   recursive: boolean;
   repoUrl?: string;
+  enabled: boolean;
   installedCount: number;
   totalCount: number;
   skills: SkillViewModel[];
@@ -256,8 +257,25 @@ function toSkillViewModel(skill: Skill, config: Config, resolvedSourcesRoot: str
   };
 }
 
+function isSourceDisabled(sourcePath: string, config: Config): boolean {
+  const resolved = resolve(sourcePath);
+  return config.disabledSources.some((p) => resolve(p) === resolved);
+}
+
+function isSkillUnderDisabledSource(skill: Skill, config: Config): boolean {
+  for (const disabledPath of config.disabledSources) {
+    const resolved = resolve(disabledPath);
+    const skillResolved = resolve(skill.sourcePath);
+    if (skillResolved === resolved || skillResolved.startsWith(resolved + "/")) {
+      return true;
+    }
+  }
+  return false;
+}
+
 async function createSnapshot(config: Config): Promise<Snapshot> {
-  const skills = sortSkillsByName(await scan(config));
+  const allScannedSkills = sortSkillsByName(await scan(config));
+  const skills = allScannedSkills.filter((skill) => !isSkillUnderDisabledSource(skill, config));
   const resolvedSourcesRoot = resolve(getSourcesRootPath(config));
   const allSkillModels = skills.map((skill) => toSkillViewModel(skill, config, resolvedSourcesRoot));
   const skillById = new Map<string, SkillViewModel>();
@@ -268,8 +286,9 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
   latestSnapshotSkillIds = new Set(allSkillModels.map((skill) => skill.id));
 
   const sources = getDisplayedSources(config).map((source) => {
-    const sourceSkills = getSkillsForSource(source, skills)
-      .map((skill) => skillById.get(resolve(skill.sourcePath)))
+    const enabled = !isSourceDisabled(source.path, config);
+    const sourceSkills = getSkillsForSource(source, enabled ? skills : allScannedSkills)
+      .map((skill) => skillById.get(resolve(skill.sourcePath)) || toSkillViewModel(skill, config, resolvedSourcesRoot))
       .filter((skill): skill is SkillViewModel => !!skill);
 
     const installedCount = sourceSkills.filter((skill) => skill.installed).length;
@@ -279,6 +298,7 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
       path: source.path,
       recursive: source.recursive,
       ...(source.repoUrl ? { repoUrl: source.repoUrl } : {}),
+      enabled,
       installedCount,
       totalCount: sourceSkills.length,
       skills: sourceSkills,
@@ -490,6 +510,34 @@ function registerIpcHandlers(): void {
     const source = addGitHubSource(repoUrl, config);
     const snapshot = await createSnapshot(config);
     return { snapshot, sourceName: formatPackageNameAsOwnerRepo(source.name) };
+  });
+
+  ipcMain.handle("skills:disableSource", async (_event, sourceId: unknown) => {
+    if (typeof sourceId !== "string" || !sourceId.trim()) {
+      throw new Error("Missing source identifier.");
+    }
+    const config = loadConfig();
+    disableSource(sourceId, config);
+    return createSnapshot(config);
+  });
+
+  ipcMain.handle("skills:enableSource", async (_event, sourceId: unknown) => {
+    if (typeof sourceId !== "string" || !sourceId.trim()) {
+      throw new Error("Missing source identifier.");
+    }
+    const config = loadConfig();
+    enableSource(sourceId, config);
+    return createSnapshot(config);
+  });
+
+  ipcMain.handle("skills:removeSource", async (_event, sourceId: unknown) => {
+    if (typeof sourceId !== "string" || !sourceId.trim()) {
+      throw new Error("Missing source identifier.");
+    }
+    const config = loadConfig();
+    const skills = await scan(config);
+    removeSource(sourceId, config, skills);
+    return createSnapshot(config);
   });
 
   ipcMain.handle("skills:exportInstalled", async () => {

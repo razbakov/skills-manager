@@ -78,6 +78,8 @@ const sourceTitle = document.getElementById("source-title");
 const sourceMeta = document.getElementById("source-meta");
 const sourceOpenPath = document.getElementById("source-open-path");
 const sourceOpenRepo = document.getElementById("source-open-repo");
+const sourceDisable = document.getElementById("source-disable");
+const sourceRemove = document.getElementById("source-remove");
 
 const refreshButton = document.getElementById("refresh-button");
 const exportButton = document.getElementById("export-button");
@@ -415,11 +417,19 @@ function createSourceButton(source, selected) {
   chip.className = "chip";
   chip.textContent = `${source.installedCount}/${source.totalCount}`;
 
+  top.append(name, chip);
+
+  if (source.enabled === false) {
+    const disabledChip = document.createElement("span");
+    disabledChip.className = "chip warn";
+    disabledChip.textContent = "disabled";
+    top.append(disabledChip);
+  }
+
   const desc = document.createElement("span");
   desc.className = "item-desc";
   desc.textContent = source.repoUrl || source.path;
 
-  top.append(name, chip);
   row.append(top, desc);
   return row;
 }
@@ -677,6 +687,9 @@ function renderSourcesView() {
     sourceMeta.textContent = "Select a source package to inspect contained skills.";
     sourceOpenPath.disabled = true;
     sourceOpenRepo.disabled = true;
+    sourceDisable.disabled = true;
+    sourceDisable.textContent = "Disable Source";
+    sourceRemove.disabled = true;
     clearNode(sourceSkillsList);
     addEmptyState(sourceSkillsList, "No source selected.");
   } else {
@@ -685,6 +698,18 @@ function renderSourcesView() {
     sourceMeta.textContent = selectedSource.repoUrl || selectedSource.path;
     sourceOpenPath.disabled = false;
     sourceOpenRepo.disabled = !selectedSource.repoUrl;
+    sourceDisable.disabled = state.busy;
+    sourceRemove.disabled = state.busy;
+
+    if (selectedSource.enabled === false) {
+      sourceDisable.textContent = "Enable Source";
+      sourceDisable.classList.remove("warn");
+      sourceDisable.classList.add("secondary");
+    } else {
+      sourceDisable.textContent = "Disable Source";
+      sourceDisable.classList.add("warn");
+      sourceDisable.classList.remove("secondary");
+    }
 
     clearNode(sourceSkillsList);
     if (selectedSource.skills.length === 0) {
@@ -1233,6 +1258,30 @@ sourceOpenRepo.addEventListener("click", () => {
   const source = getSelectedSource();
   if (!source?.repoUrl) return;
   void api.openExternal(source.repoUrl);
+});
+
+sourceDisable.addEventListener("click", () => {
+  const source = getSelectedSource();
+  if (!source) return;
+  const isEnable = source.enabled === false;
+  void runTask(
+    () => (isEnable ? api.enableSource(source.id) : api.disableSource(source.id)),
+    `${isEnable ? "Enabling" : "Disabling"} source ${source.name}...`,
+    () => `${isEnable ? "Enabled" : "Disabled"} source ${source.name}.`,
+  );
+});
+
+sourceRemove.addEventListener("click", () => {
+  const source = getSelectedSource();
+  if (!source) return;
+  if (!confirm(`Remove source "${source.name}"? This will delete the cloned directory and uninstall all its skills.`)) {
+    return;
+  }
+  void runTask(
+    () => api.removeSource(source.id),
+    `Removing source ${source.name}...`,
+    () => `Removed source ${source.name}.`,
+  );
 });
 
 installedToggle.addEventListener("click", () => {
