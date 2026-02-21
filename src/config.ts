@@ -47,6 +47,7 @@ export const SUPPORTED_IDES: SupportedIde[] = [
   { name: "Cursor", path: "~/.cursor/skills" },
   { name: "Claude", path: "~/.claude/skills" },
   { name: "Codex", path: "~/.codex/skills" },
+  { name: "OpenClaw", path: "~/.openclaw/skills" },
   { name: "Gemini", path: "~/.gemini/skills" },
   { name: "Antigravity", path: "~/.gemini/antigravity/skills" },
   { name: "VSCode", path: "~/.copilot/skills" },
