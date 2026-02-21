@@ -1,42 +1,28 @@
 ---
 type: Story
-title: "Skills Manager: Update App"
+title: "Skills Manager: Update App from UI and CLI"
 status: draft
 ---
 
-# Skills Manager: Update App
+# Skills Manager: Update App from UI and CLI
 
-As a developer, I want to update Skills Manager with a single action, so that I always have the latest version of the tool without leaving the app.
+As a developer, I want one update flow in both desktop and CLI, so that I can stay on the latest app version with minimal manual steps.
 
 ## Context
 
-Skills Manager itself is installed from a Git repository. Today there is no built-in way to check for or apply updates to the app. The user must manually pull each repository and restart the process. This becomes tedious, easy to forget, and leads to running stale versions.
+The app should expose version state and provide a consistent update path regardless of interface.
 
 ## Acceptance Criteria
 
-### App Self-Update
-
-- The update process first checks for a newer version of Skills Manager itself by pulling the latest changes from the app's own repository.
-- If a new version is available, the app installs any updated dependencies automatically.
-- After a successful self-update, the app restarts itself so the user is immediately running the new version.
-- If the app is already up to date, the update process continues to source updates without restarting.
-- The current app version is shown in the interface (terminal header or Electron title bar) so the user can confirm which version is running.
-
-### Terminal (CLI)
-
-- A `skills update` command is available that runs the self-update.
-- If the app was updated, it restarts and the user sees the new version in the terminal header.
-
-### Desktop (Electron)
-
-- An "Update" button is visible in the desktop interface, accessible from the main toolbar or the Sources tab.
-- Clicking the button triggers the self-update process.
-- While the update is running, the button shows a loading indicator and is not clickable again until the process finishes.
-- If the app itself was updated, the Electron window restarts automatically to load the new version.
-- The results are displayed in the interface — listing the app update outcome.
+- The current app version is visible in the desktop app window title.
+- The desktop toolbar includes an `Update` action.
+- A CLI update command is available through `skills update`.
+- Running update pulls latest app changes and refreshes dependencies before completion.
+- If desktop update succeeds, the app restarts automatically.
+- If no update is available, the app clearly reports that it is already up to date and does not restart.
+- If update fails, the app shows a clear error and remains usable.
 
 ## Out of Scope
 
-- Version pinning or rollback to a previous version.
-- Automatic background updates on a schedule.
-- Conflict resolution UI — if a pull fails due to local changes the user resolves it outside Skills Manager.
+- Scheduled background updates.
+- Rollback or version pinning for the app itself.

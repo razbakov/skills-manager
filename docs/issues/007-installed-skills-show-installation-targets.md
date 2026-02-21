@@ -1,27 +1,27 @@
 ---
 type: Story
-title: "Installed Skills: Show Which IDEs Each Skill Is Installed In"
+title: "Installed Skills: Show Target Coverage and Disabled State"
 status: draft
 ---
 
-# Installed Skills: Show Which IDEs Each Skill Is Installed In
+# Installed Skills: Show Target Coverage and Disabled State
 
-As a developer managing skills across multiple IDEs, I want to see which IDEs each skill is installed in, so that I can quickly tell whether a skill is active in all my tools or only in some of them.
+As a developer with multiple enabled IDE targets, I want to see exact per-target skill state, so that I can quickly spot partial or disabled installations.
 
 ## Context
 
-The app supports multiple IDE targets — such as Cursor, Claude Code, Codex, and others — and a skill can be installed, disabled, or not installed independently in each one. Currently, the Installed tab shows which skills are installed, but does not display which specific IDEs each skill is active in. Users with more than one target configured have no way to tell at a glance whether a skill is available everywhere or only in one place.
+Multi-target setups are only manageable when users can see where a skill is active, where it is disabled, and when everything is fully aligned.
 
 ## Acceptance Criteria
 
-- In the Installed tab, each skill shows the names of the IDEs it is installed in.
-- If a skill is installed in all configured IDEs, the label reads "All IDEs" instead of listing them individually.
-- If a skill is installed in only some IDEs, the individual IDE names are listed (e.g. "Cursor, Claude Code").
-- IDEs where the skill is disabled (moved to the disabled folder) are shown with a "disabled" indicator next to the IDE name, so it is clear the skill is present but turned off.
-- The IDE information updates immediately after the user installs, uninstalls, enables, or disables a skill — no restart or refresh is needed.
-- If only one IDE target is configured, the IDE column or label is hidden to avoid visual clutter.
+- Installed skill details show target coverage for configured targets.
+- If a skill is installed and active in every enabled target, the label is `All IDEs`.
+- If a skill is not fully active everywhere, the detail view lists target names and marks disabled targets with a disabled indicator.
+- If only one target is enabled, the target coverage row is hidden to reduce noise.
+- After install, uninstall, enable, disable, or refresh, target coverage updates immediately in the Installed detail view.
+- Running refresh reconciles partial managed installs so target state becomes consistent across enabled targets.
 
 ## Out of Scope
 
-- Changing installation targets from the Installed tab (that belongs in the Sources or Settings tab).
-- Showing skills that are not yet installed (covered by the Available tab).
+- Changing per-target state directly from the coverage label.
+- Showing non-installed skills in this view.

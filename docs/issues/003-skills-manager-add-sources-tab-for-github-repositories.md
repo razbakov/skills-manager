@@ -1,39 +1,29 @@
 ---
-
-## type: Story
-title: "Skills Manager: Add Sources Tab for GitHub Repositories"
+type: Story
+title: "Sources: Manage GitHub Source Packages"
 status: draft
+---
 
-# Skills Manager: Add Sources Tab for GitHub Repositories
+# Sources: Manage GitHub Source Packages
 
-As a developer managing skills from multiple collections, I want a Sources tab where I can add and review source repositories, so that I can bring in new skills without editing configuration files by hand.
+As a developer using multiple skill collections, I want to manage sources directly in the app, so that I can add and control packages without editing config files by hand.
 
 ## Context
 
-The current terminal interface has only two tabs: Installed and Available. Source folders are managed outside the app in a config file, which makes adding new collections slow and error-prone. Users need an in-app place to see existing sources and add new GitHub repositories directly.
+Source management is a core workflow: users need to add repositories quickly, pause noisy sources, inspect source paths, and remove sources safely.
 
 ## Acceptance Criteria
 
-### Sources Tab
-
-- The main tab row includes a new tab labeled "Sources" alongside "Installed" and "Available".
-- The Sources tab lists all configured sources with each source's display name, location, and whether it scans nested folders.
-
-### Add GitHub Source
-
-- The Sources tab contains a field labeled "GitHub repository URL" and an action labeled "Add Source".
-- When a user adds a valid public GitHub repository URL, the app downloads a local copy and adds it as a new source without requiring manual config edits.
-- When the user adds `https://github.com/razbakov/skills`, the source is saved with the display name `skills@razbakov`.
-- After a source is added, skills from that source appear in the Available tab after refresh and still appear after app restart.
-
-### Validation and Feedback
-
-- If a source with the same repository URL or the same display name already exists, the app shows "Source already added" and does not create a duplicate entry.
-- If the URL is invalid or the repository cannot be downloaded, the app shows a clear error message and leaves the source list unchanged.
+- The `Sources` tab lists source packages with installed count and total count for each source.
+- Users can add a source from either HTTPS or SSH GitHub repository URL input.
+- Adding a source prevents duplicates by normalized URL or package name and shows `Source already added` when duplicated.
+- Source actions include `Open Path`, `Open Repo`, `Disable/Enable`, and `Remove Source`.
+- Disabled sources stay visible in `Sources` but their skills are excluded from global `Installed` and `Available` lists.
+- Removing a source uninstalls related skills and removes the local cloned source directory.
+- The view shows suggested sources and each suggestion can be added directly with one action.
+- Invalid or unreachable repository inputs show a clear error and do not change the current source list.
 
 ## Out of Scope
 
-- Editing or removing existing sources.
-- Support for private repositories that require authentication.
-- Adding sources from non-GitHub providers.
-
+- Non-GitHub source providers.
+- Editing source metadata beyond enable/disable and remove.
