@@ -59,6 +59,10 @@ const skillReviews = reactive({
   bySkillId: {} as Record<string, SkillReviewSnapshot>,
 });
 
+const REVIEW_REQUEST_TIMEOUT_MS = 180000;
+const REVIEW_RECOVERY_POLL_ATTEMPTS = 5;
+const REVIEW_RECOVERY_POLL_INTERVAL_MS = 1200;
+
 // ── Derived ──
 const installedSkills = computed(() =>
   snapshot.value ? filterSkills(snapshot.value.installedSkills, queries.installed) : [],
@@ -411,6 +415,31 @@ async function loadSkillReview(skillId: string): Promise<SkillReviewSnapshot | n
   return null;
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function waitForRecoveredReview(skillId: string): Promise<SkillReviewSnapshot | null> {
+  for (let attempt = 0; attempt < REVIEW_RECOVERY_POLL_ATTEMPTS; attempt += 1) {
+    try {
+      const result = await api.getSkillReview(skillId);
+      if (result && typeof result === "object") {
+        return result as SkillReviewSnapshot;
+      }
+    } catch {
+      // Ignore transient lookup errors while waiting for disk cache to appear.
+    }
+
+    if (attempt < REVIEW_RECOVERY_POLL_ATTEMPTS - 1) {
+      await wait(REVIEW_RECOVERY_POLL_INTERVAL_MS);
+    }
+  }
+
+  return null;
+}
+
 async function reviewSkill(skillId: string) {
   if (skillReviews.loadingSkillId) return;
   const name = snapshot.value?.skills.find((s) => s.id === skillId)?.name ?? "skill";
@@ -418,9 +447,30 @@ async function reviewSkill(skillId: string) {
   addToast(`Reviewing ${name}...`, "pending", 0);
 
   try {
-    const result = await api.reviewSkill(skillId);
-    if (result && typeof result === "object") {
-      skillReviews.bySkillId[skillId] = result as SkillReviewSnapshot;
+    const timedResult = await Promise.race([
+      api
+        .reviewSkill(skillId)
+        .then((result: any) => ({ type: "result" as const, result }))
+        .catch((error: any) => ({ type: "error" as const, error })),
+      wait(REVIEW_REQUEST_TIMEOUT_MS).then(() => ({ type: "timeout" as const })),
+    ]);
+
+    if (timedResult.type === "error") {
+      throw timedResult.error;
+    }
+
+    if (timedResult.type === "timeout") {
+      const recovered = await waitForRecoveredReview(skillId);
+      if (recovered) {
+        skillReviews.bySkillId[skillId] = recovered;
+        addToast(`Review loaded for ${name}.`, "success");
+        return;
+      }
+      throw new Error("Review request timed out. Please retry.");
+    }
+
+    if (timedResult.result && typeof timedResult.result === "object") {
+      skillReviews.bySkillId[skillId] = timedResult.result as SkillReviewSnapshot;
       addToast(`Review ready for ${name}.`, "success");
     } else {
       addToast("Skill review returned invalid data.", "error", 5000);
