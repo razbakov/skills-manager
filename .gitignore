@@ -7,3 +7,4 @@ sources
 src/electron-v2/dist
 dist
 release
+review-output.json
