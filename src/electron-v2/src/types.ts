@@ -111,31 +111,75 @@ export interface RecommendationProgress {
 }
 
 export type SkillReviewDimensionId =
-  | "clarity"
-  | "coverage"
-  | "actionability"
-  | "safety"
-  | "maintainability"
-  | "signal-to-noise";
+  | "triggering-precision"
+  | "degrees-of-freedom-calibration"
+  | "context-economy"
+  | "verifiability"
+  | "reversibility-and-safety"
+  | "generalizability";
+
+export type SkillReviewBand =
+  | "weak"
+  | "fair"
+  | "good"
+  | "strong"
+  | "excellent";
+
+export type SkillReviewVerdict =
+  | "ready-to-use"
+  | "needs-targeted-fixes"
+  | "needs-rethink";
 
 export interface SkillReviewDimension {
   id: SkillReviewDimensionId;
   label: string;
   score: number;
   summary: string;
-  strengths: string[];
-  issues: string[];
-  suggestions: string[];
+}
+
+export interface SkillReviewFailureMode {
+  id: string;
+  prediction: string;
+  impact: "low" | "medium" | "high";
+  confidence: "low" | "medium" | "high";
+  relatedDimensions: SkillReviewDimensionId[];
+  evidence?: string;
+}
+
+export interface SkillReviewCriticalIssue {
+  statement: string;
+  whyItMatters: string;
+  failureModeId?: string;
+}
+
+export interface SkillReviewFix {
+  id: string;
+  title: string;
+  priority: 1 | 2 | 3;
+  targetsFailureModeIds: string[];
+  rationale: string;
+  proposedRewrite: string;
 }
 
 export interface SkillReviewSnapshot {
+  schemaVersion: 3;
+  framework: "skill-runtime-v1";
   generatedAt: string;
   skillId: string;
   skillName: string;
   summary: string;
   overallScore: number;
-  quickWins: string[];
-  risks: string[];
+  overallScoreFive: number;
+  overallBand: SkillReviewBand;
+  verdict: SkillReviewVerdict;
+  scoring: {
+    dimensionScale: "1-5";
+    overallScale: "0-100";
+    method: "mean";
+  };
+  mostCriticalIssue: SkillReviewCriticalIssue;
+  failureModePredictions: SkillReviewFailureMode[];
+  prioritizedFixes: SkillReviewFix[];
   dimensions: SkillReviewDimension[];
 }
 

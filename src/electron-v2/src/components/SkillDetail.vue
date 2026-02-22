@@ -15,10 +15,11 @@ import {
   Sparkles,
   FileText,
   Gauge,
-  Zap,
-  TriangleAlert,
 } from "lucide-vue-next";
-import type { SkillViewModel, SkillReviewSnapshot } from "@/types";
+import type {
+  SkillViewModel,
+  SkillReviewSnapshot,
+} from "@/types";
 
 const props = defineProps<{
   skill: SkillViewModel | null;
@@ -67,33 +68,40 @@ const isReviewingCurrentSkill = computed(() => {
   return store.skillReviews.loadingSkillId === skillId;
 });
 
-function reviewBadgeVariant(score: number): "default" | "secondary" | "warning" {
-  if (score >= 80) return "default";
-  if (score >= 60) return "secondary";
+function reviewBadgeVariant(scoreFive: number): "default" | "secondary" | "warning" {
+  if (scoreFive >= 4.2) return "default";
+  if (scoreFive >= 3.2) return "secondary";
   return "warning";
 }
 
-function formatOverallScoreFive(score: number): string {
-  const fiveScale = Math.max(0, Math.min(5, score / 20));
-  return fiveScale.toFixed(1);
+function formatOverallScoreFive(scoreFive: number): string {
+  return Math.max(0, Math.min(5, scoreFive)).toFixed(1);
 }
 
-function overallBandLabel(score: number): string {
-  if (score >= 90) return "Exceptional";
-  if (score >= 80) return "Strong";
-  if (score >= 70) return "Good";
-  if (score >= 60) return "Needs polish";
-  return "Needs revision";
+function verdictLabel(verdict: SkillReviewSnapshot["verdict"]): string {
+  if (verdict === "ready-to-use") return "Ready to use";
+  if (verdict === "needs-targeted-fixes") return "Needs targeted fixes";
+  return "Needs rethink";
 }
 
-function overallToneClass(score: number): string {
-  if (score >= 85) {
+function overallToneClass(scoreFive: number): string {
+  if (scoreFive >= 4.2) {
     return "bg-emerald-50 text-emerald-900 border-emerald-200";
   }
-  if (score >= 70) {
+  if (scoreFive >= 3.2) {
     return "bg-amber-50 text-amber-900 border-amber-200";
   }
   return "bg-rose-50 text-rose-900 border-rose-200";
+}
+
+function verdictToneClass(verdict: SkillReviewSnapshot["verdict"]): string {
+  if (verdict === "ready-to-use") {
+    return "bg-emerald-100 text-emerald-800";
+  }
+  if (verdict === "needs-targeted-fixes") {
+    return "bg-amber-100 text-amber-800";
+  }
+  return "bg-rose-100 text-rose-800";
 }
 
 function dimensionToneClass(score: number): string {
@@ -219,10 +227,10 @@ function openReviewTab(skillId: string) {
             <span>AI Review</span>
             <Badge
               v-if="currentReview"
-              :variant="reviewBadgeVariant(currentReview.overallScore)"
+              :variant="reviewBadgeVariant(currentReview.overallScoreFive)"
               class="text-[10px]"
             >
-              {{ formatOverallScoreFive(currentReview.overallScore) }}
+              {{ formatOverallScoreFive(currentReview.overallScoreFive) }}
             </Badge>
           </button>
         </div>
@@ -253,32 +261,74 @@ function openReviewTab(skillId: string) {
           </div>
 
           <template v-if="currentReview">
-            <Card class="border-0 bg-gradient-to-br from-slate-50 via-white to-slate-100 mb-4">
+            <Card class="border-border mb-4">
               <CardContent class="p-4 md:p-5 !pt-4 md:!pt-5">
-                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div class="min-w-0">
-                    <p class="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Overall Assessment</p>
-                    <p class="text-base font-semibold text-foreground mb-1">{{ overallBandLabel(currentReview.overallScore) }}</p>
-                    <p class="text-sm text-foreground/75 leading-relaxed">{{ currentReview.summary }}</p>
+                    <p class="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">Runtime Verdict</p>
+                    <div class="inline-flex items-center gap-2 mb-2">
+                      <Badge class="text-[11px] font-medium" :class="verdictToneClass(currentReview.verdict)">
+                        {{ verdictLabel(currentReview.verdict) }}
+                      </Badge>
+                    </div>
+                    <p class="text-sm text-foreground/80 leading-relaxed">{{ currentReview.summary }}</p>
                   </div>
                   <div
                     class="shrink-0 rounded-xl border px-4 py-3 min-w-28 text-center"
-                    :class="overallToneClass(currentReview.overallScore)"
+                    :class="overallToneClass(currentReview.overallScoreFive)"
                   >
                     <div class="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider mb-1">
                       <Gauge class="h-3.5 w-3.5" />
                       Score
                     </div>
-                    <p class="text-2xl font-semibold leading-none">{{ formatOverallScoreFive(currentReview.overallScore) }}</p>
+                    <p class="text-2xl font-semibold leading-none">{{ formatOverallScoreFive(currentReview.overallScoreFive) }}</p>
                     <p class="text-[11px] opacity-80 mt-1">out of 5</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <div class="grid grid-cols-1 xl:grid-cols-2 gap-3">
-              <Card v-for="dimension in currentReview.dimensions" :key="dimension.id" class="border-border/70">
-                <CardContent class="p-3.5 !pt-3.5">
+            <Card class="border-border mb-4">
+              <CardContent class="p-4 !pt-4">
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  <div>
+                    <p class="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
+                      Primary Blocker
+                    </p>
+                    <p class="text-sm font-medium text-foreground leading-relaxed">
+                      {{ currentReview.mostCriticalIssue.statement }}
+                    </p>
+                    <p class="text-xs text-foreground/75 leading-relaxed mt-2">
+                      {{ currentReview.mostCriticalIssue.whyItMatters }}
+                    </p>
+                  </div>
+                  <div>
+                    <p class="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
+                      Top Actions
+                    </p>
+                    <ol class="space-y-1.5">
+                      <li
+                        v-for="fix in currentReview.prioritizedFixes.slice(0, 3)"
+                        :key="fix.id"
+                        class="text-xs text-foreground/85 leading-relaxed"
+                      >
+                        P{{ fix.priority }} - {{ fix.title }}
+                      </li>
+                      <li
+                        v-if="!currentReview.prioritizedFixes.length"
+                        class="text-xs text-muted-foreground"
+                      >
+                        No targeted actions provided.
+                      </li>
+                    </ol>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-3 mb-4">
+              <Card v-for="dimension in currentReview.dimensions" :key="dimension.id" class="border-border">
+                <CardContent class="p-4 !pt-4">
                   <div class="flex items-center justify-between gap-3">
                     <span class="text-sm font-medium">{{ dimension.label }}</span>
                     <span
@@ -288,58 +338,71 @@ function openReviewTab(skillId: string) {
                       {{ dimension.score }}/5
                     </span>
                   </div>
-                  <p class="text-xs text-foreground/75 mt-2">{{ dimension.summary }}</p>
-
-                  <div v-if="dimension.issues.length" class="mt-2">
-                    <p class="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Main Gap</p>
-                    <p class="text-xs text-foreground/80">{{ dimension.issues[0] }}</p>
-                  </div>
-
-                  <div v-if="dimension.suggestions.length" class="mt-2">
-                    <p class="text-[11px] text-muted-foreground uppercase tracking-wider mb-1">Next Move</p>
-                    <p class="text-xs text-foreground/85">{{ dimension.suggestions[0] }}</p>
-                  </div>
+                  <p class="text-xs text-foreground/75 leading-relaxed mt-2">{{ dimension.summary }}</p>
                 </CardContent>
               </Card>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-              <Card v-if="currentReview.quickWins.length" class="border-emerald-200/70 bg-emerald-50/40">
-                <CardContent class="p-3.5 !pt-3.5">
-                  <div class="inline-flex items-center gap-2 text-[11px] text-emerald-800 uppercase tracking-wider mb-2">
-                    <Zap class="h-3.5 w-3.5" />
-                    Quick Wins
-                  </div>
-                  <ul class="space-y-1.5">
-                    <li
-                      v-for="item in currentReview.quickWins.slice(0, 4)"
-                      :key="item"
-                      class="text-xs text-foreground/85 leading-relaxed"
-                    >
-                      {{ item }}
-                    </li>
-                  </ul>
-                </CardContent>
-              </Card>
+            <Card class="border-border">
+              <CardContent class="p-4 !pt-4">
+                <details class="group">
+                  <summary class="text-xs text-muted-foreground cursor-pointer list-none flex items-center justify-between">
+                    <span class="uppercase tracking-wider">Show Detailed Analysis</span>
+                    <span class="text-[11px] group-open:hidden">Expand</span>
+                    <span class="text-[11px] hidden group-open:inline">Collapse</span>
+                  </summary>
 
-              <Card v-if="currentReview.risks.length" class="border-rose-200/70 bg-rose-50/40">
-                <CardContent class="p-3.5 !pt-3.5">
-                  <div class="inline-flex items-center gap-2 text-[11px] text-rose-800 uppercase tracking-wider mb-2">
-                    <TriangleAlert class="h-3.5 w-3.5" />
-                    Risks
+                  <div class="grid grid-cols-1 xl:grid-cols-2 gap-3 mt-3">
+                    <div class="rounded-lg border border-border/70 px-3 py-3">
+                      <p class="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
+                        Failure Mode Predictions
+                      </p>
+                      <div class="space-y-2">
+                        <div
+                          v-for="mode in currentReview.failureModePredictions"
+                          :key="mode.id"
+                          class="text-xs text-foreground/85 leading-relaxed"
+                        >
+                          <p>{{ mode.prediction }}</p>
+                          <p class="text-[11px] text-muted-foreground mt-1">
+                            Impact {{ mode.impact }} | Confidence {{ mode.confidence }}
+                          </p>
+                        </div>
+                        <p
+                          v-if="!currentReview.failureModePredictions.length"
+                          class="text-xs text-muted-foreground"
+                        >
+                          No detailed failure predictions.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div class="rounded-lg border border-border/70 px-3 py-3">
+                      <p class="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
+                        Rewrite Proposals
+                      </p>
+                      <div class="space-y-2">
+                        <div
+                          v-for="fix in currentReview.prioritizedFixes"
+                          :key="`${fix.id}-details`"
+                          class="text-xs leading-relaxed"
+                        >
+                          <p class="font-medium text-foreground">P{{ fix.priority }} - {{ fix.title }}</p>
+                          <p class="text-foreground/75 mt-1">{{ fix.rationale }}</p>
+                          <p class="text-foreground/90 mt-1">{{ fix.proposedRewrite }}</p>
+                        </div>
+                        <p
+                          v-if="!currentReview.prioritizedFixes.length"
+                          class="text-xs text-muted-foreground"
+                        >
+                          No rewrite proposals.
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <ul class="space-y-1.5">
-                    <li
-                      v-for="item in currentReview.risks.slice(0, 4)"
-                      :key="item"
-                      class="text-xs text-foreground/85 leading-relaxed"
-                    >
-                      {{ item }}
-                    </li>
-                  </ul>
-                </CardContent>
-              </Card>
-            </div>
+                </details>
+              </CardContent>
+            </Card>
           </template>
         </template>
       </template>
