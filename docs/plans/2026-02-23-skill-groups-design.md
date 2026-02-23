@@ -42,57 +42,71 @@ Key change from the old model: `activeSkillSet` was a single string
   by any other active group.
 - **Ungrouped skills**: unaffected by group toggles, managed individually.
 
-## UI Layout
+## UI: Folders in the Skill List
 
-The left sidebar in the Installed view gains a collapsible "Groups"
-section above the skill list:
+The existing Installed view layout stays as-is. The only change is that
+the skill list shows group folders inline — like a file explorer.
 
 ```
-┌──────────────────────┬──────────────────────────────┐
-│  GROUPS              │                              │
-│  [✓] Writing   (5)   │     Skill Detail /           │
-│  [ ] Coding    (8)   │     Group Detail Panel       │
-│  [✓] Research  (3)   │                              │
-│  [+ New Group]       │                              │
-│                      │                              │
-│  INSTALLED SKILLS    │                              │
-│  brainstorming  [W]  │                              │
-│  research       [WR] │                              │
-│  writing-plans  [W]  │                              │
-│  ...                 │                              │
-└──────────────────────┴──────────────────────────────┘
+INSTALLED SKILLS
+───────────────────────
+▼ [✓] Writing (5)
+      brainstorming
+      research
+      writing-plans
+      storyteller
+      feature-spec
+▼ [ ] Coding (4)
+      test-driven-dev
+      coding-helper
+      research
+      bdd
+► [✓] Research (2)
+───────────────────────
+  Ungrouped
+      latex-pdf
+      xlsx
 ```
 
-- Each group row has a toggle checkbox and a skill count badge.
-- Clicking the checkbox toggles the group on/off.
-- Clicking the group name selects it and shows a group detail view in the
-  right panel with a checklist of all installed skills.
-- Skills in the list show small tag chips indicating group membership.
+### Folder Behavior
 
-## Flows
+- **▼ / ►** collapse or expand to show/hide the group's skills.
+- **[✓] / [ ]** toggle checkbox enables or disables the entire group.
+- Skills in a disabled group appear dimmed / visually muted.
+- A skill belonging to multiple groups appears under each group folder.
+- Ungrouped skills appear at the bottom under an "Ungrouped" heading,
+  managed individually as today.
+- Selecting a skill in any folder opens its detail in the right panel
+  (same as today).
 
 ### Creating a Group
 
-1. Click "+ New Group".
-2. Inline text input appears — type the name, press Enter.
-3. Group is created empty and selected.
-4. Right panel shows all installed skills as a checklist.
-5. Check skills to add them — saves immediately.
+- A "+ New Group" button below the list (or at the bottom of the groups
+  section) opens an inline name input.
+- The new group is created empty.
+- Skills are added to it via the skill detail panel or by editing the
+  group.
 
-### Editing a Group
+### Editing Group Membership
 
-- Click a group name to select it.
-- Right panel shows membership checklist (all installed skills, members
-  checked).
-- Check/uncheck to add/remove — saves immediately.
-- "Delete Group" button at the bottom (with confirmation).
-
-### Managing Groups from a Skill
-
-- In the skill detail view, a "Groups" section shows assigned groups as
-  chips.
+**From the skill detail panel** (right side):
+- A "Groups" section shows which groups the skill belongs to as chips.
 - Click a chip to remove the skill from that group.
 - "+ Add to group" dropdown to assign to additional groups.
+
+**From the group folder header**:
+- Clicking the group name (not the toggle) selects the group.
+- The detail panel shows group info: name, member count, and a checklist
+  of all installed skills for bulk editing.
+- "Delete Group" button with confirmation.
+- "Rename" option.
+
+### Visual Details
+
+- Folder rows are visually distinct from skill rows (bold text, slightly
+  larger, folder icon or indentation).
+- Disabled-group skills are dimmed but still visible (not hidden).
+- The skill count badge on each folder updates as skills are added/removed.
 
 ## Migration
 
@@ -105,3 +119,4 @@ section above the skill list:
 - Sharing groups between machines.
 - Automatic group switching based on project detection.
 - Nested groups / group hierarchies.
+- Drag-and-drop reordering of groups or skills within groups.
