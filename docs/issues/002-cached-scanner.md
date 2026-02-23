@@ -2,7 +2,7 @@
 type: Story
 title: "Skill Discovery: Build Deterministic Inventory with Cached Results"
 estimation: 5
-status: draft
+status: completed
 ---
 
 As a developer managing many skills, I want fast and reliable discovery that reuses cached results, so that inventory loads quickly without losing accuracy.

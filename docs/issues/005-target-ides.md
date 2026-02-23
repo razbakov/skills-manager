@@ -2,7 +2,7 @@
 type: Story
 title: "Settings: Choose Enabled Target IDEs"
 estimation: 3
-status: draft
+status: completed
 ---
 
 As a developer, I want to control which IDE targets are enabled, so that skill operations apply only to tools I use.

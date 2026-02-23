@@ -2,7 +2,7 @@
 type: Story
 title: "Available Skills: Install Across Enabled Targets"
 estimation: 3
-status: draft
+status: completed
 ---
 
 As a developer, I want to install a selected available skill with one action, so that it becomes usable in every enabled target IDE.

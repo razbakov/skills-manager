@@ -2,7 +2,7 @@
 type: Story
 title: "Settings: Configure Personal Repository for Adopted Skills"
 estimation: 3
-status: draft
+status: completed
 ---
 
 As a developer, I want to configure a personal repository in Settings, so that adopted unmanaged skills are stored and tracked in my preferred repo.

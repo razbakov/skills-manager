@@ -2,7 +2,7 @@
 type: Story
 title: "Sources: Manage GitHub Source Packages"
 estimation: 5
-status: draft
+status: completed
 ---
 
 As a developer using multiple skill collections, I want to manage sources directly in the app, so that I can add and control packages without editing config files by hand.

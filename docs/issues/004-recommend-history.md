@@ -2,7 +2,7 @@
 type: Story
 title: "Recommendations: Suggest Skills from Conversation History"
 estimation: 8
-status: draft
+status: completed
 ---
 
 As a developer with many skills, I want recommendations based on my local conversation history, so that I can quickly choose skills that match my real work.

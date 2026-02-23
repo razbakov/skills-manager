@@ -2,7 +2,7 @@
 type: Story
 title: "Skills Manager: Update App from UI and CLI"
 estimation: 3
-status: draft
+status: completed
 ---
 
 As a developer, I want one update flow in both desktop and CLI, so that I can stay on the latest app version with minimal manual steps.

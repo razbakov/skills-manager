@@ -2,7 +2,7 @@
 type: Story
 title: "Import and Export: Transfer Installed Skills as a Bundle"
 estimation: 5
-status: draft
+status: completed
 ---
 
 As a developer setting up or sharing environments, I want to export and import installed skills as a bundle, so that I can reproduce my setup quickly.

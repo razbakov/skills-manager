@@ -2,7 +2,7 @@
 type: Story
 title: "Startup: Create Default Config and Open Desktop App"
 estimation: 3
-status: draft
+status: completed
 ---
 
 ## Context

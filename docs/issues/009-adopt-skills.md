@@ -2,7 +2,7 @@
 type: Story
 title: "Installed Skills: Adopt Unmanaged Skills into Managed Sources"
 estimation: 5
-status: draft
+status: completed
 ---
 
 As a developer with unmanaged local skills, I want to adopt those skills into managed sources, so that all installs follow the same managed workflow.

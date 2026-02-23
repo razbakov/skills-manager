@@ -2,7 +2,7 @@
 type: Story
 title: "Interaction: Feedback, Action Locking, and Keyboard Controls"
 estimation: 3
-status: draft
+status: completed
 ---
 
 As a keyboard-first user, I want clear action feedback and predictable shortcuts, so that I can manage skills quickly without accidental conflicting actions.

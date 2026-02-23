@@ -2,7 +2,7 @@
 type: Story
 title: "Installed Skills: Enable, Disable, and Uninstall"
 estimation: 3
-status: draft
+status: completed
 ---
 
 As a developer, I want to manage the state of installed skills from one place, so that I can quickly turn skills on, turn them off, or remove them.

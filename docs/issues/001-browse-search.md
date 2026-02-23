@@ -2,7 +2,7 @@
 type: Story
 title: "Skills Manager: Browse and Search Skills in Desktop App"
 estimation: 3
-status: draft
+status: completed
 ---
 
 As a developer using multiple AI coding tools, I want to browse installed and available skills in one desktop app, so that I can quickly find the right skill and understand where it comes from.

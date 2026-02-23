@@ -2,7 +2,7 @@
 type: Story
 title: "Installed Skills: Show Target Coverage and Disabled State"
 estimation: 3
-status: draft
+status: completed
 ---
 
 As a developer with multiple enabled IDE targets, I want to see exact per-target skill state, so that I can quickly spot partial or disabled installations.
