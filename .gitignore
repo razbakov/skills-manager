@@ -4,7 +4,7 @@ node_modules
 .claude
 .skills-manager
 sources
-src/electron-v2/dist
+src/renderer/dist
 dist
 release
 review-output.json

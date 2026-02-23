@@ -108,7 +108,7 @@ export function updateApp(): { updated: boolean; message: string; version: strin
     runCommandOrThrow(
         bunBinary,
         ["x", "vite", "build"],
-        join(appRoot, "src", "electron-v2"),
+        join(appRoot, "src", "renderer"),
         "Frontend build failed",
     );
 

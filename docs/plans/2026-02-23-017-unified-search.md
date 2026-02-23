@@ -27,8 +27,8 @@ Expected: frontmatter shows `status: in-progress`.
 ### Task 2: Unified Search/Filter Utilities
 
 **Files:**
-- Modify: `src/electron-v2/src/composables/useSearch.ts`
-- Test: `src/electron-v2/src/composables/__tests__/useSkillLibraryFilters.test.ts`
+- Modify: `src/renderer/src/composables/useSearch.ts`
+- Test: `src/renderer/src/composables/__tests__/useSkillLibraryFilters.test.ts`
 
 **Step 1: Add unified status model**
 
@@ -54,8 +54,8 @@ Create focused tests for:
 ### Task 3: Store Refactor for Unified Skills Tab
 
 **Files:**
-- Modify: `src/electron-v2/src/composables/useSkills.ts`
-- Modify: `src/electron-v2/src/types.ts`
+- Modify: `src/renderer/src/composables/useSkills.ts`
+- Modify: `src/renderer/src/types.ts`
 
 **Step 1: Update tab model**
 
@@ -83,8 +83,8 @@ Update `jumpToSkill` to always open `skills` tab in `list` mode and select the t
 ### Task 4: New Unified Skills View
 
 **Files:**
-- Create: `src/electron-v2/src/views/SkillsView.vue`
-- Modify: `src/electron-v2/src/views/InstalledView.vue` (only if needed for compatibility)
+- Create: `src/renderer/src/views/SkillsView.vue`
+- Modify: `src/renderer/src/views/InstalledView.vue` (only if needed for compatibility)
 
 **Step 1: Build internal mode switch**
 
@@ -109,8 +109,8 @@ For `Collections` mode, render existing `InstalledView` to preserve group creati
 ### Task 5: App Shell and Keyboard Wiring
 
 **Files:**
-- Modify: `src/electron-v2/src/App.vue`
-- Modify: `src/electron-v2/src/composables/useKeyboard.ts`
+- Modify: `src/renderer/src/App.vue`
+- Modify: `src/renderer/src/composables/useKeyboard.ts`
 
 **Step 1: Replace top-level tabs**
 
@@ -127,9 +127,9 @@ Use `Ctrl/Cmd+1..4` for `Skills`, `Sources`, `Recommend`, `Settings`.
 ### Task 6: Cross-View Jump Consistency
 
 **Files:**
-- Modify: `src/electron-v2/src/views/SourcesView.vue` (if needed)
-- Modify: `src/electron-v2/src/views/RecommendationsView.vue` (if needed)
-- Modify: `src/electron-v2/src/composables/useSkills.ts`
+- Modify: `src/renderer/src/views/SourcesView.vue` (if needed)
+- Modify: `src/renderer/src/views/RecommendationsView.vue` (if needed)
+- Modify: `src/renderer/src/composables/useSkills.ts`
 
 **Step 1: Preserve jump behavior**
 
@@ -142,13 +142,13 @@ Ensure existing `jumpToSkill` call sites continue to work without local view cha
 ### Task 7: Verification
 
 **Files:**
-- Test: `src/electron-v2/src/composables/__tests__/useSearch.test.ts`
-- Test: `src/electron-v2/src/composables/__tests__/useSkillLibraryFilters.test.ts`
+- Test: `src/renderer/src/composables/__tests__/useSearch.test.ts`
+- Test: `src/renderer/src/composables/__tests__/useSkillLibraryFilters.test.ts`
 
 **Step 1: Run required unit tests**
 
 Run:
-`bun x vitest src/electron-v2/src/composables/__tests__/useSearch.test.ts src/electron-v2/src/composables/__tests__/useSkillLibraryFilters.test.ts --run`
+`bun x vitest src/renderer/src/composables/__tests__/useSearch.test.ts src/renderer/src/composables/__tests__/useSkillLibraryFilters.test.ts --run`
 
 Expected: PASS for both files.
 

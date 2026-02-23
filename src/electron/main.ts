@@ -1668,7 +1668,7 @@ function createMainWindow(): void {
   });
 
   mainWindow.setMenuBarVisibility(false);
-  void mainWindow.loadFile(join(currentDir, "..", "electron-v2", "dist", "index.html"));
+  void mainWindow.loadFile(join(currentDir, "..", "renderer", "dist", "index.html"));
   mainWindow.on("closed", () => {
     mainWindow = null;
   });

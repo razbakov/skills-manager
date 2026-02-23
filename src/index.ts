@@ -181,14 +181,14 @@ function resolveBunBinary(): string {
 }
 
 function ensureUiBundle(projectRoot: string): void {
-  const bundleIndex = join(projectRoot, "src", "electron-v2", "dist", "index.html");
+  const bundleIndex = join(projectRoot, "src", "renderer", "dist", "index.html");
   if (existsSync(bundleIndex)) {
     return;
   }
 
   const bunBinary = resolveBunBinary();
   const buildResult = spawnSync(bunBinary, ["x", "vite", "build"], {
-    cwd: join(projectRoot, "src", "electron-v2"),
+    cwd: join(projectRoot, "src", "renderer"),
     stdio: "inherit",
     encoding: "utf-8",
   });
