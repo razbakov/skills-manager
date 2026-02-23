@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld("skillsApi", {
   removeSource: (sourceId) => ipcRenderer.invoke("skills:removeSource", sourceId),
   pickImportBundle: () => ipcRenderer.invoke("skills:pickImportBundle"),
   exportInstalled: () => ipcRenderer.invoke("skills:exportInstalled"),
+  exportSkillGroup: (request) => ipcRenderer.invoke("skills:exportSkillGroup", request),
   importInstalled: (request) => ipcRenderer.invoke("skills:importInstalled", request),
   getSkillMarkdown: (skillId) => ipcRenderer.invoke("skills:getSkillMarkdown", skillId),
   editSkill: (skillId) => ipcRenderer.invoke("skills:editSkill", skillId),

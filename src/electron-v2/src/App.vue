@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Download,
-  Upload,
   RefreshCw,
   ArrowDownToLine,
   Package,
@@ -128,10 +127,6 @@ onUnmounted(() => store.unsubscribeFromProgress());
             Refresh
           </Button>
           <Separator orientation="vertical" class="h-5" />
-          <Button variant="outline" size="sm" :disabled="store.busy.value" @click="store.exportInstalled()">
-            <Upload class="h-4 w-4" />
-            Export
-          </Button>
           <Button variant="outline" size="sm" :disabled="store.busy.value" @click="store.pickImportBundle()">
             <Download class="h-4 w-4" />
             Import

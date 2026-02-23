@@ -414,6 +414,24 @@ async function exportInstalled() {
   );
 }
 
+async function exportSkillGroup(name: string) {
+  const normalized = name.trim();
+  if (!normalized) {
+    addToast("Select a group to export.", "error", 5000);
+    return { ok: false };
+  }
+
+  return runTask(
+    () => api.exportSkillGroup({ name: normalized }),
+    `Exporting ${normalized}...`,
+    (result: any) => {
+      if (result?.canceled) return "Export canceled.";
+      const groupName = (result?.groupName || normalized).toString();
+      return `Exported ${result?.installedCount ?? 0} skills from ${groupName} to ${result?.outputPath}.`;
+    },
+  );
+}
+
 async function pickImportBundle() {
   try {
     const preview = await api.pickImportBundle();
@@ -739,6 +757,7 @@ export function useSkills() {
     enableSource,
     toggleTarget,
     exportInstalled,
+    exportSkillGroup,
     pickImportBundle,
     importSelected,
     closeImportPreview,

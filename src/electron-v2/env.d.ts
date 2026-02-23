@@ -31,6 +31,7 @@ interface SkillsApi {
   removeSource: (sourceId: string) => Promise<any>;
   pickImportBundle: () => Promise<any>;
   exportInstalled: () => Promise<any>;
+  exportSkillGroup: (request: { name: string }) => Promise<any>;
   importInstalled: (request: any) => Promise<any>;
   getSkillMarkdown: (skillId: string) => Promise<string>;
   editSkill: (skillId: string) => Promise<void>;

@@ -93,7 +93,7 @@ function toggleGroupActive(groupName: string, active: boolean) {
       <aside class="flex min-h-0 w-[22rem] shrink-0 flex-col border-r">
         <div class="p-3 pb-2">
           <div class="mb-2 flex items-center justify-between">
-            <span class="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <span class="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Installed Skills
             </span>
             <span class="text-xs text-muted-foreground">

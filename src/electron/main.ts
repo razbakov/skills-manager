@@ -170,6 +170,10 @@ interface ImportInstalledPayload {
   selectedIndexes?: unknown;
 }
 
+interface ExportSkillGroupPayload {
+  name?: unknown;
+}
+
 interface CreateSkillGroupPayload {
   name?: unknown;
 }
@@ -633,6 +637,16 @@ function buildInstalledAutoGroupModel(
     estimatedTokens: installedBudget.estimatedTokens,
     budgetMethod: installedBudget.method,
   };
+}
+
+function defaultSkillGroupExportPath(groupName: string, cwd: string = process.cwd()): string {
+  const normalized = normalizeSkillGroupName(groupName);
+  const slug = normalized
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const baseName = slug ? `${slug}-skills.json` : "skill-group-skills.json";
+  return resolve(cwd, baseName);
 }
 
 async function createSnapshot(config: Config): Promise<Snapshot> {
@@ -1383,6 +1397,60 @@ function registerIpcHandlers(): void {
     const installedCount = skills.filter((skill) => skill.installed).length;
     return { canceled: false, outputPath, installedCount };
   });
+
+  ipcMain.handle(
+    "skills:exportSkillGroup",
+    async (_event, payload: ExportSkillGroupPayload) => {
+      const rawName = typeof payload?.name === "string" ? payload.name : "";
+      const groupName = normalizeSkillGroupName(rawName);
+      if (!groupName) {
+        throw new Error("Select a group to export.");
+      }
+
+      const config = loadConfig();
+      const groups = normalizedGroups(config);
+      const group = findSkillGroupByName(groups, groupName);
+      if (!group) {
+        throw new Error(`Group \"${groupName}\" not found.`);
+      }
+
+      const defaultPath = defaultSkillGroupExportPath(group.name);
+      const focusedWindow = BrowserWindow.getFocusedWindow() ?? mainWindow;
+      const saveDialogOptions: SaveDialogOptions = {
+        title: `Export ${group.name} Skill Group`,
+        defaultPath,
+        buttonLabel: "Export",
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        properties: ["showOverwriteConfirmation", "createDirectory"],
+      };
+      const selection = focusedWindow
+        ? await dialog.showSaveDialog(focusedWindow, saveDialogOptions)
+        : await dialog.showSaveDialog(saveDialogOptions);
+
+      if (selection.canceled || !selection.filePath) {
+        return { canceled: true };
+      }
+
+      const selectedPath =
+        extname(selection.filePath).toLowerCase() === ".json"
+          ? selection.filePath
+          : `${selection.filePath}.json`;
+
+      const groupSkillIds = new Set(group.skillIds);
+      const allSkills = await scan(config);
+      const groupSkills = allSkills.filter(
+        (skill) =>
+          skill.installed && groupSkillIds.has(resolve(skill.sourcePath)),
+      );
+      const outputPath = exportInstalledSkills(groupSkills, selectedPath);
+      return {
+        canceled: false,
+        outputPath,
+        installedCount: groupSkills.length,
+        groupName: group.name,
+      };
+    },
+  );
 
   ipcMain.handle("skills:pickImportBundle", async () => {
     const dialogOptions: OpenDialogOptions = {

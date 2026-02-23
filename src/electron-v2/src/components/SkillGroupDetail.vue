@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { Pencil, Trash2 } from "lucide-vue-next";
+import { Pencil, Trash2, Upload } from "lucide-vue-next";
 import { useSkills } from "@/composables/useSkills";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,6 +73,15 @@ function updateMembership(skillId: string, checked: boolean) {
   if (!group.value || group.value.isAuto) return;
   void store.updateSkillGroupMembership(group.value.name, skillId, checked);
 }
+
+function exportGroup() {
+  if (!group.value) return;
+  if (group.value.isAuto) {
+    void store.exportInstalled();
+    return;
+  }
+  void store.exportSkillGroup(group.value.name);
+}
 </script>
 
 <template>
@@ -121,12 +130,28 @@ function updateMembership(skillId: string, checked: boolean) {
             </template>
           </div>
 
-          <div v-if="!group.isAuto" class="flex gap-2">
-            <Button variant="outline" size="sm" :disabled="store.busy.value" @click="editingName = true">
+          <div class="flex gap-2">
+            <Button variant="outline" size="sm" :disabled="store.busy.value" @click="exportGroup">
+              <Upload class="h-3.5 w-3.5" />
+              Export
+            </Button>
+            <Button
+              v-if="!group.isAuto"
+              variant="outline"
+              size="sm"
+              :disabled="store.busy.value"
+              @click="editingName = true"
+            >
               <Pencil class="h-3.5 w-3.5" />
               Rename
             </Button>
-            <Button variant="destructive" size="sm" :disabled="store.busy.value" @click="removeGroup">
+            <Button
+              v-if="!group.isAuto"
+              variant="destructive"
+              size="sm"
+              :disabled="store.busy.value"
+              @click="removeGroup"
+            >
               <Trash2 class="h-3.5 w-3.5" />
               Delete Group
             </Button>
