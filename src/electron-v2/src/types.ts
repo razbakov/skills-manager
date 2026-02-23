@@ -53,6 +53,11 @@ export interface PersonalRepoViewModel {
 export interface Snapshot {
   generatedAt: string;
   exportDefaultPath: string;
+  activeBudget: {
+    enabledCount: number;
+    estimatedTokens: number;
+    method: string;
+  };
   skills: SkillViewModel[];
   installedSkills: SkillViewModel[];
   availableSkills: SkillViewModel[];

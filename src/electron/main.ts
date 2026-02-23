@@ -57,6 +57,7 @@ import {
 } from "../recommendations";
 import { loadSavedSkillReview, reviewSkill } from "../skill-review";
 import { scan } from "../scanner";
+import { buildActiveBudgetSummary } from "../token-budget";
 import type { Config, Skill } from "../types";
 import { updateApp, getAppVersion } from "../updater";
 
@@ -115,6 +116,11 @@ interface PersonalRepoViewModel {
 interface Snapshot {
   generatedAt: string;
   exportDefaultPath: string;
+  activeBudget: {
+    enabledCount: number;
+    estimatedTokens: number;
+    method: string;
+  };
   skills: SkillViewModel[];
   installedSkills: SkillViewModel[];
   availableSkills: SkillViewModel[];
@@ -573,10 +579,12 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
   ).map((s) => ({ name: s.name, url: s.url }));
 
   const personalRepo = buildPersonalRepoViewModel(config);
+  const activeBudget = buildActiveBudgetSummary(skills);
 
   return {
     generatedAt: new Date().toISOString(),
     exportDefaultPath: defaultInstalledSkillsExportPath(),
+    activeBudget,
     skills: allSkillModels,
     installedSkills: allSkillModels.filter((skill) => skill.installed),
     availableSkills: allSkillModels.filter((skill) => !skill.installed),

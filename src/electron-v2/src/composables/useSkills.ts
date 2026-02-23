@@ -107,6 +107,16 @@ const configuredTargetCount = computed(
   () => settings.value.filter((s) => s.isTarget).length,
 );
 
+const activeBudgetSummary = computed(() => {
+  const budget = snapshot.value?.activeBudget;
+  if (budget) return budget;
+  return {
+    enabledCount: 0,
+    estimatedTokens: 0,
+    method: "tiktoken/cl100k_base",
+  };
+});
+
 // ── Toast ──
 function addToast(message: string, type = "info", durationMs = 3000) {
   const id = ++toastId;
@@ -605,6 +615,7 @@ export function useSkills() {
     selectedSetting,
     selectedRecommendation,
     configuredTargetCount,
+    activeBudgetSummary,
 
     // Toast
     addToast,
