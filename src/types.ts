@@ -5,12 +5,19 @@ export interface Source {
   url?: string;
 }
 
+export interface SkillSetConfig {
+  name: string;
+  skillIds: string[];
+}
+
 export interface Config {
   sources: Source[];
   targets: string[];
   disabledSources: string[];
   personalSkillsRepo?: string;
   personalSkillsRepoPrompted: boolean;
+  skillSets?: SkillSetConfig[];
+  activeSkillSet?: string;
 }
 
 export interface Skill {

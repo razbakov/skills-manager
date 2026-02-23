@@ -1,28 +1,36 @@
 ---
 type: Story
-title: "Skill Sets: Create and Switch Named Sets"
-status: draft
+title: "Skill Groups: Tag and Toggle Skill Batches"
+status: in-progress
 ---
 
-# Skill Sets: Create and Switch Named Sets
+# Skill Groups: Tag and Toggle Skill Batches
 
-As a developer who changes task types during the day, I want to create named sets of skills and switch between them, so that I can quickly activate only what I need for the current task.
+As a developer who switches between different types of work during the day, I want to organize skills into toggleable groups, so that I can batch-enable or disable skills for a workflow without affecting unrelated skills.
 
 ## Context
 
-Today, users manage skills one by one in the `Installed` view. This works for small libraries, but becomes slow when users need to shift between different workflows. A named set feature would make this a one-step action and reduce active-skill noise.
+The original "Skill Sets" concept treated groups as exclusive profiles — applying one disabled everything outside it. This is too rigid. Users want to toggle groups independently (like playlists, not radio stations). A skill can belong to multiple groups, and toggling a group off should only disable skills that no other active group needs.
+
+See: `docs/plans/2026-02-23-skill-groups-design.md`
 
 ## Acceptance Criteria
 
-- In the skills management area, the user can create a named set from currently enabled installed skills.
-- The user can see a list of saved named sets and choose one as the active set.
-- When a named set is activated, skills in that set are enabled and all other installed skills are disabled.
-- The user can choose an `All Skills` option that returns to a state where all installed skills are enabled.
-- After switching sets, the UI shows which set is currently active.
-- If a saved set includes a skill that no longer exists, switching still succeeds for available skills and shows a notice that some skills were skipped.
-- Saved sets remain available after the app is restarted.
+- The sidebar in the Installed view has a collapsible "Groups" section above the skill list.
+- The user can create a named group, then pick member skills via a checklist in the detail panel.
+- Each group has a toggle checkbox. Multiple groups can be active at the same time.
+- Toggling a group ON enables all its member skills.
+- Toggling a group OFF disables member skills that are not in any other active group.
+- Skills not assigned to any group are unaffected by group toggles.
+- A skill can belong to multiple groups.
+- Clicking a group name shows a detail panel where membership can be edited.
+- From a skill's detail view, the user can see and edit its group assignments.
+- Groups can be deleted (with confirmation).
+- Groups and active state persist across app restarts.
+- Existing `skillSets` / `activeSkillSet` config is migrated to the new model.
 
 ## Out of Scope
 
-- Sharing sets between different machines.
-- Automatic set switching based on project detection.
+- Sharing groups between machines.
+- Automatic group switching based on project detection.
+- Nested groups / group hierarchies.

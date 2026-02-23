@@ -3,6 +3,7 @@ import { isAbsolute, join, relative, resolve } from "path";
 import { homedir } from "os";
 import yaml from "js-yaml";
 import type { Config, Source } from "./types";
+import { normalizeSkillSetName, normalizeSkillSets } from "./skill-sets";
 
 export interface SupportedIde {
   name: string;
@@ -179,6 +180,14 @@ export function loadConfig(): Config {
       : undefined;
   const personalSkillsRepoPrompted =
     parsed.personalSkillsRepoPrompted === true || !!personalSkillsRepo;
+  const skillSets = normalizeSkillSets(parsed.skillSets);
+  const activeSkillSet =
+    typeof parsed.activeSkillSet === "string"
+      ? normalizeSkillSetName(parsed.activeSkillSet)
+      : "";
+  const hasActiveSkillSet = !!activeSkillSet && skillSets.some(
+    (set) => set.name.toLowerCase() === activeSkillSet.toLowerCase(),
+  );
 
   const config: Config = {
     sources,
@@ -186,6 +195,8 @@ export function loadConfig(): Config {
     disabledSources,
     ...(personalSkillsRepo ? { personalSkillsRepo } : {}),
     personalSkillsRepoPrompted,
+    ...(skillSets.length > 0 ? { skillSets } : {}),
+    ...(hasActiveSkillSet ? { activeSkillSet } : {}),
   };
 
   ensurePersonalSkillsRepoSource(config);
@@ -216,6 +227,13 @@ export function ensureConfigDir(): void {
 function serializeConfig(config: Config): Record<string, unknown> {
   ensurePersonalSkillsRepoSource(config);
   config.sources = sortSourcesByName(config.sources);
+  const normalizedSkillSets = normalizeSkillSets(config.skillSets || []);
+  const activeSkillSet = config.activeSkillSet
+    ? normalizeSkillSetName(config.activeSkillSet)
+    : "";
+  const hasActiveSkillSet = !!activeSkillSet && normalizedSkillSets.some(
+    (set) => set.name.toLowerCase() === activeSkillSet.toLowerCase(),
+  );
 
   const serializable: Record<string, unknown> = {
     sources: config.sources.map((s) => ({
@@ -236,6 +254,15 @@ function serializeConfig(config: Config): Record<string, unknown> {
   }
   if (config.personalSkillsRepoPrompted) {
     serializable.personalSkillsRepoPrompted = true;
+  }
+  if (normalizedSkillSets.length > 0) {
+    serializable.skillSets = normalizedSkillSets.map((set) => ({
+      name: set.name,
+      skillIds: set.skillIds,
+    }));
+  }
+  if (hasActiveSkillSet) {
+    serializable.activeSkillSet = activeSkillSet;
   }
   return serializable;
 }

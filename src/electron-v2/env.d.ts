@@ -17,6 +17,8 @@ interface SkillsApi {
   disableSkill: (skillId: string) => Promise<any>;
   enableSkill: (skillId: string) => Promise<any>;
   uninstallSkill: (skillId: string) => Promise<any>;
+  createSkillSet: (request: { name: string }) => Promise<any>;
+  applySkillSet: (request: { name: string }) => Promise<any>;
   adoptSkill: (skillId: string) => Promise<any>;
   addSource: (repoUrl: string) => Promise<any>;
   disableSource: (sourceId: string) => Promise<any>;

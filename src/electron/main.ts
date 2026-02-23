@@ -56,6 +56,12 @@ import {
   type RecommendationProgressEvent,
 } from "../recommendations";
 import { loadSavedSkillReview, reviewSkill } from "../skill-review";
+import {
+  collectEnabledSkillIds,
+  normalizeSkillSetName,
+  normalizeSkillSets,
+  planNamedSetApplication,
+} from "../skill-sets";
 import { scan } from "../scanner";
 import { buildActiveBudgetSummary } from "../token-budget";
 import type { Config, Skill } from "../types";
@@ -113,6 +119,11 @@ interface PersonalRepoViewModel {
   isGitRepo: boolean;
 }
 
+interface SkillSetViewModel {
+  name: string;
+  skillCount: number;
+}
+
 interface Snapshot {
   generatedAt: string;
   exportDefaultPath: string;
@@ -121,6 +132,8 @@ interface Snapshot {
     estimatedTokens: number;
     method: string;
   };
+  skillSets: SkillSetViewModel[];
+  activeSkillSet: string | null;
   skills: SkillViewModel[];
   installedSkills: SkillViewModel[];
   availableSkills: SkillViewModel[];
@@ -146,6 +159,14 @@ interface RecommendationRequestPayload {
 interface ImportInstalledPayload {
   inputPath?: unknown;
   selectedIndexes?: unknown;
+}
+
+interface CreateSkillSetPayload {
+  name?: unknown;
+}
+
+interface ApplySkillSetPayload {
+  name?: unknown;
 }
 
 const TARGET_NAME_MAP = new Map<string, string>(
@@ -511,11 +532,38 @@ function isSkillUnderDisabledSource(skill: Skill, config: Config): boolean {
   return false;
 }
 
-async function createSnapshot(config: Config): Promise<Snapshot> {
-  const allScannedSkills = sortSkillsByName(await scan(config));
-  const skills = allScannedSkills.filter(
+function visibleSkillsFromScan(
+  allScannedSkills: Skill[],
+  config: Config,
+): Skill[] {
+  return allScannedSkills.filter(
     (skill) => !isSkillUnderDisabledSource(skill, config),
   );
+}
+
+function sortedSkillSetModels(config: Config): SkillSetViewModel[] {
+  return normalizeSkillSets(config.skillSets || []).map((set) => ({
+    name: set.name,
+    skillCount: set.skillIds.length,
+  }));
+}
+
+function resolveActiveSkillSetName(config: Config): string | null {
+  const active = typeof config.activeSkillSet === "string"
+    ? normalizeSkillSetName(config.activeSkillSet)
+    : "";
+  if (!active) return null;
+
+  const sets = normalizeSkillSets(config.skillSets || []);
+  const matched = sets.find(
+    (set) => set.name.toLowerCase() === active.toLowerCase(),
+  );
+  return matched ? matched.name : null;
+}
+
+async function createSnapshot(config: Config): Promise<Snapshot> {
+  const allScannedSkills = sortSkillsByName(await scan(config));
+  const skills = visibleSkillsFromScan(allScannedSkills, config);
   const resolvedSourcesRoot = resolve(getSourcesRootPath(config));
   const allSkillModels = skills.map((skill) =>
     toSkillViewModel(skill, config, resolvedSourcesRoot),
@@ -580,11 +628,15 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
 
   const personalRepo = buildPersonalRepoViewModel(config);
   const activeBudget = buildActiveBudgetSummary(skills);
+  const skillSets = sortedSkillSetModels(config);
+  const activeSkillSet = resolveActiveSkillSetName(config);
 
   return {
     generatedAt: new Date().toISOString(),
     exportDefaultPath: defaultInstalledSkillsExportPath(),
     activeBudget,
+    skillSets,
+    activeSkillSet,
     skills: allSkillModels,
     installedSkills: allSkillModels.filter((skill) => skill.installed),
     availableSkills: allSkillModels.filter((skill) => !skill.installed),
@@ -658,6 +710,95 @@ function parseRecommendationMode(value: unknown): "standard" | "explore-new" {
 function parseRecommendationLimit(value: unknown): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
   return Math.max(3, Math.min(Math.round(value), 15));
+}
+
+function parseSkillSetName(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return normalizeSkillSetName(value);
+}
+
+function upsertSkillSet(config: Config, name: string, skillIds: string[]): void {
+  const normalizedSets = normalizeSkillSets(config.skillSets || []);
+  const filtered = normalizedSets.filter(
+    (set) => set.name.toLowerCase() !== name.toLowerCase(),
+  );
+  filtered.push({ name, skillIds });
+  config.skillSets = normalizeSkillSets(filtered);
+}
+
+async function createNamedSkillSet(payload: CreateSkillSetPayload): Promise<{
+  snapshot: Snapshot;
+  setName: string;
+  skillCount: number;
+}> {
+  const setName = parseSkillSetName(payload?.name);
+  if (!setName) {
+    throw new Error("Enter a skill set name.");
+  }
+
+  const config = loadConfig();
+  const allScannedSkills = await scan(config);
+  const skills = visibleSkillsFromScan(allScannedSkills, config);
+  const enabledSkillIds = collectEnabledSkillIds(skills);
+
+  upsertSkillSet(config, setName, enabledSkillIds);
+  saveConfig(config);
+  const snapshot = await createSnapshot(config);
+  return {
+    snapshot,
+    setName,
+    skillCount: enabledSkillIds.length,
+  };
+}
+
+async function applyNamedSkillSet(payload: ApplySkillSetPayload): Promise<{
+  snapshot: Snapshot;
+  appliedSet: string | null;
+  skippedMissing: number;
+}> {
+  const requestedName = parseSkillSetName(payload?.name);
+  const config = loadConfig();
+  const allScannedSkills = await scan(config);
+  const skills = visibleSkillsFromScan(allScannedSkills, config);
+
+  if (!requestedName || requestedName.toLowerCase() === "all") {
+    for (const skill of skills) {
+      if (skill.installed && skill.disabled) {
+        enableSkill(skill, config);
+      }
+    }
+    delete config.activeSkillSet;
+    saveConfig(config);
+    return {
+      snapshot: await createSnapshot(config),
+      appliedSet: null,
+      skippedMissing: 0,
+    };
+  }
+
+  const sets = normalizeSkillSets(config.skillSets || []);
+  const selectedSet = sets.find(
+    (set) => set.name.toLowerCase() === requestedName.toLowerCase(),
+  );
+  if (!selectedSet) {
+    throw new Error("Skill set not found.");
+  }
+
+  const plan = planNamedSetApplication(skills, selectedSet.skillIds);
+  for (const skill of plan.toEnable) {
+    enableSkill(skill, config);
+  }
+  for (const skill of plan.toDisable) {
+    disableSkill(skill, config);
+  }
+
+  config.activeSkillSet = selectedSet.name;
+  saveConfig(config);
+  return {
+    snapshot: await createSnapshot(config),
+    appliedSet: selectedSet.name,
+    skippedMissing: plan.missingSkillIds.length,
+  };
 }
 
 async function mutateSkill(
@@ -800,6 +941,18 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("skills:uninstall", async (_event, skillId: unknown) =>
     mutateSkill(skillId, (skill, config) => uninstallSkill(skill, config)),
+  );
+
+  ipcMain.handle(
+    "skills:createSkillSet",
+    async (_event, payload: CreateSkillSetPayload) =>
+      createNamedSkillSet(payload),
+  );
+
+  ipcMain.handle(
+    "skills:applySkillSet",
+    async (_event, payload: ApplySkillSetPayload) =>
+      applyNamedSkillSet(payload),
   );
 
   ipcMain.handle("skills:adopt", async (_event, skillId: unknown) => {

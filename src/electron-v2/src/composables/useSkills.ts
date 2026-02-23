@@ -79,6 +79,8 @@ const sources = computed(() =>
 const settings = computed(() => snapshot.value?.settings ?? []);
 const suggestedSources = computed(() => snapshot.value?.suggestedSources ?? []);
 const personalRepo = computed(() => snapshot.value?.personalRepo ?? null);
+const skillSets = computed(() => snapshot.value?.skillSets ?? []);
+const activeSkillSet = computed(() => snapshot.value?.activeSkillSet ?? null);
 
 const selectedInstalledSkill = computed<SkillViewModel | null>(() => {
   if (!snapshot.value) return null;
@@ -229,6 +231,37 @@ async function uninstallSkill(skillId: string) {
     () => api.uninstallSkill(skillId),
     `Uninstalling ${name}...`,
     () => `Uninstalled ${name}.`,
+  );
+}
+
+async function createSkillSet(name: string) {
+  const normalized = name.trim();
+  if (!normalized) {
+    addToast("Enter a skill set name.", "error", 5000);
+    return { ok: false };
+  }
+
+  return runTask(
+    () => api.createSkillSet({ name: normalized }),
+    `Saving set ${normalized}...`,
+    (result: any) => `Saved set ${result?.setName ?? normalized} (${result?.skillCount ?? 0} skills).`,
+  );
+}
+
+async function applySkillSet(name: string | null) {
+  const selected = (name ?? "").trim();
+  const label = selected || "All Skills";
+
+  return runTask(
+    () => api.applySkillSet({ name: selected || "all" }),
+    `Applying ${label}...`,
+    (result: any) => {
+      const skipped = Number(result?.skippedMissing || 0);
+      if (skipped > 0) {
+        return `Applied ${label} (${skipped} missing skill${skipped === 1 ? "" : "s"} skipped).`;
+      }
+      return `Applied ${label}.`;
+    },
   );
 }
 
@@ -609,6 +642,8 @@ export function useSkills() {
     settings,
     suggestedSources,
     personalRepo,
+    skillSets,
+    activeSkillSet,
     selectedInstalledSkill,
     selectedAvailableSkill,
     selectedSource,
@@ -629,6 +664,8 @@ export function useSkills() {
     disableSkill,
     enableSkill,
     adoptSkill,
+    createSkillSet,
+    applySkillSet,
     addSource,
     removeSource,
     disableSource,

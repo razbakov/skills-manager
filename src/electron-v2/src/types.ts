@@ -50,6 +50,11 @@ export interface PersonalRepoViewModel {
   isGitRepo: boolean;
 }
 
+export interface SkillSetViewModel {
+  name: string;
+  skillCount: number;
+}
+
 export interface Snapshot {
   generatedAt: string;
   exportDefaultPath: string;
@@ -58,6 +63,8 @@ export interface Snapshot {
     estimatedTokens: number;
     method: string;
   };
+  skillSets: SkillSetViewModel[];
+  activeSkillSet: string | null;
   skills: SkillViewModel[];
   installedSkills: SkillViewModel[];
   availableSkills: SkillViewModel[];
