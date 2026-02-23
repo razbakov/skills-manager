@@ -3,7 +3,11 @@ import { isAbsolute, join, relative, resolve } from "path";
 import { homedir } from "os";
 import yaml from "js-yaml";
 import type { Config, Source } from "./types";
-import { normalizeSkillSetName, normalizeSkillSets } from "./skill-sets";
+import {
+  normalizeActiveGroups,
+  normalizeSkillGroups,
+  resolveSkillGroupsFromConfig,
+} from "./skill-groups";
 
 export interface SupportedIde {
   name: string;
@@ -180,14 +184,7 @@ export function loadConfig(): Config {
       : undefined;
   const personalSkillsRepoPrompted =
     parsed.personalSkillsRepoPrompted === true || !!personalSkillsRepo;
-  const skillSets = normalizeSkillSets(parsed.skillSets);
-  const activeSkillSet =
-    typeof parsed.activeSkillSet === "string"
-      ? normalizeSkillSetName(parsed.activeSkillSet)
-      : "";
-  const hasActiveSkillSet = !!activeSkillSet && skillSets.some(
-    (set) => set.name.toLowerCase() === activeSkillSet.toLowerCase(),
-  );
+  const groupsState = resolveSkillGroupsFromConfig(parsed);
 
   const config: Config = {
     sources,
@@ -195,12 +192,19 @@ export function loadConfig(): Config {
     disabledSources,
     ...(personalSkillsRepo ? { personalSkillsRepo } : {}),
     personalSkillsRepoPrompted,
-    ...(skillSets.length > 0 ? { skillSets } : {}),
-    ...(hasActiveSkillSet ? { activeSkillSet } : {}),
+    ...(groupsState.skillGroups.length > 0
+      ? { skillGroups: groupsState.skillGroups }
+      : {}),
+    ...(groupsState.activeGroups.length > 0
+      ? { activeGroups: groupsState.activeGroups }
+      : {}),
   };
 
   ensurePersonalSkillsRepoSource(config);
   config.sources = sortSourcesByName(config.sources);
+  if (groupsState.migratedFromLegacy) {
+    saveConfig(config);
+  }
 
   return config;
 }
@@ -227,12 +231,10 @@ export function ensureConfigDir(): void {
 function serializeConfig(config: Config): Record<string, unknown> {
   ensurePersonalSkillsRepoSource(config);
   config.sources = sortSourcesByName(config.sources);
-  const normalizedSkillSets = normalizeSkillSets(config.skillSets || []);
-  const activeSkillSet = config.activeSkillSet
-    ? normalizeSkillSetName(config.activeSkillSet)
-    : "";
-  const hasActiveSkillSet = !!activeSkillSet && normalizedSkillSets.some(
-    (set) => set.name.toLowerCase() === activeSkillSet.toLowerCase(),
+  const normalizedSkillGroups = normalizeSkillGroups(config.skillGroups || []);
+  const activeGroups = normalizeActiveGroups(
+    config.activeGroups || [],
+    normalizedSkillGroups,
   );
 
   const serializable: Record<string, unknown> = {
@@ -255,14 +257,14 @@ function serializeConfig(config: Config): Record<string, unknown> {
   if (config.personalSkillsRepoPrompted) {
     serializable.personalSkillsRepoPrompted = true;
   }
-  if (normalizedSkillSets.length > 0) {
-    serializable.skillSets = normalizedSkillSets.map((set) => ({
-      name: set.name,
-      skillIds: set.skillIds,
+  if (normalizedSkillGroups.length > 0) {
+    serializable.skillGroups = normalizedSkillGroups.map((group) => ({
+      name: group.name,
+      skillIds: group.skillIds,
     }));
   }
-  if (hasActiveSkillSet) {
-    serializable.activeSkillSet = activeSkillSet;
+  if (activeGroups.length > 0) {
+    serializable.activeGroups = activeGroups;
   }
   return serializable;
 }

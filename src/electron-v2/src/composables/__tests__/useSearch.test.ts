@@ -5,20 +5,22 @@ import type { SkillViewModel } from "../../types";
 // ── helpers ──
 
 function skill(overrides: Partial<SkillViewModel> & { name: string }): SkillViewModel {
+  const { name, ...rest } = overrides;
   return {
-    id: overrides.name,
-    name: overrides.name,
+    id: name,
+    name,
     description: "",
-    sourcePath: "/src/" + overrides.name,
+    sourcePath: "/src/" + name,
     sourceName: "test-source",
-    pathLabel: overrides.name,
+    pathLabel: name,
     installName: "",
     installed: false,
     disabled: false,
     partiallyInstalled: false,
     unmanaged: false,
     targetLabels: [],
-    ...overrides,
+    groupNames: [],
+    ...rest,
   };
 }
 

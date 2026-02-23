@@ -23,18 +23,40 @@ export interface ActiveBudgetSummary {
   method: typeof METHOD_LABEL;
 }
 
-export function buildActiveBudgetSummary(skills: Skill[]): ActiveBudgetSummary {
-  const enabledSkills = skills.filter((skill) => skill.installed && !skill.disabled);
+function installedSkills(skills: Skill[]): Skill[] {
+  return skills.filter((skill) => skill.installed);
+}
 
+function enabledInstalledSkills(skills: Skill[]): Skill[] {
+  return installedSkills(skills).filter((skill) => !skill.disabled);
+}
+
+function estimateTokens(skills: Skill[]): number {
   let estimatedTokens = 0;
   const enc = encoder();
-  for (const skill of enabledSkills) {
+  for (const skill of skills) {
     estimatedTokens += enc.encode(skillMetadataText(skill)).length;
   }
+  return estimatedTokens;
+}
+
+export function buildActiveBudgetSummary(skills: Skill[]): ActiveBudgetSummary {
+  const enabledSkills = enabledInstalledSkills(skills);
 
   return {
     enabledCount: enabledSkills.length,
-    estimatedTokens,
+    estimatedTokens: estimateTokens(enabledSkills),
+    method: METHOD_LABEL,
+  };
+}
+
+export function buildGroupBudgetSummary(skills: Skill[]): ActiveBudgetSummary {
+  const installed = installedSkills(skills);
+  const enabledCount = installed.filter((skill) => !skill.disabled).length;
+
+  return {
+    enabledCount,
+    estimatedTokens: estimateTokens(installed),
     method: METHOD_LABEL,
   };
 }

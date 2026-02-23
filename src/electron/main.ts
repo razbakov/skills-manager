@@ -57,13 +57,15 @@ import {
 } from "../recommendations";
 import { loadSavedSkillReview, reviewSkill } from "../skill-review";
 import {
-  collectEnabledSkillIds,
-  normalizeSkillSetName,
-  normalizeSkillSets,
-  planNamedSetApplication,
-} from "../skill-sets";
+  findSkillGroupByName,
+  getSkillGroupNamesForSkillId,
+  normalizeActiveGroups,
+  normalizeSkillGroupName,
+  normalizeSkillGroups,
+  planSkillGroupToggle,
+} from "../skill-groups";
 import { scan } from "../scanner";
-import { buildActiveBudgetSummary } from "../token-budget";
+import { buildActiveBudgetSummary, buildGroupBudgetSummary } from "../token-budget";
 import type { Config, Skill } from "../types";
 import { updateApp, getAppVersion } from "../updater";
 
@@ -85,6 +87,7 @@ interface SkillViewModel {
   partiallyInstalled: boolean;
   unmanaged: boolean;
   targetLabels: TargetLabel[];
+  groupNames: string[];
 }
 
 interface SourceViewModel {
@@ -119,9 +122,15 @@ interface PersonalRepoViewModel {
   isGitRepo: boolean;
 }
 
-interface SkillSetViewModel {
+interface SkillGroupViewModel {
   name: string;
   skillCount: number;
+  active: boolean;
+  skillIds: string[];
+  isAuto: boolean;
+  enabledCount: number;
+  estimatedTokens: number;
+  budgetMethod: string;
 }
 
 interface Snapshot {
@@ -132,8 +141,8 @@ interface Snapshot {
     estimatedTokens: number;
     method: string;
   };
-  skillSets: SkillSetViewModel[];
-  activeSkillSet: string | null;
+  skillGroups: SkillGroupViewModel[];
+  activeGroups: string[];
   skills: SkillViewModel[];
   installedSkills: SkillViewModel[];
   availableSkills: SkillViewModel[];
@@ -161,17 +170,34 @@ interface ImportInstalledPayload {
   selectedIndexes?: unknown;
 }
 
-interface CreateSkillSetPayload {
+interface CreateSkillGroupPayload {
   name?: unknown;
 }
 
-interface ApplySkillSetPayload {
+interface ToggleSkillGroupPayload {
   name?: unknown;
+  active?: unknown;
+}
+
+interface RenameSkillGroupPayload {
+  name?: unknown;
+  nextName?: unknown;
+}
+
+interface DeleteSkillGroupPayload {
+  name?: unknown;
+}
+
+interface UpdateSkillGroupMembershipPayload {
+  groupName?: unknown;
+  skillId?: unknown;
+  member?: unknown;
 }
 
 const TARGET_NAME_MAP = new Map<string, string>(
   SUPPORTED_IDES.map((ide) => [expandTilde(ide.path), ide.name]),
 );
+const INSTALLED_GROUP_NAME = "Installed";
 
 let mainWindow: BrowserWindow | null = null;
 let latestSnapshotSkillIds = new Set<string>();
@@ -479,6 +505,7 @@ function toSkillViewModel(
   skill: Skill,
   config: Config,
   resolvedSourcesRoot: string,
+  skillGroups: { name: string; skillIds: string[] }[],
 ): SkillViewModel {
   const sourcePath = resolve(skill.sourcePath);
 
@@ -510,6 +537,7 @@ function toSkillViewModel(
     partiallyInstalled,
     unmanaged: skill.unmanaged,
     targetLabels,
+    groupNames: getSkillGroupNamesForSkillId(skillGroups, sourcePath),
   };
 }
 
@@ -541,32 +569,80 @@ function visibleSkillsFromScan(
   );
 }
 
-function sortedSkillSetModels(config: Config): SkillSetViewModel[] {
-  return normalizeSkillSets(config.skillSets || []).map((set) => ({
-    name: set.name,
-    skillCount: set.skillIds.length,
-  }));
+function normalizedGroups(config: Config): { name: string; skillIds: string[] }[] {
+  return normalizeSkillGroups(config.skillGroups || []);
 }
 
-function resolveActiveSkillSetName(config: Config): string | null {
-  const active = typeof config.activeSkillSet === "string"
-    ? normalizeSkillSetName(config.activeSkillSet)
-    : "";
-  if (!active) return null;
-
-  const sets = normalizeSkillSets(config.skillSets || []);
-  const matched = sets.find(
-    (set) => set.name.toLowerCase() === active.toLowerCase(),
+function isInstalledAutoGroupName(rawName: string): boolean {
+  return (
+    normalizeSkillGroupName(rawName).toLowerCase() ===
+    INSTALLED_GROUP_NAME.toLowerCase()
   );
-  return matched ? matched.name : null;
+}
+
+function normalizedActiveGroupNames(
+  config: Config,
+  groups: { name: string; skillIds: string[] }[],
+): string[] {
+  return normalizeActiveGroups(config.activeGroups || [], groups);
+}
+
+function sortedSkillGroupModels(
+  groups: { name: string; skillIds: string[] }[],
+  activeGroups: string[],
+  installedSkillsById: Map<string, Skill>,
+): SkillGroupViewModel[] {
+  const activeLower = new Set(activeGroups.map((name) => name.toLowerCase()));
+  return groups.map((group) => {
+    const installedMembers = group.skillIds.filter((skillId) =>
+      installedSkillsById.has(skillId),
+    );
+    const memberSkills = installedMembers
+      .map((skillId) => installedSkillsById.get(skillId))
+      .filter((skill): skill is Skill => !!skill);
+    const budget = buildGroupBudgetSummary(memberSkills);
+    return {
+      name: group.name,
+      skillCount: installedMembers.length,
+      active: activeLower.has(group.name.toLowerCase()),
+      skillIds: installedMembers,
+      isAuto: false,
+      enabledCount: budget.enabledCount,
+      estimatedTokens: budget.estimatedTokens,
+      budgetMethod: budget.method,
+    };
+  });
+}
+
+function buildInstalledAutoGroupModel(
+  installedSkillModels: SkillViewModel[],
+  installedBudget: {
+    enabledCount: number;
+    estimatedTokens: number;
+    method: string;
+  },
+): SkillGroupViewModel {
+  const skillIds = installedSkillModels.map((skill) => skill.id);
+  return {
+    name: INSTALLED_GROUP_NAME,
+    skillCount: skillIds.length,
+    active: skillIds.length > 0 && installedBudget.enabledCount === skillIds.length,
+    skillIds,
+    isAuto: true,
+    enabledCount: installedBudget.enabledCount,
+    estimatedTokens: installedBudget.estimatedTokens,
+    budgetMethod: installedBudget.method,
+  };
 }
 
 async function createSnapshot(config: Config): Promise<Snapshot> {
   const allScannedSkills = sortSkillsByName(await scan(config));
   const skills = visibleSkillsFromScan(allScannedSkills, config);
+  const groups = normalizedGroups(config);
+  const activeGroups = normalizedActiveGroupNames(config, groups);
   const resolvedSourcesRoot = resolve(getSourcesRootPath(config));
   const allSkillModels = skills.map((skill) =>
-    toSkillViewModel(skill, config, resolvedSourcesRoot),
+    toSkillViewModel(skill, config, resolvedSourcesRoot, groups),
   );
   const skillById = new Map<string, SkillViewModel>();
 
@@ -584,7 +660,7 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
       .map(
         (skill) =>
           skillById.get(resolve(skill.sourcePath)) ||
-          toSkillViewModel(skill, config, resolvedSourcesRoot),
+          toSkillViewModel(skill, config, resolvedSourcesRoot, groups),
       )
       .filter((skill): skill is SkillViewModel => !!skill);
 
@@ -628,17 +704,25 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
 
   const personalRepo = buildPersonalRepoViewModel(config);
   const activeBudget = buildActiveBudgetSummary(skills);
-  const skillSets = sortedSkillSetModels(config);
-  const activeSkillSet = resolveActiveSkillSetName(config);
+  const installedSkills = skills.filter((skill) => skill.installed);
+  const installedBudget = buildGroupBudgetSummary(installedSkills);
+  const installedSkillsById = new Map(
+    installedSkills.map((skill) => [resolve(skill.sourcePath), skill]),
+  );
+  const installedSkillModels = allSkillModels.filter((skill) => skill.installed);
+  const skillGroups = [
+    buildInstalledAutoGroupModel(installedSkillModels, installedBudget),
+    ...sortedSkillGroupModels(groups, activeGroups, installedSkillsById),
+  ];
 
   return {
     generatedAt: new Date().toISOString(),
     exportDefaultPath: defaultInstalledSkillsExportPath(),
     activeBudget,
-    skillSets,
-    activeSkillSet,
+    skillGroups,
+    activeGroups,
     skills: allSkillModels,
-    installedSkills: allSkillModels.filter((skill) => skill.installed),
+    installedSkills: installedSkillModels,
     availableSkills: allSkillModels.filter((skill) => !skill.installed),
     sources,
     suggestedSources,
@@ -712,79 +796,142 @@ function parseRecommendationLimit(value: unknown): number | undefined {
   return Math.max(3, Math.min(Math.round(value), 15));
 }
 
-function parseSkillSetName(value: unknown): string {
+function parseSkillGroupName(value: unknown): string {
   if (typeof value !== "string") return "";
-  return normalizeSkillSetName(value);
+  return normalizeSkillGroupName(value);
 }
 
-function upsertSkillSet(config: Config, name: string, skillIds: string[]): void {
-  const normalizedSets = normalizeSkillSets(config.skillSets || []);
-  const filtered = normalizedSets.filter(
-    (set) => set.name.toLowerCase() !== name.toLowerCase(),
+function writeSkillGroupState(
+  config: Config,
+  groups: { name: string; skillIds: string[] }[],
+  activeGroups: string[],
+): void {
+  if (groups.length > 0) {
+    config.skillGroups = groups;
+  } else {
+    delete config.skillGroups;
+  }
+
+  if (activeGroups.length > 0) {
+    config.activeGroups = activeGroups;
+  } else {
+    delete config.activeGroups;
+  }
+}
+
+function setAllInstalledSkillsEnabled(
+  skills: Skill[],
+  config: Config,
+  enabled: boolean,
+): void {
+  for (const skill of skills) {
+    if (!skill.installed) continue;
+    if (enabled) {
+      if (skill.disabled) {
+        enableSkill(skill, config);
+      }
+      continue;
+    }
+
+    if (!skill.disabled) {
+      disableSkill(skill, config);
+    }
+  }
+}
+
+function isSkillCoveredByActiveGroups(
+  groups: { name: string; skillIds: string[] }[],
+  activeGroups: string[],
+  skillId: string,
+): boolean {
+  const activeLower = new Set(activeGroups.map((name) => name.toLowerCase()));
+  return groups.some(
+    (group) =>
+      activeLower.has(group.name.toLowerCase()) &&
+      group.skillIds.includes(skillId),
   );
-  filtered.push({ name, skillIds });
-  config.skillSets = normalizeSkillSets(filtered);
 }
 
-async function createNamedSkillSet(payload: CreateSkillSetPayload): Promise<{
+async function createSkillGroup(payload: CreateSkillGroupPayload): Promise<{
   snapshot: Snapshot;
-  setName: string;
-  skillCount: number;
+  groupName: string;
 }> {
-  const setName = parseSkillSetName(payload?.name);
-  if (!setName) {
-    throw new Error("Enter a skill set name.");
+  const groupName = parseSkillGroupName(payload?.name);
+  if (!groupName) {
+    throw new Error("Enter a group name.");
+  }
+  if (isInstalledAutoGroupName(groupName)) {
+    throw new Error(`"${INSTALLED_GROUP_NAME}" is reserved.`);
+  }
+
+  const config = loadConfig();
+  const groups = normalizedGroups(config);
+  if (findSkillGroupByName(groups, groupName)) {
+    throw new Error("Group already exists.");
+  }
+
+  const updatedGroups = normalizeSkillGroups([
+    ...groups,
+    { name: groupName, skillIds: [] },
+  ]);
+  const activeGroups = normalizedActiveGroupNames(config, updatedGroups);
+  writeSkillGroupState(config, updatedGroups, activeGroups);
+  saveConfig(config);
+
+  const created = findSkillGroupByName(updatedGroups, groupName);
+  const snapshot = await createSnapshot(config);
+  return {
+    snapshot,
+    groupName: created ? created.name : groupName,
+  };
+}
+
+async function toggleSkillGroup(payload: ToggleSkillGroupPayload): Promise<{
+  snapshot: Snapshot;
+  groupName: string;
+  active: boolean;
+  skippedMissing: number;
+}> {
+  const requestedName = parseSkillGroupName(payload?.name);
+  if (!requestedName) {
+    throw new Error("Select a group.");
+  }
+  if (typeof payload?.active !== "boolean") {
+    throw new Error("Missing group state.");
   }
 
   const config = loadConfig();
   const allScannedSkills = await scan(config);
   const skills = visibleSkillsFromScan(allScannedSkills, config);
-  const enabledSkillIds = collectEnabledSkillIds(skills);
-
-  upsertSkillSet(config, setName, enabledSkillIds);
-  saveConfig(config);
-  const snapshot = await createSnapshot(config);
-  return {
-    snapshot,
-    setName,
-    skillCount: enabledSkillIds.length,
-  };
-}
-
-async function applyNamedSkillSet(payload: ApplySkillSetPayload): Promise<{
-  snapshot: Snapshot;
-  appliedSet: string | null;
-  skippedMissing: number;
-}> {
-  const requestedName = parseSkillSetName(payload?.name);
-  const config = loadConfig();
-  const allScannedSkills = await scan(config);
-  const skills = visibleSkillsFromScan(allScannedSkills, config);
-
-  if (!requestedName || requestedName.toLowerCase() === "all") {
-    for (const skill of skills) {
-      if (skill.installed && skill.disabled) {
-        enableSkill(skill, config);
-      }
-    }
-    delete config.activeSkillSet;
+  const groups = normalizedGroups(config);
+  if (isInstalledAutoGroupName(requestedName)) {
+    setAllInstalledSkillsEnabled(skills, config, payload.active);
+    writeSkillGroupState(
+      config,
+      groups,
+      payload.active ? groups.map((group) => group.name) : [],
+    );
     saveConfig(config);
     return {
       snapshot: await createSnapshot(config),
-      appliedSet: null,
+      groupName: INSTALLED_GROUP_NAME,
+      active: payload.active,
       skippedMissing: 0,
     };
   }
 
-  const sets = normalizeSkillSets(config.skillSets || []);
-  const selectedSet = sets.find(
-    (set) => set.name.toLowerCase() === requestedName.toLowerCase(),
-  );
-  if (!selectedSet) {
-    throw new Error("Skill set not found.");
+  const selectedGroup = findSkillGroupByName(groups, requestedName);
+  if (!selectedGroup) {
+    throw new Error("Group not found.");
   }
 
-  const plan = planNamedSetApplication(skills, selectedSet.skillIds);
+  const plan = planSkillGroupToggle(
+    skills,
+    groups,
+    config.activeGroups || [],
+    selectedGroup.name,
+    payload.active,
+  );
   for (const skill of plan.toEnable) {
     enableSkill(skill, config);
   }
@@ -792,12 +939,191 @@ async function applyNamedSkillSet(payload: ApplySkillSetPayload): Promise<{
     disableSkill(skill, config);
   }
 
-  config.activeSkillSet = selectedSet.name;
+  writeSkillGroupState(config, groups, plan.activeGroups);
   saveConfig(config);
   return {
     snapshot: await createSnapshot(config),
-    appliedSet: selectedSet.name,
+    groupName: selectedGroup.name,
+    active: payload.active,
     skippedMissing: plan.missingSkillIds.length,
+  };
+}
+
+async function renameSkillGroup(payload: RenameSkillGroupPayload): Promise<{
+  snapshot: Snapshot;
+  groupName: string;
+}> {
+  const requestedName = parseSkillGroupName(payload?.name);
+  const nextName = parseSkillGroupName(payload?.nextName);
+  if (!requestedName) {
+    throw new Error("Select a group.");
+  }
+  if (!nextName) {
+    throw new Error("Enter a group name.");
+  }
+  if (isInstalledAutoGroupName(nextName)) {
+    throw new Error(`"${INSTALLED_GROUP_NAME}" is reserved.`);
+  }
+
+  const config = loadConfig();
+  const groups = normalizedGroups(config);
+  const selectedGroup = findSkillGroupByName(groups, requestedName);
+  if (!selectedGroup) {
+    throw new Error("Group not found.");
+  }
+
+  const duplicate = findSkillGroupByName(groups, nextName);
+  if (
+    duplicate &&
+    duplicate.name.toLowerCase() !== selectedGroup.name.toLowerCase()
+  ) {
+    throw new Error("A group with this name already exists.");
+  }
+
+  const updatedGroups = normalizeSkillGroups(
+    groups.map((group) =>
+      group.name.toLowerCase() === selectedGroup.name.toLowerCase()
+        ? { name: nextName, skillIds: group.skillIds }
+        : group
+    ),
+  );
+  const renamed = findSkillGroupByName(updatedGroups, nextName);
+  if (!renamed) {
+    throw new Error("Could not rename group.");
+  }
+
+  const currentActive = normalizedActiveGroupNames(config, groups);
+  const remappedActive = currentActive.map((activeName) =>
+    activeName.toLowerCase() === selectedGroup.name.toLowerCase()
+      ? renamed.name
+      : activeName
+  );
+  const activeGroups = normalizeActiveGroups(remappedActive, updatedGroups);
+
+  writeSkillGroupState(config, updatedGroups, activeGroups);
+  saveConfig(config);
+  return {
+    snapshot: await createSnapshot(config),
+    groupName: renamed.name,
+  };
+}
+
+async function deleteSkillGroup(payload: DeleteSkillGroupPayload): Promise<{
+  snapshot: Snapshot;
+  deletedGroup: string;
+}> {
+  const requestedName = parseSkillGroupName(payload?.name);
+  if (!requestedName) {
+    throw new Error("Select a group.");
+  }
+
+  const config = loadConfig();
+  const groups = normalizedGroups(config);
+  const selectedGroup = findSkillGroupByName(groups, requestedName);
+  if (!selectedGroup) {
+    throw new Error("Group not found.");
+  }
+
+  const updatedGroups = groups.filter(
+    (group) => group.name.toLowerCase() !== selectedGroup.name.toLowerCase(),
+  );
+  const activeGroups = normalizeActiveGroups(
+    (config.activeGroups || []).filter(
+      (name) => name.toLowerCase() !== selectedGroup.name.toLowerCase(),
+    ),
+    updatedGroups,
+  );
+
+  writeSkillGroupState(config, updatedGroups, activeGroups);
+  saveConfig(config);
+  return {
+    snapshot: await createSnapshot(config),
+    deletedGroup: selectedGroup.name,
+  };
+}
+
+async function updateSkillGroupMembership(
+  payload: UpdateSkillGroupMembershipPayload,
+): Promise<{
+  snapshot: Snapshot;
+  groupName: string;
+  member: boolean;
+}> {
+  const requestedGroupName = parseSkillGroupName(payload?.groupName);
+  if (!requestedGroupName) {
+    throw new Error("Select a group.");
+  }
+  if (isInstalledAutoGroupName(requestedGroupName)) {
+    throw new Error("This group is managed automatically.");
+  }
+  if (typeof payload?.member !== "boolean") {
+    throw new Error("Missing membership state.");
+  }
+  if (typeof payload?.skillId !== "string" || !payload.skillId.trim()) {
+    throw new Error("Missing skill identifier.");
+  }
+
+  const resolvedSkillId = resolve(payload.skillId);
+  const config = loadConfig();
+  const groups = normalizedGroups(config);
+  const selectedGroup = findSkillGroupByName(groups, requestedGroupName);
+  if (!selectedGroup) {
+    throw new Error("Group not found.");
+  }
+
+  const activeGroups = normalizedActiveGroupNames(config, groups);
+  const coveredBefore = isSkillCoveredByActiveGroups(
+    groups,
+    activeGroups,
+    resolvedSkillId,
+  );
+
+  const updatedGroups = normalizeSkillGroups(
+    groups.map((group) => {
+      if (group.name.toLowerCase() !== selectedGroup.name.toLowerCase()) {
+        return group;
+      }
+      const ids = new Set(group.skillIds);
+      if (payload.member) {
+        ids.add(resolvedSkillId);
+      } else {
+        ids.delete(resolvedSkillId);
+      }
+      return {
+        name: group.name,
+        skillIds: Array.from(ids).sort((a, b) =>
+          a.localeCompare(b, undefined, {
+            sensitivity: "base",
+            numeric: true,
+          }),
+        ),
+      };
+    }),
+  );
+  const normalizedActive = normalizeActiveGroups(activeGroups, updatedGroups);
+  const coveredAfter = isSkillCoveredByActiveGroups(
+    updatedGroups,
+    normalizedActive,
+    resolvedSkillId,
+  );
+
+  const allScannedSkills = await scan(config);
+  const skills = visibleSkillsFromScan(allScannedSkills, config);
+  const skill = findSkillById(skills, resolvedSkillId);
+  if (skill?.installed) {
+    if (!coveredBefore && coveredAfter && skill.disabled) {
+      enableSkill(skill, config);
+    } else if (coveredBefore && !coveredAfter && !skill.disabled) {
+      disableSkill(skill, config);
+    }
+  }
+
+  writeSkillGroupState(config, updatedGroups, normalizedActive);
+  saveConfig(config);
+  return {
+    snapshot: await createSnapshot(config),
+    groupName: selectedGroup.name,
+    member: payload.member,
   };
 }
 
@@ -944,15 +1270,33 @@ function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
-    "skills:createSkillSet",
-    async (_event, payload: CreateSkillSetPayload) =>
-      createNamedSkillSet(payload),
+    "skills:createSkillGroup",
+    async (_event, payload: CreateSkillGroupPayload) =>
+      createSkillGroup(payload),
   );
 
   ipcMain.handle(
-    "skills:applySkillSet",
-    async (_event, payload: ApplySkillSetPayload) =>
-      applyNamedSkillSet(payload),
+    "skills:toggleSkillGroup",
+    async (_event, payload: ToggleSkillGroupPayload) =>
+      toggleSkillGroup(payload),
+  );
+
+  ipcMain.handle(
+    "skills:renameSkillGroup",
+    async (_event, payload: RenameSkillGroupPayload) =>
+      renameSkillGroup(payload),
+  );
+
+  ipcMain.handle(
+    "skills:deleteSkillGroup",
+    async (_event, payload: DeleteSkillGroupPayload) =>
+      deleteSkillGroup(payload),
+  );
+
+  ipcMain.handle(
+    "skills:updateSkillGroupMembership",
+    async (_event, payload: UpdateSkillGroupMembershipPayload) =>
+      updateSkillGroupMembership(payload),
   );
 
   ipcMain.handle("skills:adopt", async (_event, skillId: unknown) => {

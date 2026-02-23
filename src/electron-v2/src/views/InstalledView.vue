@@ -1,120 +1,226 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, reactive, ref } from "vue";
+import { ChevronDown, ChevronRight, FolderClosed, FolderOpen, Plus } from "lucide-vue-next";
 import { useSkills } from "@/composables/useSkills";
-import SkillList from "@/components/SkillList.vue";
 import SkillDetail from "@/components/SkillDetail.vue";
+import SkillGroupDetail from "@/components/SkillGroupDetail.vue";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import type { SkillViewModel } from "@/types";
 
 const store = useSkills();
-const newSetName = ref("");
-const selectedSetName = ref("all");
+const creatingGroup = ref(false);
+const newGroupName = ref("");
+const collapsedGroups = reactive<Record<string, boolean>>({});
 
-const activeSetLabel = computed(
-  () => store.activeSkillSet.value || "All Skills",
+const installedById = computed(() => {
+  const byId = new Map<string, SkillViewModel>();
+  for (const skill of store.installedSkills.value) {
+    byId.set(skill.id, skill);
+  }
+  return byId;
+});
+
+const groupedSkills = computed(() => {
+  return store.skillGroups.value
+    .map((group) => {
+      const members = group.skillIds
+        .map((skillId) => installedById.value.get(skillId))
+        .filter((skill): skill is SkillViewModel => !!skill);
+      return { group, members };
+    })
+    .filter((entry) => {
+      if (!store.queries.installed.trim()) {
+        return true;
+      }
+      return entry.members.length > 0;
+    });
+});
+
+const hasVisibleSkills = computed(() =>
+  store.queries.installed.trim()
+    ? groupedSkills.value.some((entry) => entry.members.length > 0)
+    : groupedSkills.value.length > 0,
 );
 
-watch(
-  () => store.activeSkillSet.value,
-  (active) => {
-    selectedSetName.value = active || "all";
-  },
-  { immediate: true },
-);
+function isCollapsed(groupName: string): boolean {
+  return collapsedGroups[groupName] === true;
+}
 
-async function handleCreateSet() {
-  const result = await store.createSkillSet(newSetName.value);
-  if (result?.ok) {
-    newSetName.value = "";
+function toggleCollapsed(groupName: string) {
+  collapsedGroups[groupName] = !isCollapsed(groupName);
+}
+
+function selectSkill(skillId: string) {
+  store.selected.installed = skillId;
+  store.selected.installedGroup = null;
+}
+
+function selectGroup(groupName: string) {
+  store.selected.installedGroup = groupName;
+}
+
+async function handleCreateGroup() {
+  const result = await store.createSkillGroup(newGroupName.value);
+  if (result.ok) {
+    const createdName = (result.result as any)?.groupName;
+    if (typeof createdName === "string" && createdName.trim()) {
+      store.selected.installedGroup = createdName;
+    }
+    creatingGroup.value = false;
+    newGroupName.value = "";
   }
 }
 
-function handleApplySet(value: string) {
-  selectedSetName.value = value || "all";
-  void store.applySkillSet(value === "all" ? null : value);
+function startCreatingGroup() {
+  creatingGroup.value = true;
+}
+
+function cancelCreatingGroup() {
+  creatingGroup.value = false;
+  newGroupName.value = "";
+}
+
+function toggleGroupActive(groupName: string, active: boolean) {
+  void store.toggleSkillGroup(groupName, active);
 }
 </script>
 
 <template>
   <div class="flex h-full flex-col">
-    <section class="border-b bg-muted/20 px-4 py-3">
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-xl mb-3">
-        <div class="rounded-lg border bg-background px-3 py-2">
-          <p class="text-[10px] uppercase tracking-wider text-muted-foreground">Enabled Skills</p>
-          <p class="text-xl font-semibold leading-none mt-1">
-            {{ store.activeBudgetSummary.value.enabledCount }}
-          </p>
-        </div>
-        <div class="rounded-lg border bg-background px-3 py-2">
-          <p class="text-[10px] uppercase tracking-wider text-muted-foreground">Estimated Tokens</p>
-          <p class="text-xl font-semibold leading-none mt-1">
-            {{ store.activeBudgetSummary.value.estimatedTokens }}
-          </p>
-          <p class="text-[11px] text-muted-foreground mt-1">
-            Estimated with {{ store.activeBudgetSummary.value.method }}.
-          </p>
-        </div>
-      </div>
-
-      <div class="rounded-lg border bg-background px-3 py-3">
-        <div class="flex flex-wrap items-end gap-2 mb-2">
-          <div class="flex-1 min-w-56">
-            <label class="text-[11px] uppercase tracking-wider text-muted-foreground block mb-1">
-              Create Set from Current Enabled Skills
-            </label>
-            <Input
-              v-model="newSetName"
-              placeholder="Set name (for example: Writing Core)"
-              @keydown.enter.prevent="handleCreateSet"
-            />
+    <div class="flex min-h-0 flex-1">
+      <aside class="flex min-h-0 w-[22rem] shrink-0 flex-col border-r">
+        <div class="p-3 pb-2">
+          <div class="mb-2 flex items-center justify-between">
+            <span class="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Installed Skills
+            </span>
+            <span class="text-xs text-muted-foreground">
+              {{ store.installedSkills.value.length }}/{{ store.snapshot.value?.installedSkills?.length ?? 0 }}
+            </span>
           </div>
-          <Button size="sm" :disabled="store.busy.value || !newSetName.trim()" @click="handleCreateSet">
-            Save Set
-          </Button>
+          <Input
+            data-search-input
+            :model-value="store.queries.installed"
+            placeholder="Search skills..."
+            @update:model-value="store.queries.installed = $event"
+          />
         </div>
 
-        <div class="flex flex-wrap items-end gap-2">
-          <div class="w-64 max-w-full">
-            <label class="text-[11px] uppercase tracking-wider text-muted-foreground block mb-1">
-              Active Set
-            </label>
-            <select
-              class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              :value="selectedSetName"
-              :disabled="store.busy.value"
-              @change="handleApplySet(($event.target as HTMLSelectElement).value)"
+        <ScrollArea class="flex-1 min-h-0">
+          <div v-if="!hasVisibleSkills" class="px-4 py-8 text-center text-sm text-muted-foreground">
+            No skills match your search.
+          </div>
+
+          <div v-for="entry in groupedSkills" :key="entry.group.name" class="border-b border-border/40">
+            <div
+              class="flex items-center gap-2 px-2.5 py-2"
+              :class="store.selected.installedGroup === entry.group.name ? 'bg-accent/70' : ''"
             >
-              <option value="all">All Skills</option>
-              <option
-                v-for="set in store.skillSets.value"
-                :key="set.name"
-                :value="set.name"
+              <button
+                class="rounded p-0.5 text-muted-foreground transition hover:bg-accent/60 hover:text-foreground"
+                @click="toggleCollapsed(entry.group.name)"
               >
-                {{ set.name }} ({{ set.skillCount }})
-              </option>
-            </select>
-          </div>
-          <p class="text-xs text-muted-foreground pb-1">
-            Current: <span class="font-medium text-foreground">{{ activeSetLabel }}</span>
-          </p>
-        </div>
-      </div>
-    </section>
+                <ChevronRight v-if="isCollapsed(entry.group.name)" class="h-3.5 w-3.5" />
+                <ChevronDown v-else class="h-3.5 w-3.5" />
+              </button>
 
-    <div class="flex flex-1 min-h-0">
-      <aside class="w-80 border-r shrink-0 min-h-0">
-        <SkillList
-          label="Installed Skills"
-          :skills="store.installedSkills.value"
-          :selected-id="store.selected.installed"
-          :query="store.queries.installed"
-          :total-count="store.snapshot.value?.installedSkills?.length ?? 0"
-          @select="store.selected.installed = $event"
-          @update:query="store.queries.installed = $event"
-        />
+              <input
+                type="checkbox"
+                class="h-4 w-4 rounded border-border"
+                :checked="entry.group.active"
+                :disabled="store.busy.value"
+                @click.stop
+                @change="toggleGroupActive(entry.group.name, ($event.target as HTMLInputElement).checked)"
+              />
+
+              <button
+                class="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                @click="selectGroup(entry.group.name)"
+              >
+                <FolderOpen v-if="entry.group.active" class="h-3.5 w-3.5 shrink-0 text-emerald-700" />
+                <FolderClosed v-else class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span class="truncate text-sm font-semibold">{{ entry.group.name }}</span>
+              </button>
+
+              <div class="flex items-center gap-1">
+                <span
+                  v-if="entry.group.isAuto"
+                  class="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700"
+                >
+                  Auto
+                </span>
+                <span class="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground">
+                  {{ entry.group.skillCount }}
+                </span>
+              </div>
+            </div>
+
+            <div v-if="!isCollapsed(entry.group.name)" class="pb-1">
+              <button
+                v-for="skill in entry.members"
+                :key="`${entry.group.name}-${skill.id}`"
+                :data-selected="skill.id === store.selected.installed ? 'true' : undefined"
+                class="block w-full cursor-pointer px-8 py-1.5 text-left transition-colors"
+                :class="[
+                  skill.id === store.selected.installed && !store.selected.installedGroup
+                    ? 'bg-accent'
+                    : 'hover:bg-accent/50',
+                  entry.group.active || entry.group.isAuto ? '' : 'opacity-45',
+                ]"
+                @click="selectSkill(skill.id)"
+              >
+                <div class="truncate text-sm">{{ skill.name }}</div>
+                <p class="truncate text-[11px] text-muted-foreground">{{ skill.sourceName }} / {{ skill.pathLabel }}</p>
+              </button>
+            </div>
+          </div>
+
+        </ScrollArea>
+
+        <div class="border-t p-3">
+          <Button
+            v-if="!creatingGroup"
+            variant="outline"
+            size="sm"
+            class="w-full"
+            :disabled="store.busy.value"
+            @click="startCreatingGroup"
+          >
+            <Plus class="h-3.5 w-3.5" />
+            New Group
+          </Button>
+
+          <div v-else class="space-y-2">
+            <Input
+              v-model="newGroupName"
+              placeholder="Group name"
+              @keydown.enter.prevent="handleCreateGroup"
+              @keydown.escape.prevent="cancelCreatingGroup"
+            />
+            <div class="flex gap-2">
+              <Button size="sm" class="flex-1" :disabled="store.busy.value || !newGroupName.trim()" @click="handleCreateGroup">
+                Create
+              </Button>
+              <Button variant="outline" size="sm" class="flex-1" :disabled="store.busy.value" @click="cancelCreatingGroup">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
       </aside>
-      <section class="flex-1 min-w-0 min-h-0">
-        <SkillDetail :skill="store.selectedInstalledSkill.value" mode="installed" />
+
+      <section class="min-h-0 min-w-0 flex-1">
+        <SkillGroupDetail
+          v-if="store.selected.installedGroup"
+          :group-name="store.selected.installedGroup"
+        />
+        <SkillDetail
+          v-else
+          :skill="store.selectedInstalledSkill.value"
+          mode="installed"
+        />
       </section>
     </div>
   </div>

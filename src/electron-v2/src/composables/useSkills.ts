@@ -24,6 +24,7 @@ const queries = reactive({ installed: "", available: "" });
 
 const selected = reactive({
   installed: null as string | null,
+  installedGroup: null as string | null,
   available: null as string | null,
   source: null as string | null,
   recommendation: null as string | null,
@@ -79,13 +80,17 @@ const sources = computed(() =>
 const settings = computed(() => snapshot.value?.settings ?? []);
 const suggestedSources = computed(() => snapshot.value?.suggestedSources ?? []);
 const personalRepo = computed(() => snapshot.value?.personalRepo ?? null);
-const skillSets = computed(() => snapshot.value?.skillSets ?? []);
-const activeSkillSet = computed(() => snapshot.value?.activeSkillSet ?? null);
+const skillGroups = computed(() => snapshot.value?.skillGroups ?? []);
+const activeGroups = computed(() => snapshot.value?.activeGroups ?? []);
 
 const selectedInstalledSkill = computed<SkillViewModel | null>(() => {
   if (!snapshot.value) return null;
   return snapshot.value.installedSkills.find((s) => s.id === selected.installed) ?? null;
 });
+
+const selectedInstalledGroup = computed(() =>
+  skillGroups.value.find((group) => group.name === selected.installedGroup) ?? null,
+);
 
 const selectedAvailableSkill = computed<SkillViewModel | null>(() => {
   if (!snapshot.value) return null;
@@ -141,9 +146,13 @@ function ensureSelection() {
   const inst = sortByName(snapshot.value.installedSkills);
   const avail = sortByName(snapshot.value.availableSkills);
   const src = sources.value;
+  const groups = skillGroups.value;
 
   if (!inst.find((s) => s.id === selected.installed)) {
     selected.installed = inst[0]?.id ?? null;
+  }
+  if (!groups.find((group) => group.name === selected.installedGroup)) {
+    selected.installedGroup = null;
   }
   if (!avail.find((s) => s.id === selected.available)) {
     selected.available = avail[0]?.id ?? null;
@@ -234,34 +243,87 @@ async function uninstallSkill(skillId: string) {
   );
 }
 
-async function createSkillSet(name: string) {
+async function createSkillGroup(name: string) {
   const normalized = name.trim();
   if (!normalized) {
-    addToast("Enter a skill set name.", "error", 5000);
+    addToast("Enter a group name.", "error", 5000);
     return { ok: false };
   }
 
   return runTask(
-    () => api.createSkillSet({ name: normalized }),
-    `Saving set ${normalized}...`,
-    (result: any) => `Saved set ${result?.setName ?? normalized} (${result?.skillCount ?? 0} skills).`,
+    () => api.createSkillGroup({ name: normalized }),
+    `Creating group ${normalized}...`,
+    (result: any) => `Created group ${result?.groupName ?? normalized}.`,
   );
 }
 
-async function applySkillSet(name: string | null) {
-  const selected = (name ?? "").trim();
-  const label = selected || "All Skills";
-
+async function toggleSkillGroup(name: string, active: boolean) {
+  const normalized = name.trim();
+  if (!normalized) {
+    addToast("Select a group.", "error", 5000);
+    return { ok: false };
+  }
   return runTask(
-    () => api.applySkillSet({ name: selected || "all" }),
-    `Applying ${label}...`,
+    () => api.toggleSkillGroup({ name: normalized, active }),
+    `${active ? "Enabling" : "Disabling"} ${normalized}...`,
     (result: any) => {
       const skipped = Number(result?.skippedMissing || 0);
       if (skipped > 0) {
-        return `Applied ${label} (${skipped} missing skill${skipped === 1 ? "" : "s"} skipped).`;
+        return `${active ? "Enabled" : "Disabled"} ${normalized} (${skipped} missing skill${skipped === 1 ? "" : "s"} skipped).`;
       }
-      return `Applied ${label}.`;
+      return `${active ? "Enabled" : "Disabled"} ${normalized}.`;
     },
+  );
+}
+
+async function renameSkillGroup(name: string, nextName: string) {
+  const current = name.trim();
+  const next = nextName.trim();
+  if (!current) {
+    addToast("Select a group.", "error", 5000);
+    return { ok: false };
+  }
+  if (!next) {
+    addToast("Enter a group name.", "error", 5000);
+    return { ok: false };
+  }
+
+  return runTask(
+    () => api.renameSkillGroup({ name: current, nextName: next }),
+    `Renaming ${current}...`,
+    (result: any) => `Renamed group to ${result?.groupName ?? next}.`,
+  );
+}
+
+async function deleteSkillGroup(name: string) {
+  const normalized = name.trim();
+  if (!normalized) {
+    addToast("Select a group.", "error", 5000);
+    return { ok: false };
+  }
+
+  return runTask(
+    () => api.deleteSkillGroup({ name: normalized }),
+    `Deleting ${normalized}...`,
+    (result: any) => `Deleted group ${result?.deletedGroup ?? normalized}.`,
+  );
+}
+
+async function updateSkillGroupMembership(
+  groupName: string,
+  skillId: string,
+  member: boolean,
+) {
+  const normalized = groupName.trim();
+  if (!normalized || !skillId) {
+    addToast("Could not update group membership.", "error", 5000);
+    return { ok: false };
+  }
+
+  return runTask(
+    () => api.updateSkillGroupMembership({ groupName: normalized, skillId, member }),
+    member ? "Adding skill to group..." : "Removing skill from group...",
+    () => (member ? `Added skill to ${normalized}.` : `Removed skill from ${normalized}.`),
   );
 }
 
@@ -609,6 +671,7 @@ function jumpToSkill(skillId: string) {
 
   if (skill.installed) {
     selected.installed = skill.id;
+    selected.installedGroup = null;
     activeTab.value = "installed";
   } else {
     selected.available = skill.id;
@@ -642,9 +705,10 @@ export function useSkills() {
     settings,
     suggestedSources,
     personalRepo,
-    skillSets,
-    activeSkillSet,
+    skillGroups,
+    activeGroups,
     selectedInstalledSkill,
+    selectedInstalledGroup,
     selectedAvailableSkill,
     selectedSource,
     selectedSetting,
@@ -664,8 +728,11 @@ export function useSkills() {
     disableSkill,
     enableSkill,
     adoptSkill,
-    createSkillSet,
-    applySkillSet,
+    createSkillGroup,
+    toggleSkillGroup,
+    renameSkillGroup,
+    deleteSkillGroup,
+    updateSkillGroupMembership,
     addSource,
     removeSource,
     disableSource,

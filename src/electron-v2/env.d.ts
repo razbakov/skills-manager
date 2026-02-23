@@ -17,8 +17,13 @@ interface SkillsApi {
   disableSkill: (skillId: string) => Promise<any>;
   enableSkill: (skillId: string) => Promise<any>;
   uninstallSkill: (skillId: string) => Promise<any>;
-  createSkillSet: (request: { name: string }) => Promise<any>;
-  applySkillSet: (request: { name: string }) => Promise<any>;
+  createSkillGroup: (request: { name: string }) => Promise<any>;
+  toggleSkillGroup: (request: { name: string; active: boolean }) => Promise<any>;
+  renameSkillGroup: (request: { name: string; nextName: string }) => Promise<any>;
+  deleteSkillGroup: (request: { name: string }) => Promise<any>;
+  updateSkillGroupMembership: (
+    request: { groupName: string; skillId: string; member: boolean },
+  ) => Promise<any>;
   adoptSkill: (skillId: string) => Promise<any>;
   addSource: (repoUrl: string) => Promise<any>;
   disableSource: (sourceId: string) => Promise<any>;

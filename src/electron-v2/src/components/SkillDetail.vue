@@ -30,11 +30,13 @@ const store = useSkills();
 const markdown = ref("Select a skill to preview SKILL.md.");
 const loadingMd = ref(false);
 const detailTab = ref<"preview" | "review">("preview");
+const selectedGroupToAdd = ref("");
 
 watch(
   () => props.skill?.id,
   async (id) => {
     detailTab.value = "preview";
+    selectedGroupToAdd.value = "";
     if (!id) {
       markdown.value = "Select a skill to preview SKILL.md.";
       return;
@@ -47,6 +49,14 @@ watch(
   },
   { immediate: true },
 );
+
+const addableGroups = computed(() => {
+  const grouped = new Set(props.skill?.groupNames ?? []);
+  return store.skillGroups.value
+    .filter((group) => !group.isAuto)
+    .map((group) => group.name)
+    .filter((name) => !grouped.has(name));
+});
 
 function formatInstalledIdes(skill: SkillViewModel): string {
   if (!skill.targetLabels?.length) return "-";
@@ -114,6 +124,20 @@ function openReviewTab(skillId: string) {
   detailTab.value = "review";
   store.reviewSkill(skillId);
 }
+
+async function addCurrentSkillToGroup(skillId: string) {
+  const groupName = selectedGroupToAdd.value.trim();
+  if (!groupName) return;
+
+  const result = await store.updateSkillGroupMembership(groupName, skillId, true);
+  if (result.ok) {
+    selectedGroupToAdd.value = "";
+  }
+}
+
+function removeCurrentSkillFromGroup(skillId: string, groupName: string) {
+  void store.updateSkillGroupMembership(groupName, skillId, false);
+}
 </script>
 
 <template>
@@ -142,6 +166,44 @@ function openReviewTab(skillId: string) {
           <template v-if="mode === 'installed' && store.configuredTargetCount.value > 1">
             <span class="text-muted-foreground text-xs uppercase tracking-wider pt-0.5">IDEs</span>
             <span>{{ formatInstalledIdes(skill) }}</span>
+          </template>
+          <template v-if="mode === 'installed'">
+            <span class="text-muted-foreground text-xs uppercase tracking-wider pt-0.5">Groups</span>
+            <div>
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  v-for="groupName in skill.groupNames"
+                  :key="`group-${groupName}`"
+                  class="rounded-full border px-2 py-0.5 text-xs text-foreground/85 transition-colors hover:bg-accent"
+                  :disabled="store.busy.value"
+                  @click="removeCurrentSkillFromGroup(skill.id, groupName)"
+                >
+                  {{ groupName }} x
+                </button>
+                <span v-if="!skill.groupNames.length" class="text-xs text-muted-foreground">None</span>
+              </div>
+
+              <div class="mt-2 flex max-w-sm items-center gap-2">
+                <select
+                  v-model="selectedGroupToAdd"
+                  class="h-8 w-full rounded-md border border-input bg-background px-2 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  :disabled="store.busy.value || addableGroups.length === 0"
+                >
+                  <option value="">+ Add to group</option>
+                  <option v-for="groupName in addableGroups" :key="`add-${groupName}`" :value="groupName">
+                    {{ groupName }}
+                  </option>
+                </select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :disabled="store.busy.value || !selectedGroupToAdd"
+                  @click="addCurrentSkillToGroup(skill.id)"
+                >
+                  Add
+                </Button>
+              </div>
+            </div>
           </template>
         </div>
 

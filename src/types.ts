@@ -5,7 +5,7 @@ export interface Source {
   url?: string;
 }
 
-export interface SkillSetConfig {
+export interface SkillGroupConfig {
   name: string;
   skillIds: string[];
 }
@@ -16,8 +16,8 @@ export interface Config {
   disabledSources: string[];
   personalSkillsRepo?: string;
   personalSkillsRepoPrompted: boolean;
-  skillSets?: SkillSetConfig[];
-  activeSkillSet?: string;
+  skillGroups?: SkillGroupConfig[];
+  activeGroups?: string[];
 }
 
 export interface Skill {

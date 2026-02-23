@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { get_encoding } from "tiktoken";
-import { buildActiveBudgetSummary } from "./token-budget";
+import { buildActiveBudgetSummary, buildGroupBudgetSummary } from "./token-budget";
 import type { Skill } from "./types";
 
 function skill(overrides: Partial<Skill> & { name: string }): Skill {
@@ -59,5 +59,42 @@ describe("buildActiveBudgetSummary", () => {
     ]);
 
     expect(summary).toEqual({ enabledCount: 0, estimatedTokens: 0, method: "tiktoken/cl100k_base" });
+  });
+});
+
+describe("buildGroupBudgetSummary", () => {
+  it("estimates tokens for all installed skills in the group", () => {
+    const enabled = skill({
+      name: "enabled-a",
+      description: "Enabled member",
+      sourcePath: "/skills/enabled-a",
+      installed: true,
+      disabled: false,
+    });
+    const disabled = skill({
+      name: "disabled-a",
+      description: "Disabled member",
+      sourcePath: "/skills/disabled-a",
+      installed: true,
+      disabled: true,
+    });
+
+    const summary = buildGroupBudgetSummary([
+      enabled,
+      disabled,
+      skill({ name: "available-a", installed: false, disabled: false }),
+    ]);
+
+    const encoder = get_encoding("cl100k_base");
+    try {
+      const enabledText = `name: ${enabled.name}\ndescription: ${enabled.description}\npath: ${enabled.sourcePath}`;
+      const disabledText = `name: ${disabled.name}\ndescription: ${disabled.description}\npath: ${disabled.sourcePath}`;
+      const expected = encoder.encode(enabledText).length + encoder.encode(disabledText).length;
+      expect(summary.enabledCount).toBe(1);
+      expect(summary.estimatedTokens).toBe(expected);
+      expect(summary.method).toBe("tiktoken/cl100k_base");
+    } finally {
+      encoder.free();
+    }
   });
 });

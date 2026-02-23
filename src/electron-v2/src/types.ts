@@ -16,6 +16,7 @@ export interface SkillViewModel {
   partiallyInstalled: boolean;
   unmanaged: boolean;
   targetLabels: TargetLabel[];
+  groupNames: string[];
 }
 
 export interface SourceViewModel {
@@ -50,9 +51,15 @@ export interface PersonalRepoViewModel {
   isGitRepo: boolean;
 }
 
-export interface SkillSetViewModel {
+export interface SkillGroupViewModel {
   name: string;
   skillCount: number;
+  active: boolean;
+  skillIds: string[];
+  isAuto: boolean;
+  enabledCount: number;
+  estimatedTokens: number;
+  budgetMethod: string;
 }
 
 export interface Snapshot {
@@ -63,8 +70,8 @@ export interface Snapshot {
     estimatedTokens: number;
     method: string;
   };
-  skillSets: SkillSetViewModel[];
-  activeSkillSet: string | null;
+  skillGroups: SkillGroupViewModel[];
+  activeGroups: string[];
   skills: SkillViewModel[];
   installedSkills: SkillViewModel[];
   availableSkills: SkillViewModel[];

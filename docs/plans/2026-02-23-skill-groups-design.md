@@ -14,8 +14,10 @@ broader configuration.
 Groups are tags assigned to skills. Multiple groups can be active
 simultaneously. A skill is enabled if **any** of its active groups include
 it. Toggling a group off only disables skills that have no other active
-group keeping them on. Skills not in any group are unaffected by group
-toggles and managed individually.
+group keeping them on.
+
+An auto-managed group named **Installed** is always present. It contains all
+installed skills and acts as a global master toggle.
 
 ### Data Model
 
@@ -35,12 +37,18 @@ interface Config {
 Key change from the old model: `activeSkillSet` was a single string
 (exclusive). `activeGroups` is an array (multiple simultaneously active).
 
+The `Installed` group is synthetic UI state derived from installed skills and
+is not persisted in `skillGroups`.
+
 ### Toggle Logic
 
-- **Group toggled ON**: enable all installed skills in that group.
-- **Group toggled OFF**: disable skills in that group that are not covered
-  by any other active group.
-- **Ungrouped skills**: unaffected by group toggles, managed individually.
+- **Installed toggled ON**: enable all installed skills and mark all user
+  groups active.
+- **Installed toggled OFF**: disable all installed skills and clear active
+  user groups.
+- **User group toggled ON**: enable installed skills in that group.
+- **User group toggled OFF**: disable skills in that group that are not
+  covered by any other active group.
 
 ## UI: Folders in the Skill List
 
@@ -50,6 +58,11 @@ the skill list shows group folders inline — like a file explorer.
 ```
 INSTALLED SKILLS
 ───────────────────────
+▼ [✓] Installed (11) [Auto]
+      brainstorming
+      research
+      test-driven-dev
+      ...
 ▼ [✓] Writing (5)
       brainstorming
       research
@@ -62,10 +75,6 @@ INSTALLED SKILLS
       research
       bdd
 ► [✓] Research (2)
-───────────────────────
-  Ungrouped
-      latex-pdf
-      xlsx
 ```
 
 ### Folder Behavior
@@ -74,10 +83,11 @@ INSTALLED SKILLS
 - **[✓] / [ ]** toggle checkbox enables or disables the entire group.
 - Skills in a disabled group appear dimmed / visually muted.
 - A skill belonging to multiple groups appears under each group folder.
-- Ungrouped skills appear at the bottom under an "Ungrouped" heading,
-  managed individually as today.
+- There is no separate "Ungrouped" section; all installed skills are always
+  visible under `Installed`.
 - Selecting a skill in any folder opens its detail in the right panel
   (same as today).
+- `Installed` is read-only: it cannot be renamed, deleted, or manually edited.
 
 ### Creating a Group
 
@@ -92,19 +102,24 @@ INSTALLED SKILLS
 **From the skill detail panel** (right side):
 - A "Groups" section shows which groups the skill belongs to as chips.
 - Click a chip to remove the skill from that group.
-- "+ Add to group" dropdown to assign to additional groups.
+- "+ Add to group" dropdown to assign to additional groups (excluding
+  `Installed`, which is automatic).
 
 **From the group folder header**:
 - Clicking the group name (not the toggle) selects the group.
 - The detail panel shows group info: name, member count, and a checklist
   of all installed skills for bulk editing.
+- The detail panel shows token budget info calculated from the selected
+  group's installed skills.
 - "Delete Group" button with confirmation.
 - "Rename" option.
+- For `Installed`, the detail panel is informational/read-only.
 
 ### Visual Details
 
 - Folder rows are visually distinct from skill rows (bold text, slightly
   larger, folder icon or indentation).
+- `Installed` row has an "Auto" badge.
 - Disabled-group skills are dimmed but still visible (not hidden).
 - The skill count badge on each folder updates as skills are added/removed.
 
