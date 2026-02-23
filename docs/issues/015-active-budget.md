@@ -1,7 +1,7 @@
 ---
 type: Story
 title: "Installed Skills: Show Enabled Count and Token Estimate"
-status: draft
+status: completed
 ---
 
 # Installed Skills: Show Enabled Count and Token Estimate
