@@ -60,7 +60,7 @@ async function saveRename() {
 
 async function removeGroup() {
   if (!group.value) return;
-  const confirmed = window.confirm(`Delete group \"${group.value.name}\"?`);
+  const confirmed = window.confirm(`Delete collection \"${group.value.name}\"?`);
   if (!confirmed) return;
 
   const result = await store.deleteSkillGroup(group.value.name);
@@ -88,7 +88,7 @@ function exportGroup() {
   <ScrollArea class="h-full">
     <div class="p-5">
       <div v-if="!group" class="py-16 text-center text-sm text-muted-foreground">
-        Select a group to edit it.
+        Select a collection to edit it.
       </div>
 
       <template v-else>
@@ -98,7 +98,7 @@ function exportGroup() {
               <Input
                 v-model="draftName"
                 class="max-w-sm"
-                placeholder="Group name"
+                placeholder="Collection name"
                 @keydown.enter.prevent="saveRename"
                 @keydown.escape.prevent="editingName = false"
               />
@@ -120,12 +120,12 @@ function exportGroup() {
                   Auto
                 </Badge>
                 <span class="text-xs text-muted-foreground">
-                  {{ group.skillCount }} skill{{ group.skillCount === 1 ? '' : 's' }} in group
+                  {{ group.skillCount }} skill{{ group.skillCount === 1 ? '' : 's' }} in collection
                   ~{{ group.estimatedTokens.toLocaleString() }} tokens
                 </span>
               </div>
               <p v-if="group.isAuto" class="mt-2 text-xs text-muted-foreground">
-                This group is managed automatically and always includes all installed skills.
+                This collection is managed automatically and always includes all installed skills.
               </p>
             </template>
           </div>
@@ -153,14 +153,14 @@ function exportGroup() {
               @click="removeGroup"
             >
               <Trash2 class="h-3.5 w-3.5" />
-              Delete Group
+              Delete Collection
             </Button>
           </div>
         </div>
 
         <div class="rounded-lg border">
           <div class="border-b px-3 py-2 text-xs uppercase tracking-wider text-muted-foreground">
-            Group Members
+            Collection Members
           </div>
           <div class="divide-y">
             <label

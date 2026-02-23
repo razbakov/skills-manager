@@ -189,13 +189,13 @@ function toggleGroupActive(groupName: string, active: boolean) {
             @click="startCreatingGroup"
           >
             <Plus class="h-3.5 w-3.5" />
-            New Group
+            New Collection
           </Button>
 
           <div v-else class="space-y-2">
             <Input
               v-model="newGroupName"
-              placeholder="Group name"
+              placeholder="Collection name"
               @keydown.enter.prevent="handleCreateGroup"
               @keydown.escape.prevent="cancelCreatingGroup"
             />

@@ -210,4 +210,4 @@ export interface ImportPreviewSkill {
   skillPath: string;
 }
 
-export type TabId = "installed" | "available" | "sources" | "recommendations" | "settings";
+export type TabId = "skills" | "sources" | "recommendations" | "settings";

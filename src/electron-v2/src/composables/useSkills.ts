@@ -12,17 +12,28 @@ import type {
   RecommendationItem,
   RecommendationRunStats,
 } from "@/types";
-import { filterSkills, sortByName } from "./useSearch";
+import {
+  filterSkillLibrary,
+  filterSkills,
+  sortByName,
+  type LibraryStatusFilter,
+} from "./useSearch";
 
 const api = window.skillsApi;
 
 // ── Singleton state ──
 const snapshot = ref<Snapshot | null>(null);
-const activeTab = ref<TabId>("installed");
+const activeTab = ref<TabId>("skills");
 const busy = ref(false);
-const queries = reactive({ installed: "", available: "" });
+const queries = reactive({ skills: "", installed: "", available: "" });
+const skillsViewMode = ref<"list" | "groups">("list");
+const libraryFilters = reactive({
+  status: "all" as LibraryStatusFilter,
+  sourceName: "",
+});
 
 const selected = reactive({
+  skills: null as string | null,
   installed: null as string | null,
   installedGroup: null as string | null,
   available: null as string | null,
@@ -65,6 +76,31 @@ const REVIEW_RECOVERY_POLL_ATTEMPTS = 5;
 const REVIEW_RECOVERY_POLL_INTERVAL_MS = 1200;
 
 // ── Derived ──
+const librarySkills = computed(() =>
+  snapshot.value
+    ? filterSkillLibrary(snapshot.value.skills, {
+        query: queries.skills,
+        status: libraryFilters.status,
+        sourceName: libraryFilters.sourceName,
+      })
+    : [],
+);
+
+const librarySources = computed(() => {
+  if (!snapshot.value) return [];
+  const names = new Set<string>();
+  for (const skill of snapshot.value.skills) {
+    const name = (skill.sourceName || "").trim();
+    if (name) names.add(name);
+  }
+  return Array.from(names).sort((a, b) =>
+    a.localeCompare(b, undefined, {
+      sensitivity: "base",
+      numeric: true,
+    }),
+  );
+});
+
 const installedSkills = computed(() =>
   snapshot.value ? filterSkills(snapshot.value.installedSkills, queries.installed) : [],
 );
@@ -82,6 +118,12 @@ const suggestedSources = computed(() => snapshot.value?.suggestedSources ?? []);
 const personalRepo = computed(() => snapshot.value?.personalRepo ?? null);
 const skillGroups = computed(() => snapshot.value?.skillGroups ?? []);
 const activeGroups = computed(() => snapshot.value?.activeGroups ?? []);
+
+const selectedSkill = computed<SkillViewModel | null>(() => {
+  const list = librarySkills.value;
+  if (!list.length) return null;
+  return list.find((skill) => skill.id === selected.skills) ?? list[0];
+});
 
 const selectedInstalledSkill = computed<SkillViewModel | null>(() => {
   if (!snapshot.value) return null;
@@ -143,11 +185,15 @@ function removeToast(id: number) {
 function ensureSelection() {
   if (!snapshot.value) return;
 
+  const allSkills = sortByName(snapshot.value.skills);
   const inst = sortByName(snapshot.value.installedSkills);
   const avail = sortByName(snapshot.value.availableSkills);
   const src = sources.value;
   const groups = skillGroups.value;
 
+  if (!allSkills.find((s) => s.id === selected.skills)) {
+    selected.skills = allSkills[0]?.id ?? null;
+  }
   if (!inst.find((s) => s.id === selected.installed)) {
     selected.installed = inst[0]?.id ?? null;
   }
@@ -162,6 +208,12 @@ function ensureSelection() {
   }
   if (!settings.value.find((s) => s.id === selected.setting)) {
     selected.setting = settings.value[0]?.id ?? null;
+  }
+  if (
+    libraryFilters.sourceName &&
+    !librarySources.value.some((name) => name === libraryFilters.sourceName)
+  ) {
+    libraryFilters.sourceName = "";
   }
 
   const recItems = recommendations.data?.items ?? [];
@@ -225,6 +277,21 @@ async function refresh() {
   );
 }
 
+function selectSkill(skillId: string) {
+  if (!snapshot.value) return;
+  const skill = snapshot.value.skills.find((entry) => entry.id === skillId);
+  if (!skill) return;
+
+  selected.skills = skill.id;
+  if (skill.installed) {
+    selected.installed = skill.id;
+    selected.installedGroup = null;
+    return;
+  }
+
+  selected.available = skill.id;
+}
+
 async function installSkill(skillId: string) {
   const name = snapshot.value?.skills.find((s) => s.id === skillId)?.name ?? "skill";
   await runTask(
@@ -246,21 +313,21 @@ async function uninstallSkill(skillId: string) {
 async function createSkillGroup(name: string) {
   const normalized = name.trim();
   if (!normalized) {
-    addToast("Enter a group name.", "error", 5000);
+    addToast("Enter a collection name.", "error", 5000);
     return { ok: false };
   }
 
   return runTask(
     () => api.createSkillGroup({ name: normalized }),
-    `Creating group ${normalized}...`,
-    (result: any) => `Created group ${result?.groupName ?? normalized}.`,
+    `Creating collection ${normalized}...`,
+    (result: any) => `Created collection ${result?.groupName ?? normalized}.`,
   );
 }
 
 async function toggleSkillGroup(name: string, active: boolean) {
   const normalized = name.trim();
   if (!normalized) {
-    addToast("Select a group.", "error", 5000);
+    addToast("Select a collection.", "error", 5000);
     return { ok: false };
   }
   return runTask(
@@ -280,32 +347,32 @@ async function renameSkillGroup(name: string, nextName: string) {
   const current = name.trim();
   const next = nextName.trim();
   if (!current) {
-    addToast("Select a group.", "error", 5000);
+    addToast("Select a collection.", "error", 5000);
     return { ok: false };
   }
   if (!next) {
-    addToast("Enter a group name.", "error", 5000);
+    addToast("Enter a collection name.", "error", 5000);
     return { ok: false };
   }
 
   return runTask(
     () => api.renameSkillGroup({ name: current, nextName: next }),
     `Renaming ${current}...`,
-    (result: any) => `Renamed group to ${result?.groupName ?? next}.`,
+    (result: any) => `Renamed collection to ${result?.groupName ?? next}.`,
   );
 }
 
 async function deleteSkillGroup(name: string) {
   const normalized = name.trim();
   if (!normalized) {
-    addToast("Select a group.", "error", 5000);
+    addToast("Select a collection.", "error", 5000);
     return { ok: false };
   }
 
   return runTask(
     () => api.deleteSkillGroup({ name: normalized }),
     `Deleting ${normalized}...`,
-    (result: any) => `Deleted group ${result?.deletedGroup ?? normalized}.`,
+    (result: any) => `Deleted collection ${result?.deletedGroup ?? normalized}.`,
   );
 }
 
@@ -316,13 +383,13 @@ async function updateSkillGroupMembership(
 ) {
   const normalized = groupName.trim();
   if (!normalized || !skillId) {
-    addToast("Could not update group membership.", "error", 5000);
+    addToast("Could not update collection membership.", "error", 5000);
     return { ok: false };
   }
 
   return runTask(
     () => api.updateSkillGroupMembership({ groupName: normalized, skillId, member }),
-    member ? "Adding skill to group..." : "Removing skill from group...",
+    member ? "Adding skill to collection..." : "Removing skill from collection...",
     () => (member ? `Added skill to ${normalized}.` : `Removed skill from ${normalized}.`),
   );
 }
@@ -417,7 +484,7 @@ async function exportInstalled() {
 async function exportSkillGroup(name: string) {
   const normalized = name.trim();
   if (!normalized) {
-    addToast("Select a group to export.", "error", 5000);
+    addToast("Select a collection to export.", "error", 5000);
     return { ok: false };
   }
 
@@ -426,8 +493,8 @@ async function exportSkillGroup(name: string) {
     `Exporting ${normalized}...`,
     (result: any) => {
       if (result?.canceled) return "Export canceled.";
-      const groupName = (result?.groupName || normalized).toString();
-      return `Exported ${result?.installedCount ?? 0} skills from ${groupName} to ${result?.outputPath}.`;
+      const collectionName = (result?.groupName || normalized).toString();
+      return `Exported ${result?.installedCount ?? 0} skills from ${collectionName} to ${result?.outputPath}.`;
     },
   );
 }
@@ -686,15 +753,9 @@ function jumpToSkill(skillId: string) {
   if (!snapshot.value) return;
   const skill = snapshot.value.skills.find((s) => s.id === skillId);
   if (!skill) return;
-
-  if (skill.installed) {
-    selected.installed = skill.id;
-    selected.installedGroup = null;
-    activeTab.value = "installed";
-  } else {
-    selected.available = skill.id;
-    activeTab.value = "available";
-  }
+  selectSkill(skill.id);
+  skillsViewMode.value = "list";
+  activeTab.value = "skills";
 }
 
 // ── Init ──
@@ -710,6 +771,8 @@ export function useSkills() {
     activeTab,
     busy,
     queries,
+    skillsViewMode,
+    libraryFilters,
     selected,
     toasts,
     recommendations,
@@ -717,6 +780,8 @@ export function useSkills() {
     skillReviews,
 
     // Derived
+    librarySkills,
+    librarySources,
     installedSkills,
     availableSkills,
     sources,
@@ -725,6 +790,7 @@ export function useSkills() {
     personalRepo,
     skillGroups,
     activeGroups,
+    selectedSkill,
     selectedInstalledSkill,
     selectedInstalledGroup,
     selectedAvailableSkill,
@@ -741,6 +807,7 @@ export function useSkills() {
     // Actions
     init,
     refresh,
+    selectSkill,
     installSkill,
     uninstallSkill,
     disableSkill,

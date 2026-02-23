@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { onMounted, onUnmounted } from "vue";
 import { useSkills } from "@/composables/useSkills";
 import { useKeyboard } from "@/composables/useKeyboard";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,14 +11,12 @@ import {
   RefreshCw,
   ArrowDownToLine,
   Package,
-  PackageOpen,
   FolderGit2,
   Sparkles,
   Settings,
   X,
 } from "lucide-vue-next";
-import InstalledView from "@/views/InstalledView.vue";
-import AvailableView from "@/views/AvailableView.vue";
+import SkillsView from "@/views/SkillsView.vue";
 import SourcesView from "@/views/SourcesView.vue";
 import RecommendationsView from "@/views/RecommendationsView.vue";
 import SettingsView from "@/views/SettingsView.vue";
@@ -26,11 +24,8 @@ import ImportDialog from "@/components/ImportDialog.vue";
 
 const store = useSkills();
 
-const searchRef = ref<HTMLInputElement | null>(null);
-
 const navItems = [
-  { id: "installed" as const, label: "Installed", icon: Package },
-  { id: "available" as const, label: "Available", icon: PackageOpen },
+  { id: "skills" as const, label: "Skills", icon: Package },
   { id: "sources" as const, label: "Sources", icon: FolderGit2 },
   { id: "recommendations" as const, label: "Recommend", icon: Sparkles },
   { id: "settings" as const, label: "Settings", icon: Settings },
@@ -38,8 +33,7 @@ const navItems = [
 
 function getTabCount(id: string): number | null {
   if (!store.snapshot.value) return null;
-  if (id === "installed") return store.snapshot.value.installedSkills.length;
-  if (id === "available") return store.snapshot.value.availableSkills.length;
+  if (id === "skills") return store.snapshot.value.skills.length;
   if (id === "sources") return store.snapshot.value.sources.length;
   if (id === "recommendations") return store.recommendations.data?.items?.length ?? 0;
   return null;
@@ -47,8 +41,12 @@ function getTabCount(id: string): number | null {
 
 function getActiveList(): { ids: string[]; selectedKey: keyof typeof store.selected } | null {
   const tab = store.activeTab.value;
-  if (tab === "installed") return { ids: store.installedSkills.value.map(s => s.id), selectedKey: "installed" };
-  if (tab === "available") return { ids: store.availableSkills.value.map(s => s.id), selectedKey: "available" };
+  if (tab === "skills") {
+    if (store.skillsViewMode.value === "groups") {
+      return { ids: store.installedSkills.value.map((s) => s.id), selectedKey: "installed" };
+    }
+    return { ids: store.librarySkills.value.map((s) => s.id), selectedKey: "skills" };
+  }
   if (tab === "sources") return { ids: store.sources.value.map(s => s.id), selectedKey: "source" };
   if (tab === "recommendations") return { ids: (store.recommendations.data?.items ?? []).map(i => i.skillId), selectedKey: "recommendation" };
   if (tab === "settings") return { ids: store.settings.value.map(s => s.id), selectedKey: "setting" };
@@ -62,7 +60,15 @@ function moveSelection(delta: number) {
   const idx = currentId ? list.ids.indexOf(currentId) : -1;
   let next = idx === -1 ? (delta > 0 ? 0 : list.ids.length - 1) : idx + delta;
   next = Math.max(0, Math.min(next, list.ids.length - 1));
-  store.selected[list.selectedKey] = list.ids[next];
+  const nextId = list.ids[next];
+  if (list.selectedKey === "skills") {
+    store.selectSkill(nextId);
+  } else {
+    store.selected[list.selectedKey] = nextId;
+    if (list.selectedKey === "installed") {
+      store.selected.installedGroup = null;
+    }
+  }
   requestAnimationFrame(() => {
     const el = document.querySelector<HTMLElement>('[data-selected="true"]');
     if (el) {
@@ -74,12 +80,20 @@ function moveSelection(delta: number) {
 
 function triggerPrimaryAction() {
   const tab = store.activeTab.value;
-  if (tab === "installed") {
-    const s = store.selectedInstalledSkill.value;
-    if (s) s.disabled ? store.enableSkill(s.id) : store.disableSkill(s.id);
-  } else if (tab === "available") {
-    const s = store.selectedAvailableSkill.value;
-    if (s) store.installSkill(s.id);
+  if (tab === "skills") {
+    if (store.skillsViewMode.value === "groups") {
+      const s = store.selectedInstalledSkill.value;
+      if (s) s.disabled ? store.enableSkill(s.id) : store.disableSkill(s.id);
+      return;
+    }
+
+    const s = store.selectedSkill.value;
+    if (!s) return;
+    if (!s.installed) {
+      store.installSkill(s.id);
+    } else {
+      s.disabled ? store.enableSkill(s.id) : store.disableSkill(s.id);
+    }
   } else if (tab === "sources") {
     const s = store.selectedSource.value;
     if (s) store.openPath(s.path);
@@ -162,8 +176,7 @@ onUnmounted(() => store.unsubscribeFromProgress());
 
         <!-- Main content -->
         <main class="flex-1 min-w-0 min-h-0">
-          <InstalledView v-if="store.activeTab.value === 'installed'" />
-          <AvailableView v-else-if="store.activeTab.value === 'available'" />
+          <SkillsView v-if="store.activeTab.value === 'skills'" />
           <SourcesView v-else-if="store.activeTab.value === 'sources'" />
           <RecommendationsView v-else-if="store.activeTab.value === 'recommendations'" />
           <SettingsView v-else-if="store.activeTab.value === 'settings'" />

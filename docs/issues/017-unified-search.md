@@ -1,7 +1,7 @@
 ---
 type: Story
 title: "Skills Library: Merge Installed and Available with Filters"
-status: draft
+status: completed
 ---
 
 # Skills Library: Merge Installed and Available with Filters

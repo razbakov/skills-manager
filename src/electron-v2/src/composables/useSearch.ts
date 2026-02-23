@@ -1,5 +1,8 @@
 import type { SkillViewModel } from "@/types";
 
+export type LibraryStatusFilter = "all" | "enabled" | "disabled" | "available";
+export type LibrarySkillStatus = Exclude<LibraryStatusFilter, "all">;
+
 function fuzzyScore(query: string, rawText: string): number {
   const q = query.trim().toLowerCase();
   if (!q) return 1;
@@ -62,4 +65,37 @@ export function filterSkills(
   });
 
   return filtered.map((entry) => entry.skill);
+}
+
+export function getSkillLibraryStatus(
+  skill: Pick<SkillViewModel, "installed" | "disabled">,
+): LibrarySkillStatus {
+  if (!skill.installed) return "available";
+  if (skill.disabled) return "disabled";
+  return "enabled";
+}
+
+export function filterSkillLibrary(
+  skills: SkillViewModel[],
+  options: {
+    query: string;
+    status: LibraryStatusFilter;
+    sourceName: string;
+  },
+): SkillViewModel[] {
+  const { query, status, sourceName } = options;
+  let filtered = filterSkills(skills, query);
+
+  if (status !== "all") {
+    filtered = filtered.filter((skill) => getSkillLibraryStatus(skill) === status);
+  }
+
+  const normalizedSource = sourceName.trim().toLowerCase();
+  if (normalizedSource) {
+    filtered = filtered.filter(
+      (skill) => (skill.sourceName || "").trim().toLowerCase() === normalizedSource,
+    );
+  }
+
+  return filtered;
 }

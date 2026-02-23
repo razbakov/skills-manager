@@ -168,7 +168,7 @@ function removeCurrentSkillFromGroup(skillId: string, groupName: string) {
             <span>{{ formatInstalledIdes(skill) }}</span>
           </template>
           <template v-if="mode === 'installed'">
-            <span class="text-muted-foreground text-xs uppercase tracking-wider pt-0.5">Groups</span>
+            <span class="text-muted-foreground text-xs uppercase tracking-wider pt-0.5">Collections</span>
             <div>
               <div class="flex flex-wrap gap-1.5">
                 <button
@@ -189,7 +189,7 @@ function removeCurrentSkillFromGroup(skillId: string, groupName: string) {
                   class="h-8 w-full rounded-md border border-input bg-background px-2 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   :disabled="store.busy.value || addableGroups.length === 0"
                 >
-                  <option value="">+ Add to group</option>
+                  <option value="">+ Add to collection</option>
                   <option v-for="groupName in addableGroups" :key="`add-${groupName}`" :value="groupName">
                     {{ groupName }}
                   </option>
