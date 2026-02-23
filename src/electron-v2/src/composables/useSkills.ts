@@ -26,7 +26,6 @@ const snapshot = ref<Snapshot | null>(null);
 const activeTab = ref<TabId>("skills");
 const busy = ref(false);
 const queries = reactive({ skills: "", installed: "", available: "" });
-const skillsViewMode = ref<"list" | "groups">("list");
 const libraryFilters = reactive({
   status: "all" as LibraryStatusFilter,
   sourceName: "",
@@ -754,7 +753,6 @@ function jumpToSkill(skillId: string) {
   const skill = snapshot.value.skills.find((s) => s.id === skillId);
   if (!skill) return;
   selectSkill(skill.id);
-  skillsViewMode.value = "list";
   activeTab.value = "skills";
 }
 
@@ -771,7 +769,6 @@ export function useSkills() {
     activeTab,
     busy,
     queries,
-    skillsViewMode,
     libraryFilters,
     selected,
     toasts,

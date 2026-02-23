@@ -11,12 +11,14 @@ import {
   RefreshCw,
   ArrowDownToLine,
   Package,
+  FolderOpen,
   FolderGit2,
   Sparkles,
   Settings,
   X,
 } from "lucide-vue-next";
 import SkillsView from "@/views/SkillsView.vue";
+import InstalledView from "@/views/InstalledView.vue";
 import SourcesView from "@/views/SourcesView.vue";
 import RecommendationsView from "@/views/RecommendationsView.vue";
 import SettingsView from "@/views/SettingsView.vue";
@@ -26,6 +28,7 @@ const store = useSkills();
 
 const navItems = [
   { id: "skills" as const, label: "Skills", icon: Package },
+  { id: "collections" as const, label: "Collections", icon: FolderOpen },
   { id: "sources" as const, label: "Sources", icon: FolderGit2 },
   { id: "recommendations" as const, label: "Recommend", icon: Sparkles },
   { id: "settings" as const, label: "Settings", icon: Settings },
@@ -34,6 +37,7 @@ const navItems = [
 function getTabCount(id: string): number | null {
   if (!store.snapshot.value) return null;
   if (id === "skills") return store.snapshot.value.skills.length;
+  if (id === "collections") return store.snapshot.value.skillGroups.length;
   if (id === "sources") return store.snapshot.value.sources.length;
   if (id === "recommendations") return store.recommendations.data?.items?.length ?? 0;
   return null;
@@ -42,10 +46,10 @@ function getTabCount(id: string): number | null {
 function getActiveList(): { ids: string[]; selectedKey: keyof typeof store.selected } | null {
   const tab = store.activeTab.value;
   if (tab === "skills") {
-    if (store.skillsViewMode.value === "groups") {
-      return { ids: store.installedSkills.value.map((s) => s.id), selectedKey: "installed" };
-    }
     return { ids: store.librarySkills.value.map((s) => s.id), selectedKey: "skills" };
+  }
+  if (tab === "collections") {
+    return { ids: store.installedSkills.value.map((s) => s.id), selectedKey: "installed" };
   }
   if (tab === "sources") return { ids: store.sources.value.map(s => s.id), selectedKey: "source" };
   if (tab === "recommendations") return { ids: (store.recommendations.data?.items ?? []).map(i => i.skillId), selectedKey: "recommendation" };
@@ -81,12 +85,6 @@ function moveSelection(delta: number) {
 function triggerPrimaryAction() {
   const tab = store.activeTab.value;
   if (tab === "skills") {
-    if (store.skillsViewMode.value === "groups") {
-      const s = store.selectedInstalledSkill.value;
-      if (s) s.disabled ? store.enableSkill(s.id) : store.disableSkill(s.id);
-      return;
-    }
-
     const s = store.selectedSkill.value;
     if (!s) return;
     if (!s.installed) {
@@ -94,6 +92,9 @@ function triggerPrimaryAction() {
     } else {
       s.disabled ? store.enableSkill(s.id) : store.disableSkill(s.id);
     }
+  } else if (tab === "collections") {
+    const s = store.selectedInstalledSkill.value;
+    if (s) s.disabled ? store.enableSkill(s.id) : store.disableSkill(s.id);
   } else if (tab === "sources") {
     const s = store.selectedSource.value;
     if (s) store.openPath(s.path);
@@ -177,6 +178,7 @@ onUnmounted(() => store.unsubscribeFromProgress());
         <!-- Main content -->
         <main class="flex-1 min-w-0 min-h-0">
           <SkillsView v-if="store.activeTab.value === 'skills'" />
+          <InstalledView v-else-if="store.activeTab.value === 'collections'" />
           <SourcesView v-else-if="store.activeTab.value === 'sources'" />
           <RecommendationsView v-else-if="store.activeTab.value === 'recommendations'" />
           <SettingsView v-else-if="store.activeTab.value === 'settings'" />

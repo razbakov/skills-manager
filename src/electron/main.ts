@@ -645,7 +645,7 @@ function defaultSkillGroupExportPath(groupName: string, cwd: string = process.cw
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  const baseName = slug ? `${slug}-skills.json` : "skill-group-skills.json";
+  const baseName = slug ? `${slug}-skills.json` : "skill-collection-skills.json";
   return resolve(cwd, baseName);
 }
 
@@ -872,7 +872,7 @@ async function createSkillGroup(payload: CreateSkillGroupPayload): Promise<{
 }> {
   const groupName = parseSkillGroupName(payload?.name);
   if (!groupName) {
-    throw new Error("Enter a group name.");
+    throw new Error("Enter a collection name.");
   }
   if (isInstalledAutoGroupName(groupName)) {
     throw new Error(`"${INSTALLED_GROUP_NAME}" is reserved.`);
@@ -881,7 +881,7 @@ async function createSkillGroup(payload: CreateSkillGroupPayload): Promise<{
   const config = loadConfig();
   const groups = normalizedGroups(config);
   if (findSkillGroupByName(groups, groupName)) {
-    throw new Error("Group already exists.");
+    throw new Error("Collection already exists.");
   }
 
   const updatedGroups = normalizeSkillGroups([
@@ -908,10 +908,10 @@ async function toggleSkillGroup(payload: ToggleSkillGroupPayload): Promise<{
 }> {
   const requestedName = parseSkillGroupName(payload?.name);
   if (!requestedName) {
-    throw new Error("Select a group.");
+    throw new Error("Select a collection.");
   }
   if (typeof payload?.active !== "boolean") {
-    throw new Error("Missing group state.");
+    throw new Error("Missing collection state.");
   }
 
   const config = loadConfig();
@@ -936,7 +936,7 @@ async function toggleSkillGroup(payload: ToggleSkillGroupPayload): Promise<{
 
   const selectedGroup = findSkillGroupByName(groups, requestedName);
   if (!selectedGroup) {
-    throw new Error("Group not found.");
+    throw new Error("Collection not found.");
   }
 
   const plan = planSkillGroupToggle(
@@ -970,10 +970,10 @@ async function renameSkillGroup(payload: RenameSkillGroupPayload): Promise<{
   const requestedName = parseSkillGroupName(payload?.name);
   const nextName = parseSkillGroupName(payload?.nextName);
   if (!requestedName) {
-    throw new Error("Select a group.");
+    throw new Error("Select a collection.");
   }
   if (!nextName) {
-    throw new Error("Enter a group name.");
+    throw new Error("Enter a collection name.");
   }
   if (isInstalledAutoGroupName(nextName)) {
     throw new Error(`"${INSTALLED_GROUP_NAME}" is reserved.`);
@@ -983,7 +983,7 @@ async function renameSkillGroup(payload: RenameSkillGroupPayload): Promise<{
   const groups = normalizedGroups(config);
   const selectedGroup = findSkillGroupByName(groups, requestedName);
   if (!selectedGroup) {
-    throw new Error("Group not found.");
+    throw new Error("Collection not found.");
   }
 
   const duplicate = findSkillGroupByName(groups, nextName);
@@ -991,7 +991,7 @@ async function renameSkillGroup(payload: RenameSkillGroupPayload): Promise<{
     duplicate &&
     duplicate.name.toLowerCase() !== selectedGroup.name.toLowerCase()
   ) {
-    throw new Error("A group with this name already exists.");
+    throw new Error("A collection with this name already exists.");
   }
 
   const updatedGroups = normalizeSkillGroups(
@@ -1003,7 +1003,7 @@ async function renameSkillGroup(payload: RenameSkillGroupPayload): Promise<{
   );
   const renamed = findSkillGroupByName(updatedGroups, nextName);
   if (!renamed) {
-    throw new Error("Could not rename group.");
+    throw new Error("Could not rename collection.");
   }
 
   const currentActive = normalizedActiveGroupNames(config, groups);
@@ -1028,14 +1028,14 @@ async function deleteSkillGroup(payload: DeleteSkillGroupPayload): Promise<{
 }> {
   const requestedName = parseSkillGroupName(payload?.name);
   if (!requestedName) {
-    throw new Error("Select a group.");
+    throw new Error("Select a collection.");
   }
 
   const config = loadConfig();
   const groups = normalizedGroups(config);
   const selectedGroup = findSkillGroupByName(groups, requestedName);
   if (!selectedGroup) {
-    throw new Error("Group not found.");
+    throw new Error("Collection not found.");
   }
 
   const updatedGroups = groups.filter(
@@ -1065,10 +1065,10 @@ async function updateSkillGroupMembership(
 }> {
   const requestedGroupName = parseSkillGroupName(payload?.groupName);
   if (!requestedGroupName) {
-    throw new Error("Select a group.");
+    throw new Error("Select a collection.");
   }
   if (isInstalledAutoGroupName(requestedGroupName)) {
-    throw new Error("This group is managed automatically.");
+    throw new Error("This collection is managed automatically.");
   }
   if (typeof payload?.member !== "boolean") {
     throw new Error("Missing membership state.");
@@ -1082,7 +1082,7 @@ async function updateSkillGroupMembership(
   const groups = normalizedGroups(config);
   const selectedGroup = findSkillGroupByName(groups, requestedGroupName);
   if (!selectedGroup) {
-    throw new Error("Group not found.");
+    throw new Error("Collection not found.");
   }
 
   const activeGroups = normalizedActiveGroupNames(config, groups);
@@ -1404,20 +1404,20 @@ function registerIpcHandlers(): void {
       const rawName = typeof payload?.name === "string" ? payload.name : "";
       const groupName = normalizeSkillGroupName(rawName);
       if (!groupName) {
-        throw new Error("Select a group to export.");
+        throw new Error("Select a collection to export.");
       }
 
       const config = loadConfig();
       const groups = normalizedGroups(config);
       const group = findSkillGroupByName(groups, groupName);
       if (!group) {
-        throw new Error(`Group \"${groupName}\" not found.`);
+        throw new Error(`Collection \"${groupName}\" not found.`);
       }
 
       const defaultPath = defaultSkillGroupExportPath(group.name);
       const focusedWindow = BrowserWindow.getFocusedWindow() ?? mainWindow;
       const saveDialogOptions: SaveDialogOptions = {
-        title: `Export ${group.name} Skill Group`,
+        title: `Export ${group.name} Collection`,
         defaultPath,
         buttonLabel: "Export",
         filters: [{ name: "JSON", extensions: ["json"] }],

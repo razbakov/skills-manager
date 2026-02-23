@@ -160,13 +160,13 @@ function nextActiveGroups(
 ): string[] {
   const normalizedTarget = normalizeSkillGroupName(targetName);
   if (!normalizedTarget) {
-    throw new Error("Group name is required.");
+    throw new Error("Collection name is required.");
   }
 
   const canonicalMap = canonicalNameMap(groups);
   const targetCanonical = canonicalMap.get(normalizedTarget.toLowerCase());
   if (!targetCanonical) {
-    throw new Error("Group not found.");
+    throw new Error("Collection not found.");
   }
 
   const currentActive = normalizeActiveGroups(rawActiveGroups, groups);
@@ -225,14 +225,14 @@ export function planSkillGroupToggle(
     normalizeSkillGroupName(targetGroupName).toLowerCase(),
   );
   if (!targetCanonical) {
-    throw new Error("Group not found.");
+    throw new Error("Collection not found.");
   }
 
   const targetGroup = normalizedGroups.find(
     (group) => group.name.toLowerCase() === targetCanonical.toLowerCase(),
   );
   if (!targetGroup) {
-    throw new Error("Group not found.");
+    throw new Error("Collection not found.");
   }
 
   const activeSkillIds = resolveActiveSkillIds(normalizedGroups, activeGroups);

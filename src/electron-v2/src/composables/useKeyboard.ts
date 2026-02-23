@@ -1,7 +1,13 @@
 import { onMounted, onUnmounted } from "vue";
 import type { TabId } from "@/types";
 
-const TAB_IDS: TabId[] = ["skills", "sources", "recommendations", "settings"];
+const TAB_IDS: TabId[] = [
+  "skills",
+  "collections",
+  "sources",
+  "recommendations",
+  "settings",
+];
 
 interface KeyboardOptions {
   getActiveTab: () => TabId;
@@ -32,8 +38,11 @@ export function useKeyboard(options: KeyboardOptions) {
       return;
     }
 
-    // Ctrl/Cmd + 1-4 for tabs
-    if ((event.ctrlKey || event.metaKey) && ["1", "2", "3", "4"].includes(event.key)) {
+    // Ctrl/Cmd + 1-5 for tabs
+    if (
+      (event.ctrlKey || event.metaKey) &&
+      ["1", "2", "3", "4", "5"].includes(event.key)
+    ) {
       const index = Number(event.key) - 1;
       options.setActiveTab(TAB_IDS[index]);
       event.preventDefault();
