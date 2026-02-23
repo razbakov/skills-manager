@@ -111,6 +111,25 @@ describe("planSkillGroupToggle", () => {
     expect(plan.missingSkillIds).toEqual([]);
   });
 
+  it("disables installed skills outside active groups when entering group mode", () => {
+    const skills = [
+      skill({ name: "a", sourcePath: "/skills/a", installed: true, disabled: true }),
+      skill({ name: "b", sourcePath: "/skills/b", installed: true, disabled: false }),
+      skill({ name: "c", sourcePath: "/skills/c", installed: true, disabled: false }),
+      skill({ name: "d", sourcePath: "/skills/d", installed: true, disabled: false }),
+    ];
+
+    const plan = planSkillGroupToggle(skills, groups, [], "Writing", true);
+
+    expect(plan.activeGroups).toEqual(["Writing"]);
+    expect(plan.toEnable.map((entry) => entry.sourcePath)).toEqual(["/skills/a"]);
+    expect(plan.toDisable.map((entry) => entry.sourcePath)).toEqual([
+      "/skills/c",
+      "/skills/d",
+    ]);
+    expect(plan.missingSkillIds).toEqual([]);
+  });
+
   it("disables only members not covered by another active group when toggled off", () => {
     const skills = [
       skill({ name: "a", sourcePath: "/skills/a", installed: true, disabled: false }),

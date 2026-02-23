@@ -209,9 +209,13 @@ export function planSkillGroupToggle(
   setActive: boolean,
 ): SkillGroupTogglePlan {
   const normalizedGroups = normalizeSkillGroups(groups);
+  const currentActiveGroups = normalizeActiveGroups(
+    rawActiveGroups,
+    normalizedGroups,
+  );
   const activeGroups = nextActiveGroups(
     normalizedGroups,
-    rawActiveGroups,
+    currentActiveGroups,
     targetGroupName,
     setActive,
   );
@@ -241,19 +245,27 @@ export function planSkillGroupToggle(
 
   const toEnable: Skill[] = [];
   const toDisable: Skill[] = [];
+  const enteringGroupMode =
+    setActive &&
+    currentActiveGroups.length === 0 &&
+    activeGroups.length > 0;
+
   for (const skill of skills) {
     if (!skill.installed) continue;
 
     const skillId = resolve(skill.sourcePath);
-    if (!targetSkillIds.has(skillId)) continue;
 
     if (setActive) {
-      if (skill.disabled) {
+      if (targetSkillIds.has(skillId) && skill.disabled) {
         toEnable.push(skill);
+      }
+      if (enteringGroupMode && !activeSkillIds.has(skillId) && !skill.disabled) {
+        toDisable.push(skill);
       }
       continue;
     }
 
+    if (!targetSkillIds.has(skillId)) continue;
     if (!activeSkillIds.has(skillId) && !skill.disabled) {
       toDisable.push(skill);
     }
