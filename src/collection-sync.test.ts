@@ -4,6 +4,7 @@ import {
   removeCollectionFile,
   tryCommitCollectionChange,
   collectionFilePath,
+  listCollectionFiles,
   syncPersonalRepo,
 } from "./collection-sync";
 import {
@@ -11,6 +12,7 @@ import {
   rmSync,
   existsSync,
   readFileSync,
+  writeFileSync,
 } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -272,5 +274,53 @@ describe("syncPersonalRepo", () => {
     expect(result.pulled).toBe(true);
     expect(result.pushed).toBe(true);
     expect(result.message).toBe("Synced with remote.");
+  });
+});
+
+describe("listCollectionFiles", () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), "collection-list-"));
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("returns collection files matching the manifest schema", () => {
+    const skills = [
+      makeSkill({ name: "atlassian", sourcePath: "/skills/atlassian" }),
+      makeSkill({ name: "estimation", sourcePath: "/skills/estimation" }),
+    ];
+    writeCollectionFile(root, "ommax-dev", skills);
+
+    const collections = listCollectionFiles(root);
+    expect(collections).toHaveLength(1);
+    expect(collections[0].name).toBe("ommax-dev");
+    expect(collections[0].file).toBe("ommax-dev.json");
+    expect(collections[0].skillNames).toEqual(["atlassian", "estimation"]);
+  });
+
+  it("ignores non-manifest JSON files", () => {
+    writeFileSync(join(root, "package.json"), '{"name":"test"}', "utf-8");
+    writeFileSync(join(root, "tsconfig.json"), '{"compilerOptions":{}}', "utf-8");
+
+    const collections = listCollectionFiles(root);
+    expect(collections).toHaveLength(0);
+  });
+
+  it("returns empty array for non-existent directory", () => {
+    const collections = listCollectionFiles("/tmp/nonexistent-path-xyz");
+    expect(collections).toHaveLength(0);
+  });
+
+  it("sorts collections alphabetically", () => {
+    const skill = makeSkill({ name: "a", sourcePath: "/skills/a" });
+    writeCollectionFile(root, "writing", [skill]);
+    writeCollectionFile(root, "coding", [skill]);
+
+    const collections = listCollectionFiles(root);
+    expect(collections.map((c) => c.name)).toEqual(["coding", "writing"]);
   });
 });

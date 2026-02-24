@@ -69,6 +69,12 @@ const importPreview = reactive({
   selectedIndexes: new Set<number>(),
 });
 
+interface CollectionPreviewItem {
+  name: string;
+  file: string;
+  skillNames: string[];
+}
+
 const addSourcePreview = reactive({
   open: false,
   input: "",
@@ -76,6 +82,8 @@ const addSourcePreview = reactive({
   sourcePath: "",
   skills: [] as AddSourcePreviewSkill[],
   selectedIndexes: new Set<number>(),
+  collections: [] as CollectionPreviewItem[],
+  activeCollectionTab: null as string | null,
 });
 
 const skillSetPreview = reactive({
@@ -482,6 +490,8 @@ function openAddSourcePreview(input: string = "") {
   addSourcePreview.sourcePath = "";
   addSourcePreview.skills = [];
   addSourcePreview.selectedIndexes = new Set();
+  addSourcePreview.collections = [];
+  addSourcePreview.activeCollectionTab = null;
 }
 
 function closeAddSourcePreview() {
@@ -491,6 +501,46 @@ function closeAddSourcePreview() {
   addSourcePreview.sourcePath = "";
   addSourcePreview.skills = [];
   addSourcePreview.selectedIndexes = new Set();
+  addSourcePreview.collections = [];
+  addSourcePreview.activeCollectionTab = null;
+}
+
+function applyDefaultSelection(skills: AddSourcePreviewSkill[], preview: any) {
+  const defaultIndexes = Array.isArray(preview?.defaultSelectedIndexes)
+    ? preview.defaultSelectedIndexes
+    : skills.map((skill) => skill.index);
+  addSourcePreview.selectedIndexes = new Set(
+    defaultIndexes
+      .map((value: any) => Number(value))
+      .filter(
+        (value: number) =>
+          Number.isInteger(value) && value >= 0 && value < skills.length,
+      ),
+  );
+}
+
+function applyCollectionTab(collectionName: string | null) {
+  addSourcePreview.activeCollectionTab = collectionName;
+  const skills = addSourcePreview.skills;
+
+  if (!collectionName) {
+    addSourcePreview.selectedIndexes = new Set(
+      skills.map((skill) => skill.index),
+    );
+    return;
+  }
+
+  const collection = addSourcePreview.collections.find(
+    (c) => c.name === collectionName,
+  );
+  if (!collection) return;
+
+  const nameSet = new Set(collection.skillNames.map((n) => n.toLowerCase()));
+  addSourcePreview.selectedIndexes = new Set(
+    skills
+      .filter((skill) => nameSet.has(skill.name.toLowerCase()))
+      .map((skill) => skill.index),
+  );
 }
 
 async function previewAddSourceInput() {
@@ -512,32 +562,23 @@ async function previewAddSourceInput() {
     addSourcePreview.sourcePath = preview?.sourcePath ?? "";
     addSourcePreview.skills = skills;
 
-    const collectionFile: string | undefined = preview?.collectionFile;
-    let collectionSkillNames: string[] | null = null;
-    if (collectionFile && preview?.sourceName) {
-      try {
-        const sourceUrl = `https://github.com/${preview.sourceName}`;
-        collectionSkillNames = await api.readCollectionSkillNames(sourceUrl, collectionFile);
-      } catch {
-        // Collection file may not exist yet; fall through to default selection.
-      }
-    }
+    const collections: CollectionPreviewItem[] = Array.isArray(preview?.collections)
+      ? preview.collections.filter(
+          (c: any) => c?.name && Array.isArray(c?.skillNames),
+        )
+      : [];
+    addSourcePreview.collections = collections;
 
-    if (collectionSkillNames && collectionSkillNames.length > 0) {
-      const selection = selectAddSourceIndexesByRequestedSkills(skills, collectionSkillNames);
-      addSourcePreview.selectedIndexes = selection.selectedIndexes;
+    const collectionFile: string | undefined = preview?.collectionFile;
+    const matchingCollection = collectionFile
+      ? collections.find((c) => c.file === collectionFile)
+      : null;
+
+    if (matchingCollection) {
+      applyCollectionTab(matchingCollection.name);
     } else {
-      const defaultIndexes = Array.isArray(preview?.defaultSelectedIndexes)
-        ? preview.defaultSelectedIndexes
-        : skills.map((skill) => skill.index);
-      addSourcePreview.selectedIndexes = new Set(
-        defaultIndexes
-          .map((value: any) => Number(value))
-          .filter(
-            (value: number) =>
-              Number.isInteger(value) && value >= 0 && value < skills.length,
-          ),
-      );
+      addSourcePreview.activeCollectionTab = null;
+      applyDefaultSelection(skills, preview);
     }
   } catch (err: any) {
     addToast(err?.message ?? "Could not load skills for this input.", "error", 5000);
@@ -804,28 +845,23 @@ async function openSkillSetPreviewFromRequest(request: SkillSetLaunchRequest): P
     return;
   }
 
-  let requestedSkills = request.requestedSkills;
-  let installAll = request.installAll;
-
-  if (request.collectionFile && requestedSkills.length === 0 && !installAll) {
-    try {
-      const names = await api.readCollectionSkillNames(request.source, request.collectionFile);
-      if (names.length > 0) {
-        requestedSkills = names;
-      }
-    } catch (err: any) {
-      addToast(err?.message ?? "Could not read collection file.", "error", 5000);
+  if (request.collectionFile && !addSourcePreview.activeCollectionTab) {
+    const match = addSourcePreview.collections.find(
+      (c) => c.file === request.collectionFile,
+    );
+    if (match) {
+      applyCollectionTab(match.name);
     }
   }
 
-  if (installAll) {
+  if (request.installAll) {
     addSourcePreview.selectedIndexes = new Set(
       previewSkills.map((skill) => skill.index),
     );
-  } else if (requestedSkills.length > 0) {
+  } else if (request.requestedSkills.length > 0) {
     const selection = selectAddSourceIndexesByRequestedSkills(
       previewSkills,
-      requestedSkills,
+      request.requestedSkills,
     );
     addSourcePreview.selectedIndexes = selection.selectedIndexes;
     if (selection.missingSkills.length > 0) {
@@ -1219,6 +1255,7 @@ export function useSkills() {
     openAddSourcePreview,
     closeAddSourcePreview,
     previewAddSourceInput,
+    applyCollectionTab,
     addSourceFromPreview,
     removeSource,
     disableSource,

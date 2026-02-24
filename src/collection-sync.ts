@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, writeFileSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { basename, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import type { Skill } from "./types";
 import { buildInstalledSkillsManifest } from "./export";
@@ -16,6 +16,46 @@ export interface SyncResult {
 }
 
 export type CollectionAction = "add" | "update" | "remove" | "rename";
+
+export interface CollectionPreview {
+  name: string;
+  file: string;
+  skillNames: string[];
+}
+
+export function listCollectionFiles(sourcePath: string): CollectionPreview[] {
+  if (!existsSync(sourcePath)) return [];
+
+  const entries: CollectionPreview[] = [];
+  let files: string[];
+  try {
+    files = readdirSync(sourcePath).filter((f) => f.endsWith(".json"));
+  } catch {
+    return [];
+  }
+
+  for (const file of files) {
+    try {
+      const raw = readFileSync(join(sourcePath, file), "utf-8");
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      if (parsed.schemaVersion !== 3 || !Array.isArray(parsed.installedSkills)) continue;
+
+      const skillNames = (parsed.installedSkills as Array<Record<string, unknown>>)
+        .map((s) => (typeof s.name === "string" ? s.name : ""))
+        .filter(Boolean);
+
+      entries.push({
+        name: basename(file, ".json"),
+        file,
+        skillNames,
+      });
+    } catch {
+      continue;
+    }
+  }
+
+  return entries.sort((a, b) => a.name.localeCompare(b.name));
+}
 
 export function collectionFilePath(repoPath: string, name: string): string {
   return join(repoPath, `${name}.json`);

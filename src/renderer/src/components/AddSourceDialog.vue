@@ -15,8 +15,24 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 const store = useSkills();
 
+const activeTab = computed(() => store.addSourcePreview.activeCollectionTab);
+
+const displayedSkills = computed(() => {
+  const all = store.addSourcePreview.skills;
+  if (!activeTab.value) return all;
+
+  const collection = store.addSourcePreview.collections.find(
+    (c) => c.name === activeTab.value,
+  );
+  if (!collection) return all;
+
+  const nameSet = new Set(collection.skillNames.map((n) => n.toLowerCase()));
+  return all.filter((skill) => nameSet.has(skill.name.toLowerCase()));
+});
+
 const selectedCount = computed(() => store.addSourcePreview.selectedIndexes.size);
 const totalCount = computed(() => store.addSourcePreview.skills.length);
+const hasCollections = computed(() => store.addSourcePreview.collections.length > 0);
 
 function toggleSkill(index: number) {
   if (store.addSourcePreview.selectedIndexes.has(index)) {
@@ -27,13 +43,18 @@ function toggleSkill(index: number) {
 }
 
 function selectAll() {
-  store.addSourcePreview.selectedIndexes = new Set(
-    store.addSourcePreview.skills.map((skill) => skill.index),
-  );
+  const indexes = new Set(store.addSourcePreview.selectedIndexes);
+  for (const skill of displayedSkills.value) {
+    indexes.add(skill.index);
+  }
+  store.addSourcePreview.selectedIndexes = indexes;
 }
 
 function selectNone() {
-  store.addSourcePreview.selectedIndexes = new Set();
+  const displayed = new Set(displayedSkills.value.map((s) => s.index));
+  store.addSourcePreview.selectedIndexes = new Set(
+    [...store.addSourcePreview.selectedIndexes].filter((i) => !displayed.has(i)),
+  );
 }
 </script>
 
@@ -72,6 +93,33 @@ function selectNone() {
         {{ store.addSourcePreview.sourceName }} · {{ store.addSourcePreview.sourcePath }}
       </p>
 
+      <div v-if="hasCollections && totalCount > 0" class="flex gap-1 border-b">
+        <button
+          class="px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px"
+          :class="
+            activeTab === null
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          "
+          @click="store.applyCollectionTab(null)"
+        >
+          Skills
+        </button>
+        <button
+          v-for="col in store.addSourcePreview.collections"
+          :key="col.name"
+          class="px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px"
+          :class="
+            activeTab === col.name
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          "
+          @click="store.applyCollectionTab(col.name)"
+        >
+          {{ col.name }}
+        </button>
+      </div>
+
       <div v-if="totalCount > 0" class="flex gap-2 my-1">
         <Button variant="outline" size="sm" @click="selectAll">Select All</Button>
         <Button variant="outline" size="sm" @click="selectNone">Select None</Button>
@@ -89,7 +137,7 @@ function selectNone() {
         </div>
 
         <label
-          v-for="skill in store.addSourcePreview.skills"
+          v-for="skill in displayedSkills"
           :key="skill.index"
           class="flex items-start gap-3 px-4 py-3 border-b border-border/50 cursor-pointer hover:bg-accent/50 transition-colors"
         >

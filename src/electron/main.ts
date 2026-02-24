@@ -75,7 +75,8 @@ import {
   normalizeSkillGroups,
   planSkillGroupToggle,
 } from "../skill-groups";
-import { syncCollectionToRepo, removeCollectionFile, syncPersonalRepo } from "../collection-sync";
+import { syncCollectionToRepo, removeCollectionFile, syncPersonalRepo, listCollectionFiles } from "../collection-sync";
+import type { CollectionPreview } from "../collection-sync";
 import { scan } from "../scanner";
 import {
   extractSkillSetRequestFromArgv,
@@ -236,6 +237,7 @@ interface AddSourcePreviewResponse {
   sourcePath: string;
   skills: AddSourcePreviewSkill[];
   defaultSelectedIndexes: number[];
+  collections: CollectionPreview[];
   collectionFile?: string;
 }
 
@@ -762,12 +764,15 @@ async function buildSourcePreview(
       skillPath: entry.skillPath,
     }));
 
+    const collections = listCollectionFiles(resolvedInput.sourcePath);
+
     return {
       input: resolvedInput.input,
       sourceName: formatPackageNameAsOwnerRepo(resolvedInput.sourceName),
       sourcePath: resolvedInput.sourcePath,
       skills,
       defaultSelectedIndexes,
+      collections,
       ...(resolvedInput.collectionFile ? { collectionFile: resolvedInput.collectionFile } : {}),
     };
   } finally {
