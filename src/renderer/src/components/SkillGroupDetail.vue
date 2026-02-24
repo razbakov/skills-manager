@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { Pencil, Trash2, Upload } from "lucide-vue-next";
+import { Pencil, Share2, Trash2, Upload } from "lucide-vue-next";
 import { useSkills } from "@/composables/useSkills";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import ShareCollectionDialog from "./ShareCollectionDialog.vue";
 
 const props = defineProps<{
   groupName: string | null;
@@ -14,6 +15,7 @@ const props = defineProps<{
 const store = useSkills();
 const editingName = ref(false);
 const draftName = ref("");
+const shareOpen = ref(false);
 
 const group = computed(() => {
   if (!props.groupName) return null;
@@ -82,6 +84,12 @@ function exportGroup() {
   }
   void store.exportSkillGroup(group.value.name);
 }
+
+async function shareGroup() {
+  if (!group.value) return;
+  await store.syncRepo();
+  shareOpen.value = true;
+}
 </script>
 
 <template>
@@ -134,6 +142,16 @@ function exportGroup() {
             <Button variant="outline" size="sm" :disabled="store.busy.value" @click="exportGroup">
               <Upload class="h-3.5 w-3.5" />
               Export
+            </Button>
+            <Button
+              v-if="!group.isAuto && store.personalRepo.value?.configured"
+              variant="outline"
+              size="sm"
+              :disabled="store.busy.value || store.syncing.value"
+              @click="shareGroup"
+            >
+              <Share2 class="h-3.5 w-3.5" />
+              Share
             </Button>
             <Button
               v-if="!group.isAuto"
@@ -189,5 +207,11 @@ function exportGroup() {
         </div>
       </template>
     </div>
+
+    <ShareCollectionDialog
+      :open="shareOpen"
+      :collection-name="group?.name ?? ''"
+      @update:open="shareOpen = $event"
+    />
   </ScrollArea>
 </template>

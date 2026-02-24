@@ -303,11 +303,15 @@ function buildPersonalRepoViewModel(config: Config): PersonalRepoViewModel {
   const exists = existsSync(repoPath);
   const repoRoot = exists ? getGitRepoRoot(repoPath) : null;
 
+  const isGitRepo = Boolean(repoRoot && resolve(repoRoot) === repoPath);
+  const repoUrl = isGitRepo ? getRepoUrl(repoPath) : null;
+
   return {
     configured: true,
     path: repoPath,
     exists,
-    isGitRepo: Boolean(repoRoot && resolve(repoRoot) === repoPath),
+    isGitRepo,
+    ...(repoUrl ? { repoUrl: normalizeRepoUrl(repoUrl) } : {}),
   };
 }
 

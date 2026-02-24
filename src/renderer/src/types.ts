@@ -49,6 +49,7 @@ export interface PersonalRepoViewModel {
   path: string;
   exists: boolean;
   isGitRepo: boolean;
+  repoUrl?: string;
 }
 
 export interface SkillGroupViewModel {
