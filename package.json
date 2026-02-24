@@ -1,12 +1,17 @@
 {
-  "name": "skills-manager",
+  "name": "skill-mix",
   "version": "0.1.0",
   "main": "dist/electron/main.js",
   "type": "module",
   "bin": {
     "skills": "bin/skills",
-    "skills-manager": "bin/skills-manager"
+    "skills-manager": "bin/skills-manager",
+    "skill-mix": "bin/skills-manager"
   },
+  "files": [
+    "bin/",
+    "scripts/"
+  ],
   "scripts": {
     "start": "bun src/index.ts",
     "setup": "bun install && bun src/index.ts --install",

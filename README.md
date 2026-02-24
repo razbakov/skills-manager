@@ -9,13 +9,13 @@ All three tools follow the open [Agent Skills](https://agentskills.io/) standard
 Quick install Skills Manager, open the app, and launch the skill-picker modal:
 
 ```bash
-npx -y skills-manager obra/superpowers
+npx -y skill-mix obra/superpowers
 ```
 
 Preselect specific skills before the modal opens:
 
 ```bash
-npx -y skills-manager obra/superpowers workflow research
+npx -y skill-mix obra/superpowers workflow research
 ```
 
 Classic installer:

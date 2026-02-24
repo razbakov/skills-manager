@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd -P -- "$(dirname -- "${SOURCE_PATH}")" && pwd)"
 INSTALL_SCRIPT="${SCRIPT_DIR}/../scripts/install.sh"
 
 if [ "$#" -eq 0 ]; then
-  echo "Usage: npx -y skills-manager <owner/repo|github-url> [skill ...]" >&2
+  echo "Usage: npx -y skill-mix <owner/repo|github-url> [skill ...]" >&2
   exit 1
 fi
 
