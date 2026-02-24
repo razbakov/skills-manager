@@ -699,6 +699,11 @@ function normalizeSkillSetLaunchRequest(payload: any): SkillSetLaunchRequest | n
   const source = typeof payload?.source === "string" ? payload.source.trim() : "";
   if (!source) return null;
 
+  const collectionFile =
+    typeof payload?.collectionFile === "string" && payload.collectionFile.trim()
+      ? payload.collectionFile.trim()
+      : undefined;
+
   return {
     source,
     requestedSkills: dedupeCaseInsensitive(
@@ -707,6 +712,7 @@ function normalizeSkillSetLaunchRequest(payload: any): SkillSetLaunchRequest | n
         : [],
     ),
     installAll: payload?.installAll === true,
+    ...(collectionFile ? { collectionFile } : {}),
   };
 }
 
@@ -772,7 +778,6 @@ async function openSkillSetPreviewFromRequest(request: SkillSetLaunchRequest): P
     return;
   }
 
-  // Reuse the same path as the header "Add" button.
   openAddSourcePreview(request.source);
   await previewAddSourceInput();
 
@@ -782,14 +787,28 @@ async function openSkillSetPreviewFromRequest(request: SkillSetLaunchRequest): P
     return;
   }
 
-  if (request.installAll) {
+  let requestedSkills = request.requestedSkills;
+  let installAll = request.installAll;
+
+  if (request.collectionFile && requestedSkills.length === 0 && !installAll) {
+    try {
+      const names = await api.readCollectionSkillNames(request.source, request.collectionFile);
+      if (names.length > 0) {
+        requestedSkills = names;
+      }
+    } catch (err: any) {
+      addToast(err?.message ?? "Could not read collection file.", "error", 5000);
+    }
+  }
+
+  if (installAll) {
     addSourcePreview.selectedIndexes = new Set(
       previewSkills.map((skill) => skill.index),
     );
-  } else if (request.requestedSkills.length > 0) {
+  } else if (requestedSkills.length > 0) {
     const selection = selectAddSourceIndexesByRequestedSkills(
       previewSkills,
-      request.requestedSkills,
+      requestedSkills,
     );
     addSourcePreview.selectedIndexes = selection.selectedIndexes;
     if (selection.missingSkills.length > 0) {

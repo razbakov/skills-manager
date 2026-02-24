@@ -80,6 +80,7 @@ import { scan } from "../scanner";
 import {
   extractSkillSetRequestFromArgv,
   normalizeSkillSetSource,
+  readCollectionSkillNames,
   selectSkillsForInstall,
   type SkillSetRequest,
 } from "../skill-set";
@@ -2171,6 +2172,24 @@ function registerIpcHandlers(): void {
     "skills:applySkillSetInstall",
     async (_event, payload: ApplySkillSetInstallPayload) =>
       applySkillSetInstall(payload),
+  );
+
+  ipcMain.handle(
+    "skills:readCollectionSkillNames",
+    async (_event, sourceUrl: unknown, collectionFile: unknown) => {
+      if (typeof sourceUrl !== "string" || !sourceUrl.trim()) {
+        throw new Error("Missing source URL.");
+      }
+      if (typeof collectionFile !== "string" || !collectionFile.trim()) {
+        throw new Error("Missing collection file path.");
+      }
+      const config = loadConfig();
+      const source = await findExistingGitHubSource(config, sourceUrl.trim());
+      if (!source) {
+        throw new Error("Source not found. Add it first.");
+      }
+      return readCollectionSkillNames(source.path, collectionFile.trim());
+    },
   );
 
   ipcMain.handle("skills:disableSource", async (_event, sourceId: unknown) => {

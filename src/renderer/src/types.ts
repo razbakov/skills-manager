@@ -222,6 +222,7 @@ export interface SkillSetLaunchRequest {
   source: string;
   requestedSkills: string[];
   installAll: boolean;
+  collectionFile?: string;
 }
 
 export interface SkillSetPreviewSkill {

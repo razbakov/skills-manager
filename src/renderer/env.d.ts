@@ -34,6 +34,7 @@ interface SkillsApi {
   ) => Promise<any>;
   prepareSkillSetInstall: (request: any) => Promise<any>;
   applySkillSetInstall: (request: any) => Promise<any>;
+  readCollectionSkillNames: (sourceUrl: string, collectionFile: string) => Promise<string[]>;
   disableSource: (sourceId: string) => Promise<any>;
   enableSource: (sourceId: string) => Promise<any>;
   removeSource: (sourceId: string) => Promise<any>;
@@ -48,6 +49,7 @@ interface SkillsApi {
   toggleTarget: (targetPath: string) => Promise<any>;
   setPersonalSkillsRepoFromUrl: (repoUrl: string) => Promise<any>;
   clearPersonalSkillsRepo: () => Promise<any>;
+  syncPersonalRepo: () => Promise<any>;
   updateApp: () => Promise<{ updated: boolean; message?: string; version?: string }>;
 }
 
