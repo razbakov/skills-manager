@@ -1,4 +1,5 @@
-import { basename, isAbsolute, relative, resolve } from "path";
+import { basename, isAbsolute, join, relative, resolve } from "path";
+import { readFileSync } from "fs";
 import { addGitHubSource, enableSkill, installSkill, normalizedGitHubUrl, parseGitHubRepoUrl } from "./actions";
 import { saveConfig } from "./config";
 import { scan } from "./scanner";
@@ -6,6 +7,7 @@ import type { Config, Skill, Source } from "./types";
 
 const SET_COMMAND_ALIASES = new Set(["set", "s"]);
 const OWNER_REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const OWNER_REPO_FILE_PATTERN = /^([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/(.+\.json)$/;
 export const SKILL_SET_REQUEST_ARG = "--skill-set-request";
 
 const SKILL_SET_USAGE =
@@ -15,6 +17,7 @@ export interface SkillSetRequest {
   source: string;
   requestedSkills: string[];
   installAll: boolean;
+  collectionFile?: string;
 }
 
 export interface SkillSetInstallResult {
@@ -76,10 +79,16 @@ function parseSerializedSkillSetRequest(serialized: string): SkillSetRequest | n
   const installAll = parsed.installAll === true;
   if (installAll && requestedSkills.length > 0) return null;
 
+  const collectionFile =
+    typeof parsed.collectionFile === "string" && parsed.collectionFile.trim()
+      ? parsed.collectionFile.trim()
+      : undefined;
+
   return {
     source,
     requestedSkills,
     installAll,
+    ...(collectionFile ? { collectionFile } : {}),
   };
 }
 
@@ -88,6 +97,7 @@ export function encodeSkillSetRequestArg(request: SkillSetRequest): string {
     source: request.source,
     requestedSkills: request.requestedSkills,
     installAll: request.installAll,
+    ...(request.collectionFile ? { collectionFile: request.collectionFile } : {}),
   });
   return `${SKILL_SET_REQUEST_ARG}=${encodeURIComponent(serialized)}`;
 }
@@ -168,13 +178,33 @@ function parseSkillList(args: string[], startIndex: number): {
   return { requestedSkills, installAll };
 }
 
+export interface ParsedSkillSetSource {
+  source: string;
+  collectionFile?: string;
+}
+
 export function normalizeSkillSetSource(input: string): string {
+  return parseSkillSetSource(input).source;
+}
+
+export function parseSkillSetSource(input: string): ParsedSkillSetSource {
   const trimmed = input.trim();
+
+  const fileMatch = trimmed.match(OWNER_REPO_FILE_PATTERN);
+  if (fileMatch) {
+    const [, ownerRepo, filePath] = fileMatch;
+    return {
+      source: `https://github.com/${ownerRepo}`,
+      collectionFile: filePath,
+    };
+  }
+
   if (OWNER_REPO_PATTERN.test(trimmed)) {
     const [owner, repo] = trimmed.split("/");
-    return `https://github.com/${owner}/${repo}`;
+    return { source: `https://github.com/${owner}/${repo}` };
   }
-  return trimmed;
+
+  return { source: trimmed };
 }
 
 export function parseSkillSetRequest(argv: string[]): SkillSetRequest | null {
@@ -198,16 +228,17 @@ export function parseSkillSetRequest(argv: string[]): SkillSetRequest | null {
     throw new Error(SKILL_SET_USAGE);
   }
 
-  const normalizedSource = normalizeSkillSetSource(source);
-  if (!parseGitHubRepoUrl(normalizedSource)) {
+  const parsed = parseSkillSetSource(source);
+  if (!parseGitHubRepoUrl(parsed.source)) {
     throw new Error("Skill set source must be a GitHub repo (owner/repo or URL).");
   }
 
   const { requestedSkills, installAll } = parseSkillList(argv, optionStartIndex);
   return {
-    source: normalizedSource,
+    source: parsed.source,
     requestedSkills,
     installAll,
+    ...(parsed.collectionFile ? { collectionFile: parsed.collectionFile } : {}),
   };
 }
 
@@ -277,6 +308,36 @@ export function selectSkillsForInstall(
   return { selectedSkills, missingSkills };
 }
 
+export function readCollectionSkillNames(
+  sourcePath: string,
+  collectionFile: string,
+): string[] {
+  const filePath = join(resolve(sourcePath), collectionFile);
+  let raw: string;
+  try {
+    raw = readFileSync(filePath, "utf-8");
+  } catch {
+    throw new Error(`Collection file not found: ${collectionFile}`);
+  }
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    throw new Error(`Invalid JSON in collection file: ${collectionFile}`);
+  }
+
+  const installedSkills = parsed.installedSkills;
+  if (!Array.isArray(installedSkills)) {
+    throw new Error(`Collection file has no installedSkills array: ${collectionFile}`);
+  }
+
+  return installedSkills
+    .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === "object")
+    .map((entry) => (typeof entry.name === "string" ? entry.name : ""))
+    .filter(Boolean);
+}
+
 export async function installSkillSet(
   config: Config,
   request: SkillSetRequest,
@@ -286,6 +347,18 @@ export async function installSkillSet(
   }
 
   const { source, sourceAdded } = resolveSource(config, request);
+
+  let requestedSkills = request.requestedSkills;
+  let installAll = request.installAll;
+  if (request.collectionFile) {
+    const collectionSkills = readCollectionSkillNames(source.path, request.collectionFile);
+    if (collectionSkills.length === 0) {
+      throw new Error(`Collection file is empty: ${request.collectionFile}`);
+    }
+    requestedSkills = collectionSkills;
+    installAll = false;
+  }
+
   const allSkills = await scan(config);
   const sourceSkills = allSkills.filter((skill) =>
     isPathWithin(source.path, skill.sourcePath),
@@ -297,8 +370,8 @@ export async function installSkillSet(
 
   const selection = selectSkillsForInstall(
     sourceSkills,
-    request.requestedSkills,
-    request.installAll,
+    requestedSkills,
+    installAll,
   );
 
   if (selection.missingSkills.length > 0) {

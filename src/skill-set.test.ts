@@ -3,9 +3,14 @@ import {
   encodeSkillSetRequestArg,
   extractSkillSetRequestFromArgv,
   parseSkillSetRequest,
+  parseSkillSetSource,
+  readCollectionSkillNames,
   selectSkillsForInstall,
 } from "./skill-set";
 import type { Skill } from "./types";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 
 function skill(overrides: Partial<Skill>): Skill {
   return {
@@ -157,5 +162,93 @@ describe("skill-set selection", () => {
     const result = selectSkillsForInstall(skills, ["workflow"], true);
     expect(result.selectedSkills).toHaveLength(3);
     expect(result.missingSkills).toEqual([]);
+  });
+});
+
+describe("parseSkillSetSource", () => {
+  it("parses owner/repo as source without collectionFile", () => {
+    expect(parseSkillSetSource("razbakov/skills")).toEqual({
+      source: "https://github.com/razbakov/skills",
+    });
+  });
+
+  it("parses owner/repo/file.json with collectionFile", () => {
+    expect(parseSkillSetSource("razbakov/skills/ommax-dev.json")).toEqual({
+      source: "https://github.com/razbakov/skills",
+      collectionFile: "ommax-dev.json",
+    });
+  });
+
+  it("parses owner/repo/nested/path.json with collectionFile", () => {
+    expect(parseSkillSetSource("razbakov/skills/collections/my-set.json")).toEqual({
+      source: "https://github.com/razbakov/skills",
+      collectionFile: "collections/my-set.json",
+    });
+  });
+
+  it("ignores non-.json third segments", () => {
+    const result = parseSkillSetSource("razbakov/skills/something");
+    expect(result.collectionFile).toBeUndefined();
+  });
+});
+
+describe("parseSkillSetRequest with collection file", () => {
+  it("parses owner/repo/file.json as source with collectionFile", () => {
+    expect(parseSkillSetRequest(["razbakov/skills/ommax-dev.json"])).toEqual({
+      source: "https://github.com/razbakov/skills",
+      requestedSkills: [],
+      installAll: false,
+      collectionFile: "ommax-dev.json",
+    });
+  });
+
+  it("round-trips collectionFile through encode/extract", () => {
+    const request = {
+      source: "https://github.com/razbakov/skills",
+      requestedSkills: [],
+      installAll: false,
+      collectionFile: "ommax-dev.json",
+    };
+    const encoded = encodeSkillSetRequestArg(request);
+    const restored = extractSkillSetRequestFromArgv(["electron", encoded]);
+    expect(restored).toEqual(request);
+  });
+});
+
+describe("readCollectionSkillNames", () => {
+  let root: string;
+
+  it("extracts skill names from a valid collection file", () => {
+    root = mkdtempSync(join(tmpdir(), "collection-read-"));
+    const manifest = {
+      schemaVersion: 3,
+      generatedAt: new Date().toISOString(),
+      installedSkills: [
+        { name: "atlassian", description: "Atlassian integration", install: {} },
+        { name: "estimation", description: "Story point estimation", install: {} },
+      ],
+    };
+    writeFileSync(join(root, "ommax-dev.json"), JSON.stringify(manifest), "utf-8");
+
+    const names = readCollectionSkillNames(root, "ommax-dev.json");
+    expect(names).toEqual(["atlassian", "estimation"]);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("throws when the file does not exist", () => {
+    root = mkdtempSync(join(tmpdir(), "collection-read-"));
+    expect(() => readCollectionSkillNames(root, "missing.json")).toThrow(
+      "Collection file not found",
+    );
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("throws when JSON has no installedSkills array", () => {
+    root = mkdtempSync(join(tmpdir(), "collection-read-"));
+    writeFileSync(join(root, "bad.json"), '{"name":"bad"}', "utf-8");
+    expect(() => readCollectionSkillNames(root, "bad.json")).toThrow(
+      "no installedSkills array",
+    );
+    rmSync(root, { recursive: true, force: true });
   });
 });
