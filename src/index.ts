@@ -9,10 +9,13 @@ import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import type { Config } from "./types";
 import { updateApp, getAppVersion } from "./updater";
+import { encodeSkillSetRequestArg, parseSkillSetRequest } from "./skill-set";
+import type { SkillSetRequest } from "./skill-set";
 
 interface CliArgs {
   installCommand: boolean;
   updateCommand: boolean;
+  skillSetRequest: SkillSetRequest | null;
   exportInstalled: boolean;
   importInstalled: boolean;
   outputPath: string;
@@ -21,6 +24,7 @@ interface CliArgs {
 
 function parseArgs(argv: string[]): CliArgs {
   const command = argv[0];
+  const skillSetRequest = parseSkillSetRequest(argv);
   const installCommand = argv.includes("--install") || argv[0] === "install";
   const updateCommand = command === "update";
   let exportInstalled = false;
@@ -74,6 +78,7 @@ function parseArgs(argv: string[]): CliArgs {
   return {
     installCommand,
     updateCommand,
+    skillSetRequest,
     exportInstalled,
     importInstalled,
     outputPath: outputPath || defaultInstalledSkillsExportPath(),
@@ -137,7 +142,7 @@ function installGlobalCommand(): InstallCommandResult {
   return { commandPath, alreadyInstalled: false };
 }
 
-function launchElectronUi(): void {
+function launchElectronUi(skillSetRequest?: SkillSetRequest): void {
   const srcDir = dirname(fileURLToPath(import.meta.url));
   const projectRoot = resolve(srcDir, "..");
   ensureUiBundle(projectRoot);
@@ -149,7 +154,11 @@ function launchElectronUi(): void {
   const env = { ...process.env };
   // Ensure the tsx loader is active for Node/Electron.
   env.NODE_OPTIONS = env.NODE_OPTIONS ? `${env.NODE_OPTIONS} --import tsx` : "--import tsx";
-  const child = spawn(electronBin, ["src/electron/main.ts"], {
+  const electronArgs = ["src/electron/main.ts"];
+  if (skillSetRequest) {
+    electronArgs.push(encodeSkillSetRequestArg(skillSetRequest));
+  }
+  const child = spawn(electronBin, electronArgs, {
     cwd: projectRoot,
     stdio: "ignore",
     env,
@@ -248,9 +257,9 @@ function buildDefaultSources(): Config["sources"] {
 }
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2));
-
   try {
+    const args = parseArgs(process.argv.slice(2));
+
     if (args.installCommand) {
       const result = installGlobalCommand();
       if (result.alreadyInstalled) {
@@ -290,6 +299,17 @@ async function main() {
       writeDefaultConfig(defaultConfig);
       console.log(`Config written to ${configPath}`);
       console.log("Edit it to match your setup, then run again.\n");
+    }
+
+    if (args.skillSetRequest) {
+      const commandInstall = installGlobalCommand();
+      if (!commandInstall.alreadyInstalled) {
+        console.log(`Installed global command: ${commandInstall.commandPath}`);
+      }
+
+      launchElectronUi(args.skillSetRequest);
+      console.log("Opened Skills Manager and queued skill set selection.");
+      return;
     }
 
     const config = loadConfig();

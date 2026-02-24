@@ -75,6 +75,12 @@ import {
   planSkillGroupToggle,
 } from "../skill-groups";
 import { scan } from "../scanner";
+import {
+  extractSkillSetRequestFromArgv,
+  normalizeSkillSetSource,
+  selectSkillsForInstall,
+  type SkillSetRequest,
+} from "../skill-set";
 import { buildActiveBudgetSummary, buildGroupBudgetSummary } from "../token-budget";
 import type { Config, Skill, Source } from "../types";
 import { updateApp, getAppVersion } from "../updater";
@@ -228,13 +234,28 @@ interface AddSourcePreviewResponse {
   defaultSelectedIndexes: number[];
 }
 
+interface PrepareSkillSetInstallPayload {
+  source?: unknown;
+  requestedSkills?: unknown;
+  installAll?: unknown;
+}
+
+interface ApplySkillSetInstallPayload {
+  sourceId?: unknown;
+  skillIds?: unknown;
+}
+
 const TARGET_NAME_MAP = new Map<string, string>(
   SUPPORTED_IDES.map((ide) => [expandTilde(ide.path), ide.name]),
 );
 const INSTALLED_GROUP_NAME = "Installed";
+const SKILL_SET_LAUNCH_CHANNEL = "skills:launchSkillSet";
 
 let mainWindow: BrowserWindow | null = null;
 let latestSnapshotSkillIds = new Set<string>();
+let rendererLoaded = false;
+let pendingSecondInstanceSkillSetRequest: SkillSetRequest | null = null;
+let startupSkillSetRequest = extractSkillSetRequestFromArgv(process.argv);
 
 function getGitRepoRoot(candidatePath: string): string | null {
   const result = spawnSync(
@@ -311,6 +332,71 @@ function normalizeRepoUrl(raw: string): string {
 function parseGitHubSourceName(raw: string): string | null {
   const parsed = parseGitHubRepoUrl(raw);
   return parsed ? parsed.sourceName : null;
+}
+
+function dedupeCaseInsensitive(values: string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(trimmed);
+  }
+
+  return unique;
+}
+
+function parseRequestedSkills(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return dedupeCaseInsensitive(
+    raw.filter((entry): entry is string => typeof entry === "string"),
+  );
+}
+
+function parseSkillSetPayload(
+  payload: PrepareSkillSetInstallPayload | SkillSetRequest | null | undefined,
+): SkillSetRequest {
+  const rawSource = typeof payload?.source === "string" ? payload.source.trim() : "";
+  if (!rawSource) {
+    throw new Error("Missing skill set source.");
+  }
+
+  const source = normalizeSkillSetSource(rawSource);
+  if (!parseGitHubSourceName(source)) {
+    throw new Error("Skill set source must be a GitHub repo (owner/repo or URL).");
+  }
+
+  const requestedSkills = parseRequestedSkills(payload?.requestedSkills);
+  const installAll = payload?.installAll === true;
+  if (installAll && requestedSkills.length > 0) {
+    throw new Error("Do not combine --all with explicit skill names.");
+  }
+
+  return {
+    source,
+    requestedSkills,
+    installAll,
+  };
+}
+
+function dispatchSkillSetLaunchRequest(request: SkillSetRequest): void {
+  if (!mainWindow || mainWindow.isDestroyed() || !rendererLoaded) {
+    pendingSecondInstanceSkillSetRequest = request;
+    return;
+  }
+
+  mainWindow.webContents.send(SKILL_SET_LAUNCH_CHANNEL, request);
+}
+
+function focusMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
 }
 
 function removePersonalRepoSourceAlias(config: Config, repoPath: string | null): void {
@@ -1639,7 +1725,182 @@ async function mutateSkill(
   return createSnapshot(config);
 }
 
+function findDisplayedSourceByPath(
+  config: Config,
+  sourcePath: string,
+): SourceListEntry | null {
+  const resolvedTarget = resolve(sourcePath);
+  const displayed = getDisplayedSources(config);
+  return (
+    displayed.find((source) => resolve(source.path) === resolvedTarget) || null
+  );
+}
+
+function ensureSkillSetSource(
+  config: Config,
+  source: string,
+): { source: SourceListEntry; sourceAdded: boolean } {
+  const existingSource = findExistingGitHubSource(config, source);
+  if (existingSource) {
+    return { source: existingSource, sourceAdded: false };
+  }
+
+  const createdSource = addGitHubSource(source, config);
+  config.sources.push(createdSource);
+  saveConfig(config);
+  const displayedSource = findDisplayedSourceByPath(config, createdSource.path);
+  if (!displayedSource) {
+    throw new Error("Source was added, but could not be resolved.");
+  }
+  return { source: displayedSource, sourceAdded: true };
+}
+
+async function prepareSkillSetInstall(payload: PrepareSkillSetInstallPayload): Promise<{
+  snapshot: Snapshot;
+  sourceAdded: boolean;
+  sourceName: string;
+  sourceId: string;
+  sourceUrl: string;
+  skills: Array<{
+    id: string;
+    name: string;
+    description: string;
+    installName: string;
+    installed: boolean;
+    disabled: boolean;
+  }>;
+  selectedSkillIds: string[];
+  missingSkills: string[];
+}> {
+  const request = parseSkillSetPayload(payload);
+  const config = loadConfig();
+  const sourceResult = ensureSkillSetSource(config, request.source);
+  const sourceEntry =
+    findDisplayedSourceByPath(config, sourceResult.source.path) ||
+    sourceResult.source;
+
+  const scannedSkills = await scan(config);
+  const visibleSkills = visibleSkillsFromScan(scannedSkills, config);
+  const sourceSkills = getSkillsForSource(sourceEntry, visibleSkills);
+
+  if (sourceSkills.length === 0) {
+    throw new Error(`No skills were found in source '${sourceEntry.name}'.`);
+  }
+
+  const selection = selectSkillsForInstall(
+    sourceSkills,
+    request.requestedSkills,
+    request.installAll,
+  );
+
+  let selectedSkills = selection.selectedSkills;
+  if (request.requestedSkills.length === 0 && !request.installAll) {
+    // Default selection mirrors "what still needs action": install missing + re-enable disabled.
+    selectedSkills = sourceSkills.filter((skill) => !skill.installed || skill.disabled);
+    if (selectedSkills.length === 0) {
+      selectedSkills = sourceSkills;
+    }
+  }
+
+  const selectedSkillIds = selectedSkills.map((skill) => resolve(skill.sourcePath));
+  const snapshot = await createSnapshot(config);
+
+  return {
+    snapshot,
+    sourceAdded: sourceResult.sourceAdded,
+    sourceName: sourceEntry.name,
+    sourceId: resolve(sourceEntry.path),
+    sourceUrl: request.source,
+    skills: sourceSkills.map((skill) => ({
+      id: resolve(skill.sourcePath),
+      name: skill.name,
+      description: skill.description || "",
+      installName: skill.installName || basename(skill.sourcePath),
+      installed: skill.installed,
+      disabled: skill.disabled,
+    })),
+    selectedSkillIds,
+    missingSkills: selection.missingSkills,
+  };
+}
+
+async function applySkillSetInstall(payload: ApplySkillSetInstallPayload): Promise<{
+  snapshot: Snapshot;
+  selectedCount: number;
+  installedCount: number;
+  enabledCount: number;
+  alreadyInstalledCount: number;
+  missingCount: number;
+}> {
+  const rawSkillIds = Array.isArray(payload?.skillIds)
+    ? payload.skillIds
+        .filter((entry): entry is string => typeof entry === "string")
+        .map((entry) => resolve(entry))
+    : [];
+  const skillIds = Array.from(new Set(rawSkillIds));
+  if (skillIds.length === 0) {
+    throw new Error("Select at least one skill to install.");
+  }
+
+  const sourceId =
+    typeof payload?.sourceId === "string" && payload.sourceId.trim()
+      ? resolve(payload.sourceId)
+      : null;
+
+  const config = loadConfig();
+  const skills = await scan(config);
+  const skillById = new Map(skills.map((skill) => [resolve(skill.sourcePath), skill]));
+
+  let installedCount = 0;
+  let enabledCount = 0;
+  let alreadyInstalledCount = 0;
+  let missingCount = 0;
+
+  for (const skillId of skillIds) {
+    const skill = skillById.get(skillId);
+    if (!skill) {
+      missingCount += 1;
+      continue;
+    }
+
+    if (sourceId && !isPathWithin(resolve(skill.sourcePath), sourceId)) {
+      missingCount += 1;
+      continue;
+    }
+
+    if (!skill.installed) {
+      installSkill(skill, config);
+      installedCount += 1;
+      continue;
+    }
+
+    if (skill.disabled) {
+      enableSkill(skill, config);
+      enabledCount += 1;
+      continue;
+    }
+
+    alreadyInstalledCount += 1;
+  }
+
+  const snapshot = await createSnapshot(config);
+  return {
+    snapshot,
+    selectedCount: skillIds.length,
+    installedCount,
+    enabledCount,
+    alreadyInstalledCount,
+    missingCount,
+  };
+}
+
 function registerIpcHandlers(): void {
+  ipcMain.handle("skills:consumeLaunchSkillSetRequest", async () => {
+    const pending = startupSkillSetRequest;
+    startupSkillSetRequest = null;
+    return pending;
+  });
+
   ipcMain.handle("skills:getSnapshot", async () => {
     const config = loadConfig();
     return createSnapshot(config);
@@ -1834,6 +2095,18 @@ function registerIpcHandlers(): void {
     async (_event, payload: AddSourceFromInputPayload) => {
       return addSourceFromInput(payload);
     },
+  );
+
+  ipcMain.handle(
+    "skills:prepareSkillSetInstall",
+    async (_event, payload: PrepareSkillSetInstallPayload) =>
+      prepareSkillSetInstall(payload),
+  );
+
+  ipcMain.handle(
+    "skills:applySkillSetInstall",
+    async (_event, payload: ApplySkillSetInstallPayload) =>
+      applySkillSetInstall(payload),
   );
 
   ipcMain.handle("skills:disableSource", async (_event, sourceId: unknown) => {
@@ -2162,25 +2435,50 @@ function createMainWindow(): void {
     },
   });
 
+  rendererLoaded = false;
   mainWindow.setMenuBarVisibility(false);
   void mainWindow.loadFile(join(currentDir, "..", "renderer", "dist", "index.html"));
+  mainWindow.webContents.on("did-finish-load", () => {
+    rendererLoaded = true;
+    if (pendingSecondInstanceSkillSetRequest) {
+      dispatchSkillSetLaunchRequest(pendingSecondInstanceSkillSetRequest);
+      pendingSecondInstanceSkillSetRequest = null;
+    }
+  });
   mainWindow.on("closed", () => {
+    rendererLoaded = false;
     mainWindow = null;
   });
 }
 
-registerIpcHandlers();
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
-app.whenReady().then(() => {
-  createMainWindow();
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  registerIpcHandlers();
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
+  app.on("second-instance", (_event, commandLine) => {
+    focusMainWindow();
+    const request = extractSkillSetRequestFromArgv(commandLine);
+    if (request) {
+      dispatchSkillSetLaunchRequest(request);
     }
   });
-});
 
-app.on("window-all-closed", () => {
-  app.quit();
-});
+  app.whenReady().then(() => {
+    createMainWindow();
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createMainWindow();
+      } else {
+        focusMainWindow();
+      }
+    });
+  });
+
+  app.on("window-all-closed", () => {
+    app.quit();
+  });
+}

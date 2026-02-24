@@ -6,6 +6,20 @@ All three tools follow the open [Agent Skills](https://agentskills.io/) standard
 
 ## Setup
 
+Quick install Skills Manager, open the app, and launch the skill-picker modal:
+
+```bash
+npx -y skills-manager obra/superpowers
+```
+
+Preselect specific skills before the modal opens:
+
+```bash
+npx -y skills-manager obra/superpowers workflow research
+```
+
+Classic installer:
+
 ```
 curl -fsSL https://raw.githubusercontent.com/razbakov/skills-manager/main/scripts/install.sh | bash
 ```
@@ -13,6 +27,12 @@ curl -fsSL https://raw.githubusercontent.com/razbakov/skills-manager/main/script
 ## Usage
 
 Run `skills` to launch application
+
+Open/focus the app and trigger the skill-picker from CLI:
+
+```bash
+skills set <owner/repo|github-url> [skill ...]
+```
 
 ![Skills Manager desktop UI](docs/images/desktop-ui.png)
 

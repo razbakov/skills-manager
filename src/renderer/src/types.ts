@@ -217,6 +217,21 @@ export interface AddSourcePreviewSkill {
   skillPath: string;
 }
 
+export interface SkillSetLaunchRequest {
+  source: string;
+  requestedSkills: string[];
+  installAll: boolean;
+}
+
+export interface SkillSetPreviewSkill {
+  id: string;
+  name: string;
+  description: string;
+  installName: string;
+  installed: boolean;
+  disabled: boolean;
+}
+
 export type TabId =
   | "skills"
   | "collections"

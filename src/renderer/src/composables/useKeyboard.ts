@@ -17,8 +17,10 @@ interface KeyboardOptions {
   triggerPrimaryAction: () => void;
   isImportOpen: () => boolean;
   closeImport: () => void;
-  isAddSourceOpen: () => boolean;
-  closeAddSource: () => void;
+  isAddSourceOpen?: () => boolean;
+  closeAddSource?: () => void;
+  isSkillSetOpen?: () => boolean;
+  closeSkillSet?: () => void;
 }
 
 function isTextInput(target: EventTarget | null): boolean {
@@ -40,9 +42,17 @@ export function useKeyboard(options: KeyboardOptions) {
       return;
     }
 
-    if (options.isAddSourceOpen()) {
+    if (options.isAddSourceOpen?.()) {
       if (event.key === "Escape") {
-        options.closeAddSource();
+        options.closeAddSource?.();
+        event.preventDefault();
+      }
+      return;
+    }
+
+    if (options.isSkillSetOpen?.()) {
+      if (event.key === "Escape") {
+        options.closeSkillSet?.();
         event.preventDefault();
       }
       return;

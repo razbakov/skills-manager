@@ -12,6 +12,8 @@ import type {
   SettingViewModel,
   RecommendationItem,
   RecommendationRunStats,
+  SkillSetLaunchRequest,
+  SkillSetPreviewSkill,
 } from "@/types";
 import {
   filterSkillLibrary,
@@ -73,6 +75,19 @@ const addSourcePreview = reactive({
   skills: [] as AddSourcePreviewSkill[],
   selectedIndexes: new Set<number>(),
 });
+
+const skillSetPreview = reactive({
+  open: false,
+  source: "",
+  sourceName: "",
+  sourceId: "",
+  sourceAdded: false,
+  skills: [] as SkillSetPreviewSkill[],
+  selectedSkillIds: new Set<string>(),
+  missingSkills: [] as string[],
+});
+const skillSetLaunchQueue: SkillSetLaunchRequest[] = [];
+let processingSkillSetLaunchQueue = false;
 
 const skillMdCache = new Map<string, string>();
 const skillReviews = reactive({
@@ -188,6 +203,20 @@ function addToast(message: string, type = "info", durationMs = 3000) {
 
 function removeToast(id: number) {
   toasts.value = toasts.value.filter((t) => t.id !== id);
+}
+
+function dedupeCaseInsensitive(values: string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(trimmed);
+  }
+  return unique;
 }
 
 // ── Helpers ──
@@ -634,6 +663,188 @@ function closeImportPreview() {
   importPreview.selectedIndexes = new Set();
 }
 
+function closeSkillSetPreview() {
+  skillSetPreview.open = false;
+  skillSetPreview.source = "";
+  skillSetPreview.sourceName = "";
+  skillSetPreview.sourceId = "";
+  skillSetPreview.sourceAdded = false;
+  skillSetPreview.skills = [];
+  skillSetPreview.selectedSkillIds = new Set();
+  skillSetPreview.missingSkills = [];
+}
+
+function selectAllSkillSetPreviewSkills() {
+  skillSetPreview.selectedSkillIds = new Set(skillSetPreview.skills.map((skill) => skill.id));
+}
+
+function clearSkillSetPreviewSelection() {
+  skillSetPreview.selectedSkillIds = new Set();
+}
+
+async function waitUntilIdle(timeoutMs = 15000): Promise<boolean> {
+  const start = Date.now();
+  while (busy.value) {
+    if (Date.now() - start >= timeoutMs) {
+      return false;
+    }
+    await wait(120);
+  }
+  return true;
+}
+
+function normalizeSkillSetLaunchRequest(payload: any): SkillSetLaunchRequest | null {
+  const source = typeof payload?.source === "string" ? payload.source.trim() : "";
+  if (!source) return null;
+
+  return {
+    source,
+    requestedSkills: dedupeCaseInsensitive(
+      Array.isArray(payload?.requestedSkills)
+        ? payload.requestedSkills.filter((entry: unknown): entry is string => typeof entry === "string")
+        : [],
+    ),
+    installAll: payload?.installAll === true,
+  };
+}
+
+function normalizeLookupKey(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function skillPathCandidates(skillPath: string): string[] {
+  const normalizedPath = skillPath.trim().replace(/\\/g, "/").replace(/\/+$/g, "");
+  if (!normalizedPath) return [];
+
+  const segments = normalizedPath.split("/").filter(Boolean);
+  const candidates: string[] = [normalizedPath];
+  if (segments.length > 0) {
+    const last = segments[segments.length - 1];
+    candidates.push(last);
+    if (last.toLowerCase() === "skill.md" && segments.length > 1) {
+      candidates.push(segments[segments.length - 2]);
+    }
+  }
+
+  return candidates;
+}
+
+function selectAddSourceIndexesByRequestedSkills(
+  skills: AddSourcePreviewSkill[],
+  requestedSkills: string[],
+): { selectedIndexes: Set<number>; missingSkills: string[] } {
+  const lookup = new Map<string, Set<number>>();
+  for (const skill of skills) {
+    const candidates = [skill.name, ...skillPathCandidates(skill.skillPath)];
+    for (const candidate of candidates) {
+      const key = normalizeLookupKey(candidate);
+      if (!key) continue;
+      if (!lookup.has(key)) lookup.set(key, new Set<number>());
+      lookup.get(key)!.add(skill.index);
+    }
+  }
+
+  const selectedIndexes = new Set<number>();
+  const missingSkills: string[] = [];
+
+  for (const requested of requestedSkills) {
+    const key = normalizeLookupKey(requested);
+    if (!key) continue;
+    const matchedIndexes = lookup.get(key);
+    if (!matchedIndexes || matchedIndexes.size === 0) {
+      missingSkills.push(requested);
+      continue;
+    }
+    for (const index of matchedIndexes) {
+      selectedIndexes.add(index);
+    }
+  }
+
+  return { selectedIndexes, missingSkills };
+}
+
+async function openSkillSetPreviewFromRequest(request: SkillSetLaunchRequest): Promise<void> {
+  const idle = await waitUntilIdle();
+  if (!idle) {
+    addToast("Could not open Add dialog while another task is running.", "error", 5000);
+    return;
+  }
+
+  // Reuse the same path as the header "Add" button.
+  openAddSourcePreview(request.source);
+  await previewAddSourceInput();
+
+  const previewSkills = addSourcePreview.skills;
+  if (previewSkills.length === 0) {
+    activeTab.value = "sources";
+    return;
+  }
+
+  if (request.installAll) {
+    addSourcePreview.selectedIndexes = new Set(
+      previewSkills.map((skill) => skill.index),
+    );
+  } else if (request.requestedSkills.length > 0) {
+    const selection = selectAddSourceIndexesByRequestedSkills(
+      previewSkills,
+      request.requestedSkills,
+    );
+    addSourcePreview.selectedIndexes = selection.selectedIndexes;
+    if (selection.missingSkills.length > 0) {
+      addToast(
+        `Not found in source: ${selection.missingSkills.join(", ")}.`,
+        "error",
+        6000,
+      );
+    }
+  }
+
+  activeTab.value = "sources";
+}
+
+async function processSkillSetLaunchQueue(): Promise<void> {
+  if (processingSkillSetLaunchQueue) return;
+  processingSkillSetLaunchQueue = true;
+  try {
+    while (skillSetLaunchQueue.length > 0) {
+      const next = skillSetLaunchQueue.shift();
+      if (!next) continue;
+      await openSkillSetPreviewFromRequest(next);
+    }
+  } finally {
+    processingSkillSetLaunchQueue = false;
+  }
+}
+
+function enqueueSkillSetLaunchRequest(request: SkillSetLaunchRequest) {
+  skillSetLaunchQueue.push(request);
+  void processSkillSetLaunchQueue();
+}
+
+async function installSelectedSkillSetSkills() {
+  const skillIds = Array.from(skillSetPreview.selectedSkillIds);
+  if (!skillIds.length) {
+    addToast("Select at least one skill.", "error", 5000);
+    return;
+  }
+
+  const sourceName = skillSetPreview.sourceName || "source";
+  const result = await runTask(
+    () =>
+      api.applySkillSetInstall({
+        sourceId: skillSetPreview.sourceId,
+        skillIds,
+      }),
+    `Installing selected skills from ${sourceName}...`,
+    (payload: any) =>
+      `Installed ${payload?.installedCount ?? 0}, enabled ${payload?.enabledCount ?? 0}, already installed ${payload?.alreadyInstalledCount ?? 0}.`,
+  );
+
+  if (result.ok) {
+    closeSkillSetPreview();
+  }
+}
+
 async function setPersonalRepoFromUrl(repoUrl: string) {
   await runTask(
     () => api.setPersonalSkillsRepoFromUrl(repoUrl),
@@ -803,6 +1014,7 @@ function setRecommendationProgress(progress: any) {
 }
 
 let unsubscribeProgress: (() => void) | null = null;
+let unsubscribeSkillSetLaunch: (() => void) | null = null;
 
 function subscribeToProgress() {
   if (unsubscribeProgress) return;
@@ -815,6 +1027,31 @@ function unsubscribeFromProgress() {
   if (unsubscribeProgress) {
     unsubscribeProgress();
     unsubscribeProgress = null;
+  }
+
+  if (unsubscribeSkillSetLaunch) {
+    unsubscribeSkillSetLaunch();
+    unsubscribeSkillSetLaunch = null;
+  }
+}
+
+function subscribeToSkillSetLaunch() {
+  if (unsubscribeSkillSetLaunch) return;
+  unsubscribeSkillSetLaunch = api.onSkillSetLaunch((payload: any) => {
+    const request = normalizeSkillSetLaunchRequest(payload);
+    if (!request) return;
+    enqueueSkillSetLaunchRequest(request);
+  });
+}
+
+async function consumePendingSkillSetLaunchRequest() {
+  try {
+    const payload = await api.consumeLaunchSkillSetRequest();
+    const request = normalizeSkillSetLaunchRequest(payload);
+    if (!request) return;
+    enqueueSkillSetLaunchRequest(request);
+  } catch (err: any) {
+    addToast(err?.message ?? "Could not consume launch request.", "error", 5000);
   }
 }
 
@@ -858,7 +1095,9 @@ function jumpToSkill(skillId: string) {
 // ── Init ──
 async function init() {
   subscribeToProgress();
+  subscribeToSkillSetLaunch();
   await refresh();
+  await consumePendingSkillSetLaunchRequest();
 }
 
 export function useSkills() {
@@ -874,6 +1113,7 @@ export function useSkills() {
     recommendations,
     importPreview,
     addSourcePreview,
+    skillSetPreview,
     skillReviews,
 
     // Derived
@@ -929,6 +1169,10 @@ export function useSkills() {
     pickImportBundle,
     importSelected,
     closeImportPreview,
+    installSelectedSkillSetSkills,
+    closeSkillSetPreview,
+    selectAllSkillSetPreviewSkills,
+    clearSkillSetPreviewSelection,
     setPersonalRepoFromUrl,
     clearPersonalRepo,
     updateApp,

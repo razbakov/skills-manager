@@ -7,6 +7,8 @@ declare module "*.vue" {
 }
 
 interface SkillsApi {
+  consumeLaunchSkillSetRequest: () => Promise<any>;
+  onSkillSetLaunch: (listener: (payload: any) => void) => () => void;
   getSnapshot: () => Promise<any>;
   refresh: () => Promise<any>;
   getRecommendations: (request: any) => Promise<any>;
@@ -30,6 +32,8 @@ interface SkillsApi {
   addSourceFromInput: (
     request: { input: string; selectedIndexes: number[] },
   ) => Promise<any>;
+  prepareSkillSetInstall: (request: any) => Promise<any>;
+  applySkillSetInstall: (request: any) => Promise<any>;
   disableSource: (sourceId: string) => Promise<any>;
   enableSource: (sourceId: string) => Promise<any>;
   removeSource: (sourceId: string) => Promise<any>;

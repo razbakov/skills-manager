@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "main": "dist/electron/main.js",
   "type": "module",
+  "bin": {
+    "skills": "bin/skills",
+    "skills-manager": "bin/skillset",
+    "skillset": "bin/skillset"
+  },
   "scripts": {
     "start": "bun src/index.ts",
     "setup": "bun install && bun src/index.ts --install",

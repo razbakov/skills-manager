@@ -1,6 +1,19 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+const skillSetLaunchChannel = "skills:launchSkillSet";
+
 contextBridge.exposeInMainWorld("skillsApi", {
+  consumeLaunchSkillSetRequest: () =>
+    ipcRenderer.invoke("skills:consumeLaunchSkillSetRequest"),
+  onSkillSetLaunch: (listener) => {
+    if (typeof listener !== "function") {
+      return () => { };
+    }
+
+    const wrapped = (_event, payload) => listener(payload);
+    ipcRenderer.on(skillSetLaunchChannel, wrapped);
+    return () => ipcRenderer.removeListener(skillSetLaunchChannel, wrapped);
+  },
   getSnapshot: () => ipcRenderer.invoke("skills:getSnapshot"),
   refresh: () => ipcRenderer.invoke("skills:refresh"),
   getRecommendations: (request) => ipcRenderer.invoke("skills:getRecommendations", request),
@@ -32,6 +45,10 @@ contextBridge.exposeInMainWorld("skillsApi", {
     ipcRenderer.invoke("skills:previewAddSourceInput", input),
   addSourceFromInput: (payload) =>
     ipcRenderer.invoke("skills:addSourceFromInput", payload),
+  prepareSkillSetInstall: (request) =>
+    ipcRenderer.invoke("skills:prepareSkillSetInstall", request),
+  applySkillSetInstall: (request) =>
+    ipcRenderer.invoke("skills:applySkillSetInstall", request),
   disableSource: (sourceId) => ipcRenderer.invoke("skills:disableSource", sourceId),
   enableSource: (sourceId) => ipcRenderer.invoke("skills:enableSource", sourceId),
   removeSource: (sourceId) => ipcRenderer.invoke("skills:removeSource", sourceId),
