@@ -18,6 +18,7 @@ import {
   Settings,
   X,
   CloudOff,
+  CloudUpload,
 } from "lucide-vue-next";
 import SkillsView from "@/views/SkillsView.vue";
 import InstalledView from "@/views/InstalledView.vue";
@@ -137,7 +138,8 @@ onUnmounted(() => store.unsubscribeFromProgress());
       <header class="flex items-center justify-between px-5 py-3 border-b bg-background/80 backdrop-blur-sm">
         <div class="flex items-center gap-3">
           <h1 class="text-base font-semibold tracking-tight">Skills Manager</h1>
-          <Separator orientation="vertical" class="h-5" />
+        </div>
+        <div class="flex items-center gap-2">
           <Button
             v-if="store.personalRepo.value?.configured"
             variant="ghost"
@@ -145,7 +147,7 @@ onUnmounted(() => store.unsubscribeFromProgress());
             :disabled="store.busy.value || store.syncing.value"
             @click="store.syncRepo()"
           >
-            <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': store.syncing.value }" />
+            <CloudUpload class="h-4 w-4" :class="{ 'animate-spin': store.syncing.value }" />
             Sync
           </Button>
           <Button
@@ -158,8 +160,6 @@ onUnmounted(() => store.unsubscribeFromProgress());
             <CloudOff class="h-4 w-4" />
             Setup Sync
           </Button>
-        </div>
-        <div class="flex items-center gap-2">
           <Button variant="ghost" size="sm" :disabled="store.busy.value" @click="store.updateApp()">
             <ArrowDownToLine class="h-4 w-4" />
             Update
