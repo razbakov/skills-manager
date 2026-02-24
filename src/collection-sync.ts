@@ -18,7 +18,7 @@ export interface SyncResult {
 export type CollectionAction = "add" | "update" | "remove" | "rename";
 
 export function collectionFilePath(repoPath: string, name: string): string {
-  return join(repoPath, "collections", `${name}.json`);
+  return join(repoPath, `${name}.json`);
 }
 
 export function writeCollectionFile(
@@ -26,10 +26,6 @@ export function writeCollectionFile(
   name: string,
   skills: Skill[],
 ): void {
-  const dir = join(repoPath, "collections");
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
   const filePath = collectionFilePath(repoPath, name);
   const manifest = buildInstalledSkillsManifest(skills);
   const content = JSON.stringify(manifest, null, 2) + "\n";
@@ -71,11 +67,11 @@ export function tryCommitCollectionChange(
   collectionName: string,
   action: CollectionAction,
 ): CollectionCommitResult {
-  const collectionsDir = "collections";
+  const filePattern = `${collectionName}.json`;
 
   const addResult = spawnSync(
     "git",
-    ["-C", repoPath, "add", "--all", "--", collectionsDir],
+    ["-C", repoPath, "add", "--all", "--", filePattern],
     { encoding: "utf-8" },
   );
   if (addResult.error || addResult.status !== 0) {
@@ -87,7 +83,7 @@ export function tryCommitCollectionChange(
 
   const diffResult = spawnSync(
     "git",
-    ["-C", repoPath, "diff", "--cached", "--quiet", "--", collectionsDir],
+    ["-C", repoPath, "diff", "--cached", "--quiet", "--", filePattern],
     { encoding: "utf-8" },
   );
   if (diffResult.status === 0) {
@@ -106,7 +102,7 @@ export function tryCommitCollectionChange(
   const commitMessage = `chore(collections): ${action} ${collectionName}`;
   const commitResult = spawnSync(
     "git",
-    ["-C", repoPath, "commit", "-m", commitMessage, "--", collectionsDir],
+    ["-C", repoPath, "commit", "-m", commitMessage, "--", filePattern],
     { encoding: "utf-8" },
   );
   if (commitResult.error || commitResult.status !== 0) {

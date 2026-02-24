@@ -68,9 +68,9 @@ function initBareRemoteWithClone(): { remote: string; clone: string } {
 }
 
 describe("collectionFilePath", () => {
-  it("returns path under collections/ with .json extension", () => {
+  it("returns path in repo root with .json extension", () => {
     const result = collectionFilePath("/repo", "Writing");
-    expect(result).toBe(join("/repo", "collections", "Writing.json"));
+    expect(result).toBe(join("/repo", "Writing.json"));
   });
 });
 
@@ -85,14 +85,14 @@ describe("writeCollectionFile", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it("creates collections directory and writes export-format JSON", () => {
+  it("writes export-format JSON in repo root", () => {
     const skills = [
       makeSkill({ name: "research", sourcePath: "/skills/research", description: "Research skill" }),
       makeSkill({ name: "brainstorming", sourcePath: "/skills/brainstorming", description: "Brainstorming skill" }),
     ];
     writeCollectionFile(root, "Writing", skills);
 
-    const filePath = join(root, "collections", "Writing.json");
+    const filePath = join(root, "Writing.json");
     expect(existsSync(filePath)).toBe(true);
 
     const content = JSON.parse(readFileSync(filePath, "utf-8"));
@@ -109,7 +109,7 @@ describe("writeCollectionFile", () => {
     writeCollectionFile(root, "Writing", [skill1]);
     writeCollectionFile(root, "Writing", [skill1, skill2]);
 
-    const filePath = join(root, "collections", "Writing.json");
+    const filePath = join(root, "Writing.json");
     const content = JSON.parse(readFileSync(filePath, "utf-8"));
     expect(content.installedSkills).toHaveLength(2);
   });
@@ -118,7 +118,7 @@ describe("writeCollectionFile", () => {
     const skills = [makeSkill({ name: "a", sourcePath: "/skills/a" })];
     writeCollectionFile(root, "My Group", skills);
 
-    const raw = readFileSync(join(root, "collections", "My Group.json"), "utf-8");
+    const raw = readFileSync(join(root, "My Group.json"), "utf-8");
     const parsed = JSON.parse(raw);
     expect(raw).toBe(JSON.stringify(parsed, null, 2) + "\n");
     expect(parsed.schemaVersion).toBe(3);
@@ -138,7 +138,7 @@ describe("removeCollectionFile", () => {
 
   it("deletes the collection JSON file", () => {
     writeCollectionFile(root, "Writing", [makeSkill({ name: "a", sourcePath: "/skills/a" })]);
-    const filePath = join(root, "collections", "Writing.json");
+    const filePath = join(root, "Writing.json");
     expect(existsSync(filePath)).toBe(true);
 
     removeCollectionFile(root, "Writing");
