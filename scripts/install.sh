@@ -150,12 +150,7 @@ fi
 if [ -d "$INSTALL_DIR/.git" ]; then
   echo "Updating skills-manager in $INSTALL_DIR"
   git -C "$INSTALL_DIR" fetch --depth 1 origin "$BRANCH"
-  if git -C "$INSTALL_DIR" show-ref --verify --quiet "refs/heads/$BRANCH"; then
-    git -C "$INSTALL_DIR" checkout "$BRANCH"
-  else
-    git -C "$INSTALL_DIR" checkout -b "$BRANCH" "origin/$BRANCH"
-  fi
-  git -C "$INSTALL_DIR" pull --ff-only origin "$BRANCH"
+  git -C "$INSTALL_DIR" checkout -B "$BRANCH" "origin/$BRANCH"
 else
   echo "Cloning skills-manager into $INSTALL_DIR"
   git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
