@@ -28,6 +28,8 @@ const api = window.skillsApi;
 const snapshot = ref<Snapshot | null>(null);
 const activeTab = ref<TabId>("skills");
 const busy = ref(false);
+const syncing = ref(false);
+const syncSetupOpen = ref(false);
 const queries = reactive({ skills: "", installed: "", available: "" });
 const libraryFilters = reactive({
   status: "all" as LibraryStatusFilter,
@@ -864,6 +866,26 @@ async function clearPersonalRepo() {
   );
 }
 
+async function syncRepo() {
+  if (syncing.value || busy.value) return;
+  syncing.value = true;
+  try {
+    const result = await api.syncPersonalRepo();
+    if (result?.snapshot) {
+      snapshot.value = result.snapshot;
+    }
+    if (result?.pulled && result?.pushed) {
+      addToast("Synced with remote.", "success");
+    } else {
+      addToast(result?.message ?? "Sync failed.", "error", 5000);
+    }
+  } catch (err: any) {
+    addToast(err?.message ?? "Sync failed.", "error", 5000);
+  } finally {
+    syncing.value = false;
+  }
+}
+
 async function updateApp() {
   try {
     const result = await api.updateApp();
@@ -1106,6 +1128,8 @@ export function useSkills() {
     snapshot,
     activeTab,
     busy,
+    syncing,
+    syncSetupOpen,
     queries,
     libraryFilters,
     selected,
@@ -1175,6 +1199,7 @@ export function useSkills() {
     clearSkillSetPreviewSelection,
     setPersonalRepoFromUrl,
     clearPersonalRepo,
+    syncRepo,
     updateApp,
     getSkillMarkdown,
     loadSkillReview,

@@ -4,10 +4,10 @@ import {
   removeCollectionFile,
   tryCommitCollectionChange,
   collectionFilePath,
+  syncPersonalRepo,
 } from "./collection-sync";
 import {
   mkdtempSync,
-  mkdirSync,
   rmSync,
   existsSync,
   readFileSync,
@@ -29,6 +29,29 @@ function initGitRepo(dir: string): void {
     ["-C", dir, "commit", "--allow-empty", "-m", "initial"],
     { encoding: "utf-8" },
   );
+}
+
+function initBareRemoteWithClone(): { remote: string; clone: string } {
+  const remote = mkdtempSync(join(tmpdir(), "collection-remote-"));
+  spawnSync("git", ["init", "--bare", remote], { encoding: "utf-8" });
+
+  const clone = mkdtempSync(join(tmpdir(), "collection-clone-"));
+  rmSync(clone, { recursive: true, force: true });
+  spawnSync("git", ["clone", remote, clone], { encoding: "utf-8" });
+  spawnSync("git", ["-C", clone, "config", "user.email", "test@test.com"], {
+    encoding: "utf-8",
+  });
+  spawnSync("git", ["-C", clone, "config", "user.name", "Test"], {
+    encoding: "utf-8",
+  });
+  spawnSync(
+    "git",
+    ["-C", clone, "commit", "--allow-empty", "-m", "initial"],
+    { encoding: "utf-8" },
+  );
+  spawnSync("git", ["-C", clone, "push"], { encoding: "utf-8" });
+
+  return { remote, clone };
 }
 
 describe("collectionFilePath", () => {
@@ -123,6 +146,7 @@ describe("tryCommitCollectionChange", () => {
     const result = tryCommitCollectionChange(root, "Writing", "add");
 
     expect(result.committed).toBe(true);
+    expect(result.message).toContain("add Writing");
 
     const log = spawnSync("git", ["-C", root, "log", "--oneline"], {
       encoding: "utf-8",
@@ -151,7 +175,6 @@ describe("tryCommitCollectionChange", () => {
 
     const result = tryCommitCollectionChange(root, "Empty", "update");
     expect(result.committed).toBe(false);
-    expect(result.pushed).toBe(false);
   });
 
   it("commits rename (old removed, new added)", () => {
@@ -169,13 +192,63 @@ describe("tryCommitCollectionChange", () => {
     });
     expect(log.stdout).toContain("chore(collections): rename NewName");
   });
+});
 
-  it("reports pushed=false when no remote is configured", () => {
-    writeCollectionFile(root, "NoRemote", ["/skills/a"]);
-    const result = tryCommitCollectionChange(root, "NoRemote", "add");
+describe("syncPersonalRepo", () => {
+  let remote: string;
+  let clone: string;
 
-    expect(result.committed).toBe(true);
-    expect(result.pushed).toBe(false);
-    expect(result.message).toContain("push failed");
+  beforeEach(() => {
+    const repos = initBareRemoteWithClone();
+    remote = repos.remote;
+    clone = repos.clone;
+  });
+
+  afterEach(() => {
+    rmSync(remote, { recursive: true, force: true });
+    rmSync(clone, { recursive: true, force: true });
+  });
+
+  it("pulls and pushes local commits to origin", () => {
+    writeCollectionFile(clone, "Writing", ["/skills/a"]);
+    tryCommitCollectionChange(clone, "Writing", "add");
+
+    const result = syncPersonalRepo(clone);
+
+    expect(result.pulled).toBe(true);
+    expect(result.pushed).toBe(true);
+    expect(result.message).toBe("Synced with remote.");
+
+    const remoteLog = spawnSync(
+      "git",
+      ["--git-dir", remote, "log", "--oneline"],
+      { encoding: "utf-8" },
+    );
+    expect(remoteLog.stdout).toContain("chore(collections): add Writing");
+  });
+
+  it("returns pushed=false when no remote is configured", () => {
+    const local = mkdtempSync(join(tmpdir(), "collection-no-remote-"));
+    initGitRepo(local);
+
+    try {
+      writeCollectionFile(local, "Test", ["/skills/a"]);
+      tryCommitCollectionChange(local, "Test", "add");
+
+      const result = syncPersonalRepo(local);
+      expect(result.pulled).toBe(false);
+      expect(result.pushed).toBe(false);
+      expect(result.message).toContain("Pull failed");
+    } finally {
+      rmSync(local, { recursive: true, force: true });
+    }
+  });
+
+  it("succeeds with nothing to push", () => {
+    const result = syncPersonalRepo(clone);
+
+    expect(result.pulled).toBe(true);
+    expect(result.pushed).toBe(true);
+    expect(result.message).toBe("Synced with remote.");
   });
 });

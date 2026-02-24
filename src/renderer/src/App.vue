@@ -17,6 +17,7 @@ import {
   Sparkles,
   Settings,
   X,
+  CloudOff,
 } from "lucide-vue-next";
 import SkillsView from "@/views/SkillsView.vue";
 import InstalledView from "@/views/InstalledView.vue";
@@ -25,6 +26,7 @@ import RecommendationsView from "@/views/RecommendationsView.vue";
 import SettingsView from "@/views/SettingsView.vue";
 import ImportDialog from "@/components/ImportDialog.vue";
 import AddSourceDialog from "@/components/AddSourceDialog.vue";
+import SyncSetupDialog from "@/components/SyncSetupDialog.vue";
 
 const store = useSkills();
 
@@ -135,6 +137,27 @@ onUnmounted(() => store.unsubscribeFromProgress());
       <header class="flex items-center justify-between px-5 py-3 border-b bg-background/80 backdrop-blur-sm">
         <div class="flex items-center gap-3">
           <h1 class="text-base font-semibold tracking-tight">Skills Manager</h1>
+          <Separator orientation="vertical" class="h-5" />
+          <Button
+            v-if="store.personalRepo.value?.configured"
+            variant="ghost"
+            size="sm"
+            :disabled="store.busy.value || store.syncing.value"
+            @click="store.syncRepo()"
+          >
+            <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': store.syncing.value }" />
+            Sync
+          </Button>
+          <Button
+            v-else
+            variant="ghost"
+            size="sm"
+            :disabled="store.busy.value"
+            @click="store.syncSetupOpen.value = true"
+          >
+            <CloudOff class="h-4 w-4" />
+            Setup Sync
+          </Button>
         </div>
         <div class="flex items-center gap-2">
           <Button variant="ghost" size="sm" :disabled="store.busy.value" @click="store.updateApp()">
@@ -215,9 +238,10 @@ onUnmounted(() => store.unsubscribeFromProgress());
         </TransitionGroup>
       </div>
 
-      <!-- Import dialog -->
+      <!-- Dialogs -->
       <ImportDialog />
       <AddSourceDialog />
+      <SyncSetupDialog />
     </div>
   </TooltipProvider>
 </template>

@@ -4,6 +4,11 @@ import { spawnSync } from "node:child_process";
 
 export interface CollectionCommitResult {
   committed: boolean;
+  message: string;
+}
+
+export interface SyncResult {
+  pulled: boolean;
   pushed: boolean;
   message: string;
 }
@@ -59,7 +64,6 @@ export function tryCommitCollectionChange(
   if (addResult.error || addResult.status !== 0) {
     return {
       committed: false,
-      pushed: false,
       message: `Collection saved, but git add failed: ${formatGitFailure(addResult)}`,
     };
   }
@@ -72,14 +76,12 @@ export function tryCommitCollectionChange(
   if (diffResult.status === 0) {
     return {
       committed: false,
-      pushed: false,
       message: "No changes to commit.",
     };
   }
   if (diffResult.error || diffResult.status !== 1) {
     return {
       committed: false,
-      pushed: false,
       message: `Collection saved, but git diff failed: ${formatGitFailure(diffResult)}`,
     };
   }
@@ -93,27 +95,12 @@ export function tryCommitCollectionChange(
   if (commitResult.error || commitResult.status !== 0) {
     return {
       committed: false,
-      pushed: false,
       message: `Collection saved, but git commit failed: ${formatGitFailure(commitResult)}`,
-    };
-  }
-
-  const pushResult = spawnSync(
-    "git",
-    ["-C", repoPath, "push"],
-    { encoding: "utf-8" },
-  );
-  if (pushResult.error || pushResult.status !== 0) {
-    return {
-      committed: true,
-      pushed: false,
-      message: `Committed, but push failed: ${formatGitFailure(pushResult)}`,
     };
   }
 
   return {
     committed: true,
-    pushed: true,
     message: commitMessage,
   };
 }
@@ -133,4 +120,38 @@ export function syncCollectionToRepo(
   }
 
   return tryCommitCollectionChange(repoPath, collectionName, action);
+}
+
+export function syncPersonalRepo(repoPath: string): SyncResult {
+  const pullResult = spawnSync(
+    "git",
+    ["-C", repoPath, "pull", "--rebase"],
+    { encoding: "utf-8" },
+  );
+  if (pullResult.error || pullResult.status !== 0) {
+    return {
+      pulled: false,
+      pushed: false,
+      message: `Pull failed: ${formatGitFailure(pullResult)}`,
+    };
+  }
+
+  const pushResult = spawnSync(
+    "git",
+    ["-C", repoPath, "push"],
+    { encoding: "utf-8" },
+  );
+  if (pushResult.error || pushResult.status !== 0) {
+    return {
+      pulled: true,
+      pushed: false,
+      message: `Pulled, but push failed: ${formatGitFailure(pushResult)}`,
+    };
+  }
+
+  return {
+    pulled: true,
+    pushed: true,
+    message: "Synced with remote.",
+  };
 }

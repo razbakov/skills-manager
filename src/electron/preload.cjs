@@ -64,5 +64,6 @@ contextBridge.exposeInMainWorld("skillsApi", {
   setPersonalSkillsRepoFromUrl: (repoUrl) =>
     ipcRenderer.invoke("skills:setPersonalSkillsRepoFromUrl", repoUrl),
   clearPersonalSkillsRepo: () => ipcRenderer.invoke("skills:clearPersonalSkillsRepo"),
+  syncPersonalRepo: () => ipcRenderer.invoke("skills:syncPersonalRepo"),
   updateApp: () => ipcRenderer.invoke("skills:updateApp"),
 });

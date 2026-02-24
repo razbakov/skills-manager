@@ -75,7 +75,7 @@ import {
   normalizeSkillGroups,
   planSkillGroupToggle,
 } from "../skill-groups";
-import { syncCollectionToRepo, removeCollectionFile } from "../collection-sync";
+import { syncCollectionToRepo, removeCollectionFile, syncPersonalRepo } from "../collection-sync";
 import { scan } from "../scanner";
 import {
   extractSkillSetRequestFromArgv,
@@ -2456,6 +2456,19 @@ function registerIpcHandlers(): void {
     config.personalSkillsRepoPrompted = true;
     saveConfig(config);
     return createSnapshot(config);
+  });
+
+  ipcMain.handle("skills:syncPersonalRepo", async () => {
+    const config = loadConfig();
+    const repoPath = config.personalSkillsRepo
+      ? resolve(config.personalSkillsRepo)
+      : null;
+    if (!repoPath) {
+      throw new Error("No personal repository configured.");
+    }
+    const result = syncPersonalRepo(repoPath);
+    const snapshot = await createSnapshot(config);
+    return { ...result, snapshot };
   });
 
   ipcMain.handle("skills:updateApp", async () => {
