@@ -5,8 +5,7 @@
   "type": "module",
   "bin": {
     "skills": "bin/skills",
-    "skills-manager": "bin/skillset",
-    "skillset": "bin/skillset"
+    "skills-manager": "bin/skills-manager"
   },
   "scripts": {
     "start": "bun src/index.ts",
