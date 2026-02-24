@@ -210,6 +210,13 @@ export interface ImportPreviewSkill {
   skillPath: string;
 }
 
+export interface AddSourcePreviewSkill {
+  index: number;
+  name: string;
+  description: string;
+  skillPath: string;
+}
+
 export type TabId =
   | "skills"
   | "collections"

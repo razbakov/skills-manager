@@ -1,27 +1,13 @@
 <script setup lang="ts">
-import { ref } from "vue";
 import { useSkills } from "@/composables/useSkills";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { FolderOpen, ExternalLink, Trash2, Power, PowerOff, Plus } from "lucide-vue-next";
+import { FolderOpen, ExternalLink, Trash2, Power, PowerOff } from "lucide-vue-next";
 
 const store = useSkills();
-const sourceUrl = ref("");
-
-async function handleAddSource() {
-  const url = sourceUrl.value.trim();
-  if (!url) return;
-  await store.addSource(url);
-  sourceUrl.value = "";
-}
-
-function handleKeydown(event: KeyboardEvent) {
-  if (event.key === "Enter") handleAddSource();
-}
 </script>
 
 <template>
@@ -62,20 +48,6 @@ function handleKeydown(event: KeyboardEvent) {
     <section class="flex-1 min-w-0 min-h-0">
       <ScrollArea class="h-full">
         <div class="p-5">
-          <!-- Add source form -->
-          <div class="mb-5">
-            <label class="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">Add Source Repository</label>
-            <div class="flex gap-2">
-              <Input v-model="sourceUrl" placeholder="https://github.com/owner/repo" @keydown="handleKeydown" />
-              <Button size="sm" :disabled="store.busy.value || !sourceUrl.trim()" @click="handleAddSource">
-                <Plus class="h-3.5 w-3.5" />
-                Add
-              </Button>
-            </div>
-          </div>
-
-          <Separator class="mb-5" />
-
           <div v-if="!store.selectedSource.value" class="text-center py-12 text-sm text-muted-foreground">
             Select a source to see details.
           </div>

@@ -17,6 +17,8 @@ interface KeyboardOptions {
   triggerPrimaryAction: () => void;
   isImportOpen: () => boolean;
   closeImport: () => void;
+  isAddSourceOpen: () => boolean;
+  closeAddSource: () => void;
 }
 
 function isTextInput(target: EventTarget | null): boolean {
@@ -33,6 +35,14 @@ export function useKeyboard(options: KeyboardOptions) {
     if (options.isImportOpen()) {
       if (event.key === "Escape") {
         options.closeImport();
+        event.preventDefault();
+      }
+      return;
+    }
+
+    if (options.isAddSourceOpen()) {
+      if (event.key === "Escape") {
+        options.closeAddSource();
         event.preventDefault();
       }
       return;

@@ -128,9 +128,9 @@ async function handleSetPersonalRepo() {
             </p>
 
             <div class="mb-5">
-              <label class="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">GitHub Repository URL</label>
+              <label class="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-2">Repository or Marketplace URL</label>
               <div class="flex gap-2">
-                <Input v-model="personalUrl" placeholder="https://github.com/owner/repo" @keydown.enter="handleSetPersonalRepo" />
+                <Input v-model="personalUrl" placeholder="Repository or marketplace URL" @keydown.enter="handleSetPersonalRepo" />
                 <Button size="sm" :disabled="store.busy.value || !personalUrl.trim()" @click="handleSetPersonalRepo">
                   Use Repo
                 </Button>

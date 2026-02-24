@@ -14,6 +14,12 @@ import { spawnSync } from "child_process";
 import { isAbsolute, join, basename, resolve, relative } from "path";
 import { getSourcesRootPath, saveConfig } from "./config";
 import type { Config, Skill, Source } from "./types";
+import {
+  normalizedGitHubUrl,
+  parseGitHubRepoUrl,
+  resolveGitHubRepoUrl,
+  type ParsedGitHubRepo,
+} from "./source-url";
 
 function ensureDir(dir: string): void {
   if (!existsSync(dir)) {
@@ -25,13 +31,6 @@ function getInstallDirName(skill: Skill): string {
   return skill.installName || basename(skill.sourcePath);
 }
 
-export interface ParsedGitHubRepo {
-  owner: string;
-  repo: string;
-  canonicalUrl: string;
-  sourceName: string;
-}
-
 export interface AdoptSkillResult {
   destinationPath: string;
   usedPersonalRepo: boolean;
@@ -40,66 +39,29 @@ export interface AdoptSkillResult {
   commitMessage?: string;
 }
 
-export function parseGitHubRepoUrl(input: string): ParsedGitHubRepo | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-
-  const sshMatch = trimmed.match(/^git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?\/?$/i);
-  if (sshMatch) {
-    const owner = sshMatch[1];
-    const repo = sshMatch[2];
-    const canonicalRepo = repo.replace(/\.git$/i, "");
-    if (!owner || !canonicalRepo) return null;
-    return {
-      owner,
-      repo: canonicalRepo,
-      canonicalUrl: `https://github.com/${owner}/${canonicalRepo}`,
-      sourceName: `${canonicalRepo}@${owner}`,
-    };
-  }
-
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(trimmed);
-  } catch {
-    return null;
-  }
-
-  const host = parsedUrl.hostname.toLowerCase();
-  if (host !== "github.com" && host !== "www.github.com") return null;
-
-  const segments = parsedUrl.pathname
-    .replace(/^\/+|\/+$/g, "")
-    .split("/")
-    .filter(Boolean);
-  if (segments.length !== 2) return null;
-
-  const owner = segments[0];
-  const repo = segments[1].replace(/\.git$/i, "");
-  if (!owner || !repo) return null;
-
-  return {
-    owner,
-    repo,
-    canonicalUrl: `https://github.com/${owner}/${repo}`,
-    sourceName: `${repo}@${owner}`,
-  };
-}
-
-export function normalizedGitHubUrl(value: string | undefined): string | null {
-  if (!value) return null;
-  const parsed = parseGitHubRepoUrl(value);
-  return parsed ? parsed.canonicalUrl.toLowerCase() : null;
-}
+export {
+  normalizedGitHubUrl,
+  parseGitHubRepoUrl,
+  resolveGitHubRepoUrl,
+};
+export type { ParsedGitHubRepo };
 
 function resolveSourcesRoot(config: Config): string {
   return resolve(getSourcesRootPath(config));
 }
 
-export function addGitHubSource(repoUrl: string, config: Config): Source {
-  const parsed = parseGitHubRepoUrl(repoUrl);
+function isPathWithin(path: string, root: string): boolean {
+  const rel = relative(root, path);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+export async function addGitHubSource(
+  repoUrl: string,
+  config: Config,
+): Promise<Source> {
+  const parsed = await resolveGitHubRepoUrl(repoUrl);
   if (!parsed) {
-    throw new Error("Invalid GitHub repository URL.");
+    throw new Error("Invalid repository or marketplace URL.");
   }
 
   const sourceNameLower = parsed.sourceName.toLowerCase();
@@ -558,6 +520,7 @@ export function enableSource(sourcePath: string, config: Config): void {
 
 export function removeSource(sourcePath: string, config: Config, skills: Skill[]): void {
   const resolved = resolve(sourcePath);
+  const sourcesRoot = resolveSourcesRoot(config);
 
   for (const skill of skills) {
     const skillResolved = resolve(skill.sourcePath);
@@ -568,10 +531,13 @@ export function removeSource(sourcePath: string, config: Config, skills: Skill[]
     }
   }
 
-  if (existsSync(resolved)) {
+  const shouldDeleteManagedSourceDir =
+    resolved !== sourcesRoot && isPathWithin(resolved, sourcesRoot);
+  if (shouldDeleteManagedSourceDir && existsSync(resolved)) {
     rmSync(resolved, { recursive: true, force: true });
   }
 
+  config.sources = config.sources.filter((source) => resolve(source.path) !== resolved);
   config.disabledSources = config.disabledSources.filter((p) => resolve(p) !== resolved);
   saveConfig(config);
 }

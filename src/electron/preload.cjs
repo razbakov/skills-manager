@@ -28,6 +28,10 @@ contextBridge.exposeInMainWorld("skillsApi", {
     ipcRenderer.invoke("skills:updateSkillGroupMembership", request),
   adoptSkill: (skillId) => ipcRenderer.invoke("skills:adopt", skillId),
   addSource: (repoUrl) => ipcRenderer.invoke("skills:addSource", repoUrl),
+  previewAddSourceInput: (input) =>
+    ipcRenderer.invoke("skills:previewAddSourceInput", input),
+  addSourceFromInput: (payload) =>
+    ipcRenderer.invoke("skills:addSourceFromInput", payload),
   disableSource: (sourceId) => ipcRenderer.invoke("skills:disableSource", sourceId),
   enableSource: (sourceId) => ipcRenderer.invoke("skills:enableSource", sourceId),
   removeSource: (sourceId) => ipcRenderer.invoke("skills:removeSource", sourceId),

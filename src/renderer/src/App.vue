@@ -10,6 +10,7 @@ import {
   Download,
   RefreshCw,
   ArrowDownToLine,
+  Plus,
   Package,
   FolderOpen,
   FolderGit2,
@@ -23,6 +24,7 @@ import SourcesView from "@/views/SourcesView.vue";
 import RecommendationsView from "@/views/RecommendationsView.vue";
 import SettingsView from "@/views/SettingsView.vue";
 import ImportDialog from "@/components/ImportDialog.vue";
+import AddSourceDialog from "@/components/AddSourceDialog.vue";
 
 const store = useSkills();
 
@@ -118,6 +120,8 @@ useKeyboard({
   triggerPrimaryAction,
   isImportOpen: () => store.importPreview.open,
   closeImport: () => store.closeImportPreview(),
+  isAddSourceOpen: () => store.addSourcePreview.open,
+  closeAddSource: () => store.closeAddSourcePreview(),
 });
 
 onMounted(() => store.init());
@@ -142,6 +146,10 @@ onUnmounted(() => store.unsubscribeFromProgress());
             Refresh
           </Button>
           <Separator orientation="vertical" class="h-5" />
+          <Button variant="outline" size="sm" :disabled="store.busy.value" @click="store.openAddSourcePreview()">
+            <Plus class="h-4 w-4" />
+            Add
+          </Button>
           <Button variant="outline" size="sm" :disabled="store.busy.value" @click="store.pickImportBundle()">
             <Download class="h-4 w-4" />
             Import
@@ -209,6 +217,7 @@ onUnmounted(() => store.unsubscribeFromProgress());
 
       <!-- Import dialog -->
       <ImportDialog />
+      <AddSourceDialog />
     </div>
   </TooltipProvider>
 </template>

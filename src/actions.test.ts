@@ -28,6 +28,28 @@ describe("actions.ts testing (issue 003)", () => {
             });
         });
 
+        it("should parse skills.sh marketplace URLs", () => {
+            expect(parseGitHubRepoUrl("https://skills.sh/wondelai/skills/design-sprint")).toEqual({
+                owner: "wondelai",
+                repo: "skills",
+                canonicalUrl: "https://github.com/wondelai/skills",
+                sourceName: "skills@wondelai"
+            });
+        });
+
+        it("should parse encoded marketplace URLs with embedded GitHub links", () => {
+            expect(
+                parseGitHubRepoUrl(
+                    "https://example.com/skill?repo=https%3A%2F%2Fgithub.com%2Fopenai%2Fskills%2Ftree%2Fmain"
+                )
+            ).toEqual({
+                owner: "openai",
+                repo: "skills",
+                canonicalUrl: "https://github.com/openai/skills",
+                sourceName: "skills@openai"
+            });
+        });
+
         it("should return null for invalid URLs", () => {
             expect(parseGitHubRepoUrl("https://example.com")).toBeNull();
         });

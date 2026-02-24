@@ -1,16 +1,17 @@
 import { existsSync, readFileSync } from "fs";
 import { isAbsolute, join, relative, resolve } from "path";
-import { addGitHubSource, installSkill } from "./actions";
+import {
+  addGitHubSource,
+  installSkill,
+  parseGitHubRepoUrl,
+  type ParsedGitHubRepo,
+} from "./actions";
 import { getSourcesRootPath } from "./config";
 import { scan } from "./scanner";
 import type { Config, Skill } from "./types";
 
-export interface ParsedGitHubRepo {
-  owner: string;
-  repo: string;
-  canonicalUrl: string;
-  sourceName: string;
-}
+export { parseGitHubRepoUrl };
+export type { ParsedGitHubRepo };
 
 export interface ImportedSkillDescriptor {
   name: string;
@@ -36,51 +37,6 @@ export interface ImportInstalledSkillsResult {
 
 export interface ImportInstalledSkillsOptions {
   selectedIndexes?: number[];
-}
-
-export function parseGitHubRepoUrl(input: string): ParsedGitHubRepo | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-
-  const sshMatch = trimmed.match(/^git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?\/?$/i);
-  if (sshMatch) {
-    const owner = sshMatch[1];
-    const repo = sshMatch[2].replace(/\.git$/i, "");
-    if (!owner || !repo) return null;
-    return {
-      owner,
-      repo,
-      canonicalUrl: `https://github.com/${owner}/${repo}`,
-      sourceName: `${repo}@${owner}`,
-    };
-  }
-
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(trimmed);
-  } catch {
-    return null;
-  }
-
-  const host = parsedUrl.hostname.toLowerCase();
-  if (host !== "github.com" && host !== "www.github.com") return null;
-
-  const segments = parsedUrl.pathname
-    .replace(/^\/+|\/+$/g, "")
-    .split("/")
-    .filter(Boolean);
-  if (segments.length !== 2) return null;
-
-  const owner = segments[0];
-  const repo = segments[1].replace(/\.git$/i, "");
-  if (!owner || !repo) return null;
-
-  return {
-    owner,
-    repo,
-    canonicalUrl: `https://github.com/${owner}/${repo}`,
-    sourceName: `${repo}@${owner}`,
-  };
 }
 
 export function parseManifest(inputPath: string): ImportedSkillDescriptor[] {
@@ -209,7 +165,7 @@ export async function importInstalledSkills(
     if (repoRootByCanonicalUrl.has(key)) continue;
 
     try {
-      addGitHubSource(parsedRepo.canonicalUrl, config);
+      await addGitHubSource(parsedRepo.canonicalUrl, config);
       addedSources += 1;
     } catch (err: any) {
       const message = (err?.message || "").toLowerCase();

@@ -27,6 +27,15 @@ describe("import.ts testing (issue 010)", () => {
             });
         });
 
+        it("should parse marketplace URLs", () => {
+            expect(parseGitHubRepoUrl("https://skills.sh/wondelai/skills/design-sprint")).toEqual({
+                owner: "wondelai",
+                repo: "skills",
+                canonicalUrl: "https://github.com/wondelai/skills",
+                sourceName: "skills@wondelai"
+            });
+        });
+
         it("should return null for invalid URLs", () => {
             expect(parseGitHubRepoUrl("invalid_url")).toBeNull();
             expect(parseGitHubRepoUrl("https://gitlab.com/owner/repo")).toBeNull();

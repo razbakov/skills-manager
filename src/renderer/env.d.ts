@@ -26,6 +26,10 @@ interface SkillsApi {
   ) => Promise<any>;
   adoptSkill: (skillId: string) => Promise<any>;
   addSource: (repoUrl: string) => Promise<any>;
+  previewAddSourceInput: (input: string) => Promise<any>;
+  addSourceFromInput: (
+    request: { input: string; selectedIndexes: number[] },
+  ) => Promise<any>;
   disableSource: (sourceId: string) => Promise<any>;
   enableSource: (sourceId: string) => Promise<any>;
   removeSource: (sourceId: string) => Promise<any>;

@@ -8,7 +8,15 @@ import {
   type SaveDialogOptions,
 } from "electron";
 import { spawnSync } from "child_process";
-import { existsSync, readFileSync, readdirSync } from "fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+} from "fs";
+import { tmpdir } from "os";
 import {
   basename,
   dirname,
@@ -30,7 +38,9 @@ import {
   enableSource,
   fixPartialInstalls,
   installSkill,
+  parseGitHubRepoUrl,
   removeSource,
+  resolveGitHubRepoUrl,
   uninstallSkill,
 } from "../actions";
 import {
@@ -66,7 +76,7 @@ import {
 } from "../skill-groups";
 import { scan } from "../scanner";
 import { buildActiveBudgetSummary, buildGroupBudgetSummary } from "../token-budget";
-import type { Config, Skill } from "../types";
+import type { Config, Skill, Source } from "../types";
 import { updateApp, getAppVersion } from "../updater";
 
 interface TargetLabel {
@@ -170,6 +180,11 @@ interface ImportInstalledPayload {
   selectedIndexes?: unknown;
 }
 
+interface AddSourceFromInputPayload {
+  input?: unknown;
+  selectedIndexes?: unknown;
+}
+
 interface ExportSkillGroupPayload {
   name?: unknown;
 }
@@ -196,6 +211,21 @@ interface UpdateSkillGroupMembershipPayload {
   groupName?: unknown;
   skillId?: unknown;
   member?: unknown;
+}
+
+interface AddSourcePreviewSkill {
+  index: number;
+  name: string;
+  description: string;
+  skillPath: string;
+}
+
+interface AddSourcePreviewResponse {
+  input: string;
+  sourceName: string;
+  sourcePath: string;
+  skills: AddSourcePreviewSkill[];
+  defaultSelectedIndexes: number[];
 }
 
 const TARGET_NAME_MAP = new Map<string, string>(
@@ -279,39 +309,8 @@ function normalizeRepoUrl(raw: string): string {
 }
 
 function parseGitHubSourceName(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-
-  const githubSsh = trimmed.match(
-    /^[^@]+@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/i,
-  );
-  if (githubSsh) {
-    const owner = githubSsh[1];
-    const repo = githubSsh[2].replace(/\.git$/i, "");
-    if (!owner || !repo) return null;
-    return `${repo}@${owner}`;
-  }
-
-  try {
-    const parsed = new URL(trimmed);
-    const host = parsed.hostname.toLowerCase();
-    if (host !== "github.com" && host !== "www.github.com") {
-      return null;
-    }
-
-    const segments = parsed.pathname
-      .replace(/^\/+|\/+$/g, "")
-      .split("/")
-      .filter(Boolean);
-    if (segments.length !== 2) return null;
-
-    const owner = segments[0];
-    const repo = segments[1].replace(/\.git$/i, "");
-    if (!owner || !repo) return null;
-    return `${repo}@${owner}`;
-  } catch {
-    return null;
-  }
+  const parsed = parseGitHubRepoUrl(raw);
+  return parsed ? parsed.sourceName : null;
 }
 
 function removePersonalRepoSourceAlias(config: Config, repoPath: string | null): void {
@@ -324,23 +323,29 @@ function removePersonalRepoSourceAlias(config: Config, repoPath: string | null):
   });
 }
 
-function findExistingGitHubSource(
+async function findExistingGitHubSource(
   config: Config,
   repoUrl: string,
-): SourceListEntry | null {
+): Promise<SourceListEntry | null> {
   const displayedSources = getDisplayedSources(config);
-  const normalizedTargetUrl = normalizeRepoUrl(repoUrl).toLowerCase();
+  const normalizedTargetUrls = new Set<string>([
+    normalizeRepoUrl(repoUrl).toLowerCase(),
+  ]);
+  const resolvedRepo = await resolveGitHubRepoUrl(repoUrl);
+  if (resolvedRepo) {
+    normalizedTargetUrls.add(normalizeRepoUrl(resolvedRepo.canonicalUrl).toLowerCase());
+  }
 
   const matchedByUrl = displayedSources.find(
     (source) =>
       !!source.repoUrl &&
-      normalizeRepoUrl(source.repoUrl).toLowerCase() === normalizedTargetUrl,
+      normalizedTargetUrls.has(normalizeRepoUrl(source.repoUrl).toLowerCase()),
   );
   if (matchedByUrl) {
     return matchedByUrl;
   }
 
-  const sourceName = parseGitHubSourceName(repoUrl);
+  const sourceName = resolvedRepo?.sourceName ?? parseGitHubSourceName(repoUrl);
   if (!sourceName) return null;
   const sourceNameLower = sourceName.toLowerCase();
   const formattedNameLower = formatPackageNameAsOwnerRepo(sourceName).toLowerCase();
@@ -350,6 +355,480 @@ function findExistingGitHubSource(
     return lowered === sourceNameLower || lowered === formattedNameLower;
   });
   return matchedByName || null;
+}
+
+interface SourceSelectionEntry {
+  skill: Skill;
+  skillPath: string;
+}
+
+interface ResolvedSourcePreviewInput {
+  input: string;
+  sourceName: string;
+  sourcePath: string;
+  sourceUrl?: string;
+  specificSkillPath?: string;
+  specificSkillHint?: string;
+  cleanupPath?: string;
+}
+
+interface ResolvedSourceApplyInput {
+  input: string;
+  sourceName: string;
+  sourcePath: string;
+  sourceUrl?: string;
+  addLocalSource: boolean;
+}
+
+function cloneRepository(repoUrl: string, clonePath: string): void {
+  const cloneResult = spawnSync(
+    "git",
+    ["clone", "--depth", "1", repoUrl, clonePath],
+    { encoding: "utf-8" },
+  );
+  if (cloneResult.error || cloneResult.status !== 0) {
+    if (existsSync(clonePath)) {
+      rmSync(clonePath, { recursive: true, force: true });
+    }
+
+    const detail =
+      cloneResult.error?.message ||
+      cloneResult.stderr?.toString().trim() ||
+      cloneResult.stdout?.toString().trim();
+    if (detail) {
+      throw new Error(`Could not download repository: ${detail}`);
+    }
+    throw new Error("Could not download repository.");
+  }
+}
+
+function inferSpecificSkillHint(rawInput: string): string | undefined {
+  const trimmed = rawInput.trim();
+  if (!trimmed) return undefined;
+
+  try {
+    const parsed = new URL(trimmed);
+    const host = parsed.hostname.toLowerCase();
+    const segments = parsed.pathname
+      .replace(/^\/+|\/+$/g, "")
+      .split("/")
+      .filter(Boolean);
+    if (segments.length === 0) return undefined;
+
+    if (host === "skills.sh" || host === "www.skills.sh") {
+      if (segments.length >= 3) {
+        return decodeURIComponent(segments[segments.length - 1]);
+      }
+      return undefined;
+    }
+
+    if (host !== "github.com" && host !== "www.github.com") {
+      return undefined;
+    }
+
+    if (segments.length >= 5 && (segments[2] === "tree" || segments[2] === "blob")) {
+      const tail = segments.slice(4);
+      if (tail.length === 0) return undefined;
+      const last = decodeURIComponent(tail[tail.length - 1]);
+      if (/^skill\.md$/i.test(last) && tail.length >= 2) {
+        return decodeURIComponent(tail[tail.length - 2]);
+      }
+      return last;
+    }
+
+    if (segments.length > 2) {
+      const last = decodeURIComponent(segments[segments.length - 1]);
+      if (/^skill\.md$/i.test(last) && segments.length >= 2) {
+        return decodeURIComponent(segments[segments.length - 2]);
+      }
+      return last;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+}
+
+function buildSourceSelectionEntries(
+  skills: Skill[],
+  sourceRoot: string,
+): SourceSelectionEntry[] {
+  const resolvedRoot = resolve(sourceRoot);
+  return skills
+    .filter((skill) => isPathWithin(resolve(skill.sourcePath), resolvedRoot))
+    .map((skill) => ({
+      skill,
+      skillPath:
+        relative(resolvedRoot, resolve(skill.sourcePath)).replace(/\\/g, "/") ||
+        ".",
+    }))
+    .sort((a, b) => {
+      const pathCompare = a.skillPath.localeCompare(b.skillPath, undefined, {
+        sensitivity: "base",
+        numeric: true,
+      });
+      if (pathCompare !== 0) return pathCompare;
+      return a.skill.name.localeCompare(b.skill.name, undefined, {
+        sensitivity: "base",
+        numeric: true,
+      });
+    });
+}
+
+function pickDefaultSelectionIndexes(
+  entries: SourceSelectionEntry[],
+  options: {
+    specificSkillPath?: string;
+    specificSkillHint?: string;
+  },
+): number[] {
+  if (entries.length === 0) return [];
+
+  if (options.specificSkillPath) {
+    const resolvedSpecific = resolve(options.specificSkillPath);
+    const index = entries.findIndex(
+      (entry) => resolve(entry.skill.sourcePath) === resolvedSpecific,
+    );
+    if (index >= 0) return [index];
+  }
+
+  if (options.specificSkillHint) {
+    const hint = options.specificSkillHint.trim().toLowerCase();
+    if (hint) {
+      const exactByDirName = entries.findIndex(
+        (entry) => basename(resolve(entry.skill.sourcePath)).toLowerCase() === hint,
+      );
+      if (exactByDirName >= 0) return [exactByDirName];
+
+      const exactByPath = entries.findIndex((entry) =>
+        entry.skillPath.toLowerCase().split("/").includes(hint),
+      );
+      if (exactByPath >= 0) return [exactByPath];
+    }
+  }
+
+  return entries.map((_, index) => index);
+}
+
+function detectLocalSourceInput(rawInput: string): ResolvedSourcePreviewInput | null {
+  const trimmed = rawInput.trim();
+  if (!trimmed) return null;
+
+  const resolvedInputPath = resolve(expandTilde(trimmed));
+  if (!existsSync(resolvedInputPath)) return null;
+
+  let stats: ReturnType<typeof statSync>;
+  try {
+    stats = statSync(resolvedInputPath);
+  } catch {
+    return null;
+  }
+
+  if (stats.isFile()) {
+    if (basename(resolvedInputPath).toLowerCase() !== "skill.md") {
+      throw new Error("File input must point to SKILL.md.");
+    }
+    const skillDir = dirname(resolvedInputPath);
+    const sourceRoot = dirname(skillDir);
+    return {
+      input: trimmed,
+      sourceName: basename(sourceRoot) || basename(skillDir) || "local-source",
+      sourcePath: sourceRoot,
+      specificSkillPath: skillDir,
+    };
+  }
+
+  if (!stats.isDirectory()) {
+    throw new Error("Input must be a directory, SKILL.md path, or repository URL.");
+  }
+
+  const skillMdPath = join(resolvedInputPath, "SKILL.md");
+  const isSingleSkillPath = existsSync(skillMdPath);
+  if (isSingleSkillPath) {
+    const sourceRoot = dirname(resolvedInputPath);
+    return {
+      input: trimmed,
+      sourceName:
+        basename(sourceRoot) || basename(resolvedInputPath) || "local-source",
+      sourcePath: sourceRoot,
+      specificSkillPath: resolvedInputPath,
+    };
+  }
+
+  return {
+    input: trimmed,
+    sourceName: basename(resolvedInputPath) || "local-source",
+    sourcePath: resolvedInputPath,
+  };
+}
+
+async function resolveSourcePreviewInput(
+  rawInput: string,
+  config: Config,
+): Promise<ResolvedSourcePreviewInput> {
+  const local = detectLocalSourceInput(rawInput);
+  if (local) return local;
+
+  const parsedRepo = await resolveGitHubRepoUrl(rawInput);
+  if (!parsedRepo) {
+    throw new Error("Enter a valid skill path, repository URL, or marketplace URL.");
+  }
+
+  const existingSource = await findExistingGitHubSource(
+    config,
+    parsedRepo.canonicalUrl,
+  );
+  if (existingSource) {
+    return {
+      input: rawInput.trim(),
+      sourceName: existingSource.name,
+      sourcePath: resolve(existingSource.path),
+      sourceUrl: parsedRepo.canonicalUrl,
+      specificSkillHint: inferSpecificSkillHint(rawInput),
+    };
+  }
+
+  const previewRoot = mkdtempSync(join(tmpdir(), "skills-manager-preview-"));
+  const clonePath = resolve(join(previewRoot, parsedRepo.sourceName));
+  try {
+    cloneRepository(parsedRepo.canonicalUrl, clonePath);
+  } catch (error) {
+    rmSync(previewRoot, { recursive: true, force: true });
+    throw error;
+  }
+
+  return {
+    input: rawInput.trim(),
+    sourceName: parsedRepo.sourceName,
+    sourcePath: clonePath,
+    sourceUrl: parsedRepo.canonicalUrl,
+    specificSkillHint: inferSpecificSkillHint(rawInput),
+    cleanupPath: previewRoot,
+  };
+}
+
+async function buildSourcePreview(
+  rawInput: string,
+  config: Config,
+): Promise<AddSourcePreviewResponse> {
+  const resolvedInput = await resolveSourcePreviewInput(rawInput, config);
+
+  try {
+    const previewConfig: Config = {
+      sources: [
+        {
+          name: resolvedInput.sourceName,
+          path: resolvedInput.sourcePath,
+          recursive: true,
+          ...(resolvedInput.sourceUrl ? { url: resolvedInput.sourceUrl } : {}),
+        },
+      ],
+      targets: [],
+      disabledSources: [],
+      personalSkillsRepoPrompted: true,
+    };
+
+    const scannedSkills = await scan(previewConfig);
+    const entries = buildSourceSelectionEntries(
+      scannedSkills,
+      resolvedInput.sourcePath,
+    );
+    if (entries.length === 0) {
+      throw new Error("No skills found for this input.");
+    }
+
+    const defaultSelectedIndexes = pickDefaultSelectionIndexes(entries, {
+      specificSkillPath: resolvedInput.specificSkillPath,
+      specificSkillHint: resolvedInput.specificSkillHint,
+    });
+    const skills: AddSourcePreviewSkill[] = entries.map((entry, index) => ({
+      index,
+      name: entry.skill.name,
+      description: entry.skill.description,
+      skillPath: entry.skillPath,
+    }));
+
+    return {
+      input: resolvedInput.input,
+      sourceName: formatPackageNameAsOwnerRepo(resolvedInput.sourceName),
+      sourcePath: resolvedInput.sourcePath,
+      skills,
+      defaultSelectedIndexes,
+    };
+  } finally {
+    if (resolvedInput.cleanupPath) {
+      rmSync(resolvedInput.cleanupPath, { recursive: true, force: true });
+    }
+  }
+}
+
+function ensureUniqueLocalSourceName(
+  config: Config,
+  preferredName: string,
+  sourcePath: string,
+): string {
+  const normalizedPreferred = preferredName.trim() || basename(sourcePath) || "local-source";
+  const existingNames = new Set(
+    config.sources.map((source) => source.name.trim().toLowerCase()).filter(Boolean),
+  );
+
+  if (!existingNames.has(normalizedPreferred.toLowerCase())) {
+    return normalizedPreferred;
+  }
+
+  let suffix = 2;
+  while (existingNames.has(`${normalizedPreferred}-${suffix}`.toLowerCase())) {
+    suffix += 1;
+  }
+  return `${normalizedPreferred}-${suffix}`;
+}
+
+function ensureLocalSource(
+  config: Config,
+  sourcePath: string,
+  sourceName: string,
+): Source {
+  const resolvedPath = resolve(sourcePath);
+  const existing = config.sources.find(
+    (source) => resolve(source.path) === resolvedPath,
+  );
+  if (existing) {
+    existing.recursive = true;
+    return existing;
+  }
+
+  const nextSource: Source = {
+    name: ensureUniqueLocalSourceName(config, sourceName, resolvedPath),
+    path: resolvedPath,
+    recursive: true,
+  };
+  config.sources.push(nextSource);
+  return nextSource;
+}
+
+async function resolveSourceApplyInput(
+  rawInput: string,
+  config: Config,
+): Promise<ResolvedSourceApplyInput> {
+  const local = detectLocalSourceInput(rawInput);
+  if (local) {
+    return {
+      input: local.input,
+      sourceName: local.sourceName,
+      sourcePath: local.sourcePath,
+      addLocalSource: true,
+    };
+  }
+
+  const parsedRepo = await resolveGitHubRepoUrl(rawInput);
+  if (!parsedRepo) {
+    throw new Error("Enter a valid skill path, repository URL, or marketplace URL.");
+  }
+
+  const existingSource = await findExistingGitHubSource(
+    config,
+    parsedRepo.canonicalUrl,
+  );
+  if (existingSource) {
+    return {
+      input: rawInput.trim(),
+      sourceName: existingSource.name,
+      sourcePath: resolve(existingSource.path),
+      sourceUrl: parsedRepo.canonicalUrl,
+      addLocalSource: false,
+    };
+  }
+
+  const source = await addGitHubSource(parsedRepo.canonicalUrl, config);
+  return {
+    input: rawInput.trim(),
+    sourceName: source.name,
+    sourcePath: resolve(source.path),
+    sourceUrl: parsedRepo.canonicalUrl,
+    addLocalSource: false,
+  };
+}
+
+function parseSelectedIndexes(
+  value: unknown,
+  maxExclusive: number,
+): number[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(
+    new Set(
+      value
+        .map((entry) => Number(entry))
+        .filter(
+          (index) =>
+            Number.isInteger(index) && index >= 0 && index < maxExclusive,
+        ),
+    ),
+  ).sort((a, b) => a - b);
+}
+
+async function addSourceFromInput(
+  payload: AddSourceFromInputPayload,
+): Promise<{
+  snapshot: Snapshot;
+  sourceName: string;
+  selectedCount: number;
+  installedCount: number;
+  alreadyInstalledCount: number;
+}> {
+  const rawInput =
+    typeof payload?.input === "string" ? payload.input.trim() : "";
+  if (!rawInput) {
+    throw new Error("Enter a valid skill path, repository URL, or marketplace URL.");
+  }
+
+  const config = loadConfig();
+  const preview = await buildSourcePreview(rawInput, config);
+  const selectedIndexes = parseSelectedIndexes(
+    payload?.selectedIndexes,
+    preview.skills.length,
+  );
+  if (selectedIndexes.length === 0) {
+    throw new Error("Select at least one skill.");
+  }
+
+  const resolvedInput = await resolveSourceApplyInput(rawInput, config);
+  if (resolvedInput.addLocalSource) {
+    ensureLocalSource(config, resolvedInput.sourcePath, resolvedInput.sourceName);
+    saveConfig(config);
+  }
+
+  const selectedSet = new Set(selectedIndexes);
+  const scannedSkills = await scan(config);
+  const entries = buildSourceSelectionEntries(
+    scannedSkills,
+    resolvedInput.sourcePath,
+  );
+  if (entries.length === 0) {
+    throw new Error("No skills found for this source.");
+  }
+
+  let installedCount = 0;
+  let alreadyInstalledCount = 0;
+  for (let index = 0; index < entries.length; index += 1) {
+    if (!selectedSet.has(index)) continue;
+    const skill = entries[index].skill;
+    if (skill.installed) {
+      alreadyInstalledCount += 1;
+      continue;
+    }
+    installSkill(skill, config);
+    installedCount += 1;
+  }
+
+  const snapshot = await createSnapshot(config);
+  return {
+    snapshot,
+    sourceName: formatPackageNameAsOwnerRepo(resolvedInput.sourceName),
+    selectedCount: selectedIndexes.length,
+    installedCount,
+    alreadyInstalledCount,
+  };
 }
 
 function getRepoUrl(sourcePath: string): string | null {
@@ -1332,14 +1811,30 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("skills:addSource", async (_event, repoUrl: unknown) => {
     if (typeof repoUrl !== "string" || !repoUrl.trim()) {
-      throw new Error("Enter a GitHub repository URL.");
+      throw new Error("Enter a repository or marketplace URL.");
     }
 
     const config = loadConfig();
-    const source = addGitHubSource(repoUrl, config);
+    const source = await addGitHubSource(repoUrl, config);
     const snapshot = await createSnapshot(config);
     return { snapshot, sourceName: formatPackageNameAsOwnerRepo(source.name) };
   });
+
+  ipcMain.handle("skills:previewAddSourceInput", async (_event, input: unknown) => {
+    if (typeof input !== "string" || !input.trim()) {
+      throw new Error("Enter a valid skill path, repository URL, or marketplace URL.");
+    }
+
+    const config = loadConfig();
+    return buildSourcePreview(input, config);
+  });
+
+  ipcMain.handle(
+    "skills:addSourceFromInput",
+    async (_event, payload: AddSourceFromInputPayload) => {
+      return addSourceFromInput(payload);
+    },
+  );
 
   ipcMain.handle("skills:disableSource", async (_event, sourceId: unknown) => {
     if (typeof sourceId !== "string" || !sourceId.trim()) {
@@ -1559,7 +2054,7 @@ function registerIpcHandlers(): void {
     "skills:setPersonalSkillsRepoFromUrl",
     async (_event, repoUrl: unknown) => {
       if (typeof repoUrl !== "string" || !repoUrl.trim()) {
-        throw new Error("Enter a GitHub repository URL.");
+        throw new Error("Enter a repository or marketplace URL.");
       }
 
       const rawRepoUrl = repoUrl.trim();
@@ -1568,13 +2063,13 @@ function registerIpcHandlers(): void {
       let addedSource = false;
 
       const config = loadConfig();
-      const existingSource = findExistingGitHubSource(config, rawRepoUrl);
+      const existingSource = await findExistingGitHubSource(config, rawRepoUrl);
       if (existingSource) {
         sourcePath = resolve(existingSource.path);
         sourceName = existingSource.name;
       } else {
         try {
-          const source = addGitHubSource(rawRepoUrl, config);
+          const source = await addGitHubSource(rawRepoUrl, config);
           sourcePath = resolve(source.path);
           sourceName = formatPackageNameAsOwnerRepo(source.name);
           addedSource = true;
@@ -1583,7 +2078,7 @@ function registerIpcHandlers(): void {
             throw err;
           }
 
-          const duplicateSource = findExistingGitHubSource(config, rawRepoUrl);
+          const duplicateSource = await findExistingGitHubSource(config, rawRepoUrl);
           if (!duplicateSource) {
             throw new Error(
               "Source already exists, but could not be resolved. Refresh and try again.",

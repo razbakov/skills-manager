@@ -5,6 +5,7 @@ import type {
   RecommendationData,
   RecommendationProgress,
   SkillReviewSnapshot,
+  AddSourcePreviewSkill,
   ImportPreviewSkill,
   SkillViewModel,
   SourceViewModel,
@@ -61,6 +62,15 @@ const importPreview = reactive({
   open: false,
   inputPath: "",
   skills: [] as ImportPreviewSkill[],
+  selectedIndexes: new Set<number>(),
+});
+
+const addSourcePreview = reactive({
+  open: false,
+  input: "",
+  sourceName: "",
+  sourcePath: "",
+  skills: [] as AddSourcePreviewSkill[],
   selectedIndexes: new Set<number>(),
 });
 
@@ -434,6 +444,95 @@ async function addSource(repoUrl: string) {
   );
 }
 
+function openAddSourcePreview(input: string = "") {
+  addSourcePreview.open = true;
+  addSourcePreview.input = input.trim();
+  addSourcePreview.sourceName = "";
+  addSourcePreview.sourcePath = "";
+  addSourcePreview.skills = [];
+  addSourcePreview.selectedIndexes = new Set();
+}
+
+function closeAddSourcePreview() {
+  addSourcePreview.open = false;
+  addSourcePreview.input = "";
+  addSourcePreview.sourceName = "";
+  addSourcePreview.sourcePath = "";
+  addSourcePreview.skills = [];
+  addSourcePreview.selectedIndexes = new Set();
+}
+
+async function previewAddSourceInput() {
+  const input = addSourcePreview.input.trim();
+  if (!input) {
+    addToast("Enter a valid skill path, repository URL, or marketplace URL.", "error", 5000);
+    return;
+  }
+  if (busy.value) return;
+
+  busy.value = true;
+  try {
+    const preview = await api.previewAddSourceInput(input);
+    const skills: AddSourcePreviewSkill[] = (preview?.skills ?? []).filter(
+      (skill: any) => Number.isInteger(skill?.index) && skill.index >= 0,
+    );
+    addSourcePreview.input = preview?.input ?? input;
+    addSourcePreview.sourceName = preview?.sourceName ?? "";
+    addSourcePreview.sourcePath = preview?.sourcePath ?? "";
+    addSourcePreview.skills = skills;
+    const defaultIndexes = Array.isArray(preview?.defaultSelectedIndexes)
+      ? preview.defaultSelectedIndexes
+      : skills.map((skill) => skill.index);
+    addSourcePreview.selectedIndexes = new Set(
+      defaultIndexes
+        .map((value: any) => Number(value))
+        .filter(
+          (value: number) =>
+            Number.isInteger(value) && value >= 0 && value < skills.length,
+        ),
+    );
+  } catch (err: any) {
+    addToast(err?.message ?? "Could not load skills for this input.", "error", 5000);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function addSourceFromPreview() {
+  const input = addSourcePreview.input.trim();
+  const indexes = Array.from(addSourcePreview.selectedIndexes).sort((a, b) => a - b);
+  if (!input) {
+    addToast("Enter a valid skill path, repository URL, or marketplace URL.", "error", 5000);
+    return;
+  }
+  if (!indexes.length) {
+    addToast("Select at least one skill.", "error", 5000);
+    return;
+  }
+
+  const result = await runTask(
+    () =>
+      api.addSourceFromInput({
+        input,
+        selectedIndexes: indexes,
+      }),
+    `Adding ${indexes.length} skill${indexes.length === 1 ? "" : "s"}...`,
+    (response: any) => {
+      const sourceName = response?.sourceName ?? "source";
+      const installed = Number(response?.installedCount ?? 0);
+      const already = Number(response?.alreadyInstalledCount ?? 0);
+      if (already > 0) {
+        return `Added ${sourceName}: installed ${installed}, already installed ${already}.`;
+      }
+      return `Added ${sourceName}: installed ${installed} skill${installed === 1 ? "" : "s"}.`;
+    },
+  );
+
+  if (result.ok) {
+    closeAddSourcePreview();
+  }
+}
+
 async function removeSource(sourceId: string) {
   const name = sources.value.find((s) => s.id === sourceId)?.name ?? "source";
   await runTask(
@@ -774,6 +873,7 @@ export function useSkills() {
     toasts,
     recommendations,
     importPreview,
+    addSourcePreview,
     skillReviews,
 
     // Derived
@@ -816,6 +916,10 @@ export function useSkills() {
     deleteSkillGroup,
     updateSkillGroupMembership,
     addSource,
+    openAddSourcePreview,
+    closeAddSourcePreview,
+    previewAddSourceInput,
+    addSourceFromPreview,
     removeSource,
     disableSource,
     enableSource,
