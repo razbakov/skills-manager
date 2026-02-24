@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync, writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import type { Skill } from "./types";
+import { buildInstalledSkillsManifest } from "./export";
 
 export interface CollectionCommitResult {
   committed: boolean;
@@ -22,14 +24,15 @@ export function collectionFilePath(repoPath: string, name: string): string {
 export function writeCollectionFile(
   repoPath: string,
   name: string,
-  skillIds: string[],
+  skills: Skill[],
 ): void {
   const dir = join(repoPath, "collections");
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
   const filePath = collectionFilePath(repoPath, name);
-  const content = JSON.stringify({ name, skills: skillIds }, null, 2) + "\n";
+  const manifest = buildInstalledSkillsManifest(skills);
+  const content = JSON.stringify(manifest, null, 2) + "\n";
   writeFileSync(filePath, content, "utf-8");
 }
 
@@ -122,7 +125,7 @@ export function tryCommitCollectionChange(
 export function syncCollectionToRepo(
   repoPath: string | undefined,
   collectionName: string,
-  skillIds: string[],
+  skills: Skill[],
   action: CollectionAction,
 ): CollectionCommitResult | null {
   if (!repoPath) return null;
@@ -130,7 +133,7 @@ export function syncCollectionToRepo(
   if (action === "remove") {
     removeCollectionFile(repoPath, collectionName);
   } else {
-    writeCollectionFile(repoPath, collectionName, skillIds);
+    writeCollectionFile(repoPath, collectionName, skills);
   }
 
   return tryCommitCollectionChange(repoPath, collectionName, action);

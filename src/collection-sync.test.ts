@@ -15,6 +15,19 @@ import {
 import { join } from "path";
 import { tmpdir } from "os";
 import { spawnSync } from "child_process";
+import type { Skill } from "./types";
+
+function makeSkill(overrides: Partial<Skill> & { name: string; sourcePath: string }): Skill {
+  return {
+    description: "",
+    sourceName: "test-source",
+    installed: true,
+    disabled: false,
+    unmanaged: false,
+    targetStatus: {},
+    ...overrides,
+  };
+}
 
 function initGitRepo(dir: string): void {
   spawnSync("git", ["init", dir], { encoding: "utf-8" });
@@ -72,35 +85,43 @@ describe("writeCollectionFile", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it("creates collections directory and writes JSON file", () => {
-    writeCollectionFile(root, "Writing", ["/skills/research", "/skills/brainstorming"]);
+  it("creates collections directory and writes export-format JSON", () => {
+    const skills = [
+      makeSkill({ name: "research", sourcePath: "/skills/research", description: "Research skill" }),
+      makeSkill({ name: "brainstorming", sourcePath: "/skills/brainstorming", description: "Brainstorming skill" }),
+    ];
+    writeCollectionFile(root, "Writing", skills);
 
     const filePath = join(root, "collections", "Writing.json");
     expect(existsSync(filePath)).toBe(true);
 
     const content = JSON.parse(readFileSync(filePath, "utf-8"));
-    expect(content).toEqual({
-      name: "Writing",
-      skills: ["/skills/research", "/skills/brainstorming"],
-    });
+    expect(content.schemaVersion).toBe(3);
+    expect(content.generatedAt).toBeDefined();
+    expect(content.installedSkills).toHaveLength(2);
+    expect(content.installedSkills[0].name).toBe("brainstorming");
+    expect(content.installedSkills[1].name).toBe("research");
   });
 
   it("overwrites an existing file for the same collection", () => {
-    writeCollectionFile(root, "Writing", ["/skills/research"]);
-    writeCollectionFile(root, "Writing", ["/skills/research", "/skills/brainstorming"]);
+    const skill1 = makeSkill({ name: "research", sourcePath: "/skills/research" });
+    const skill2 = makeSkill({ name: "brainstorming", sourcePath: "/skills/brainstorming" });
+    writeCollectionFile(root, "Writing", [skill1]);
+    writeCollectionFile(root, "Writing", [skill1, skill2]);
 
     const filePath = join(root, "collections", "Writing.json");
     const content = JSON.parse(readFileSync(filePath, "utf-8"));
-    expect(content.skills).toEqual(["/skills/research", "/skills/brainstorming"]);
+    expect(content.installedSkills).toHaveLength(2);
   });
 
   it("writes valid JSON with 2-space indentation", () => {
-    writeCollectionFile(root, "My Group", ["/skills/a"]);
+    const skills = [makeSkill({ name: "a", sourcePath: "/skills/a" })];
+    writeCollectionFile(root, "My Group", skills);
 
     const raw = readFileSync(join(root, "collections", "My Group.json"), "utf-8");
-    expect(raw).toBe(
-      JSON.stringify({ name: "My Group", skills: ["/skills/a"] }, null, 2) + "\n",
-    );
+    const parsed = JSON.parse(raw);
+    expect(raw).toBe(JSON.stringify(parsed, null, 2) + "\n");
+    expect(parsed.schemaVersion).toBe(3);
   });
 });
 
@@ -116,7 +137,7 @@ describe("removeCollectionFile", () => {
   });
 
   it("deletes the collection JSON file", () => {
-    writeCollectionFile(root, "Writing", ["/skills/a"]);
+    writeCollectionFile(root, "Writing", [makeSkill({ name: "a", sourcePath: "/skills/a" })]);
     const filePath = join(root, "collections", "Writing.json");
     expect(existsSync(filePath)).toBe(true);
 
@@ -142,7 +163,7 @@ describe("tryCommitCollectionChange", () => {
   });
 
   it("commits a new collection file", () => {
-    writeCollectionFile(root, "Writing", ["/skills/a"]);
+    writeCollectionFile(root, "Writing", [makeSkill({ name: "a", sourcePath: "/skills/a" })]);
     const result = tryCommitCollectionChange(root, "Writing", "add");
 
     expect(result.committed).toBe(true);
@@ -155,7 +176,7 @@ describe("tryCommitCollectionChange", () => {
   });
 
   it("commits collection file removal", () => {
-    writeCollectionFile(root, "Coding", ["/skills/b"]);
+    writeCollectionFile(root, "Coding", [makeSkill({ name: "b", sourcePath: "/skills/b" })]);
     tryCommitCollectionChange(root, "Coding", "add");
 
     removeCollectionFile(root, "Coding");
@@ -178,11 +199,12 @@ describe("tryCommitCollectionChange", () => {
   });
 
   it("commits rename (old removed, new added)", () => {
-    writeCollectionFile(root, "OldName", ["/skills/a"]);
+    const skill = makeSkill({ name: "a", sourcePath: "/skills/a" });
+    writeCollectionFile(root, "OldName", [skill]);
     tryCommitCollectionChange(root, "OldName", "add");
 
     removeCollectionFile(root, "OldName");
-    writeCollectionFile(root, "NewName", ["/skills/a"]);
+    writeCollectionFile(root, "NewName", [skill]);
     const result = tryCommitCollectionChange(root, "NewName", "rename");
 
     expect(result.committed).toBe(true);
@@ -210,7 +232,7 @@ describe("syncPersonalRepo", () => {
   });
 
   it("pulls and pushes local commits to origin", () => {
-    writeCollectionFile(clone, "Writing", ["/skills/a"]);
+    writeCollectionFile(clone, "Writing", [makeSkill({ name: "a", sourcePath: "/skills/a" })]);
     tryCommitCollectionChange(clone, "Writing", "add");
 
     const result = syncPersonalRepo(clone);
@@ -232,7 +254,7 @@ describe("syncPersonalRepo", () => {
     initGitRepo(local);
 
     try {
-      writeCollectionFile(local, "Test", ["/skills/a"]);
+      writeCollectionFile(local, "Test", [makeSkill({ name: "a", sourcePath: "/skills/a" })]);
       tryCommitCollectionChange(local, "Test", "add");
 
       const result = syncPersonalRepo(local);

@@ -1381,6 +1381,13 @@ function findSkillById(skills: Skill[], skillId: string): Skill | undefined {
   return skills.find((skill) => resolve(skill.sourcePath) === resolvedSkillId);
 }
 
+function resolveGroupSkills(allSkills: Skill[], skillIds: string[]): Skill[] {
+  const idSet = new Set(skillIds.map((id) => resolve(id)));
+  return allSkills.filter(
+    (skill) => skill.installed && idSet.has(resolve(skill.sourcePath)),
+  );
+}
+
 function parseRecommendationMode(value: unknown): "standard" | "explore-new" {
   return value === "explore-new" ? "explore-new" : "standard";
 }
@@ -1601,10 +1608,12 @@ async function renameSkillGroup(payload: RenameSkillGroupPayload): Promise<{
 
   if (config.personalSkillsRepo) {
     removeCollectionFile(config.personalSkillsRepo, selectedGroup.name);
+    const allSkills = await scan(config);
+    const groupSkills = resolveGroupSkills(allSkills, renamed.skillIds);
     syncCollectionToRepo(
       config.personalSkillsRepo,
       renamed.name,
-      renamed.skillIds,
+      groupSkills,
       "rename",
     );
   }
@@ -1741,10 +1750,11 @@ async function updateSkillGroupMembership(
 
   const updatedGroup = findSkillGroupByName(updatedGroups, selectedGroup.name);
   if (updatedGroup) {
+    const groupSkills = resolveGroupSkills(allScannedSkills, updatedGroup.skillIds);
     syncCollectionToRepo(
       config.personalSkillsRepo,
       updatedGroup.name,
-      updatedGroup.skillIds,
+      groupSkills,
       "update",
     );
   }
