@@ -73,7 +73,23 @@ interface SourceScanResult {
 }
 
 const SCAN_CACHE_VERSION = 2;
-const SCAN_CACHE_PATH = join(homedir(), ".config", "skills-manager", "scan-cache.json");
+const DEFAULT_SCAN_CACHE_PATH = join(
+  homedir(),
+  ".cache",
+  "skills-manager",
+  "scan-cache.json",
+);
+
+function resolveUserPath(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed === "~") return homedir();
+  if (trimmed.startsWith("~/")) return join(homedir(), trimmed.slice(2));
+  return resolve(trimmed);
+}
+
+const SCAN_CACHE_PATH = resolveUserPath(
+  process.env.SKILLS_MANAGER_SCAN_CACHE_PATH || DEFAULT_SCAN_CACHE_PATH,
+);
 const FILE_STAT_CONCURRENCY = 64;
 const FILE_READ_CONCURRENCY = 24;
 const DIRECTORY_STAT_CONCURRENCY = 128;

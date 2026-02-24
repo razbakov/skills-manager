@@ -22,7 +22,9 @@ fi
 
 "${INSTALL_SCRIPT}"
 
-if [ -n "${BUN_INSTALL:-}" ]; then
+if [ -n "${SKILLS_MANAGER_GLOBAL_BIN_DIR:-}" ]; then
+  SKILLS_CMD_PATH="${SKILLS_MANAGER_GLOBAL_BIN_DIR%/}/skills"
+elif [ -n "${BUN_INSTALL:-}" ]; then
   SKILLS_CMD_PATH="${BUN_INSTALL%/}/bin/skills"
 else
   SKILLS_CMD_PATH="${HOME}/.bun/bin/skills"

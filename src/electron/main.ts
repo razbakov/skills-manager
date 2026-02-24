@@ -10,6 +10,7 @@ import {
 import { spawnSync } from "child_process";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
@@ -250,12 +251,24 @@ const TARGET_NAME_MAP = new Map<string, string>(
 );
 const INSTALLED_GROUP_NAME = "Installed";
 const SKILL_SET_LAUNCH_CHANNEL = "skills:launchSkillSet";
+const DEFAULT_PREVIEW_TMP_DIR = join(tmpdir(), "skills-manager");
+const PREVIEW_TMP_DIR = resolve(
+  process.env.SKILLS_MANAGER_PREVIEW_TMP_DIR?.trim() || DEFAULT_PREVIEW_TMP_DIR,
+);
+const PREVIEW_TMP_PREFIX = normalizePreviewTmpPrefix(
+  process.env.SKILLS_MANAGER_PREVIEW_TMP_PREFIX?.trim() || "preview-",
+);
 
 let mainWindow: BrowserWindow | null = null;
 let latestSnapshotSkillIds = new Set<string>();
 let rendererLoaded = false;
 let pendingSecondInstanceSkillSetRequest: SkillSetRequest | null = null;
 let startupSkillSetRequest = extractSkillSetRequestFromArgv(process.argv);
+
+function normalizePreviewTmpPrefix(value: string): string {
+  const sanitized = value.trim().replace(/[\\/]/g, "");
+  return sanitized || "preview-";
+}
 
 function getGitRepoRoot(candidatePath: string): string | null {
   const result = spawnSync(
@@ -675,7 +688,8 @@ async function resolveSourcePreviewInput(
     };
   }
 
-  const previewRoot = mkdtempSync(join(tmpdir(), "skills-manager-preview-"));
+  mkdirSync(PREVIEW_TMP_DIR, { recursive: true });
+  const previewRoot = mkdtempSync(join(PREVIEW_TMP_DIR, PREVIEW_TMP_PREFIX));
   const clonePath = resolve(join(previewRoot, parsedRepo.sourceName));
   try {
     cloneRepository(parsedRepo.canonicalUrl, clonePath);

@@ -168,11 +168,26 @@ const AGENT_MODEL =
 const AGENT_TIMEOUT_MS = Number(
   process.env.SKILLS_MANAGER_REVIEW_TIMEOUT_MS || "120000",
 );
-const SKILLS_MANAGER_HOME =
-  process.env.SKILLS_MANAGER_HOME?.trim() || join(homedir(), ".skills-manager");
+const DEFAULT_REVIEW_ARTIFACTS_DIR = join(
+  homedir(),
+  ".local",
+  "state",
+  "skills-manager",
+  "reviews",
+);
+
+function resolveUserPath(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed === "~") return homedir();
+  if (trimmed.startsWith("~/")) return join(homedir(), trimmed.slice(2));
+  return resolve(trimmed);
+}
+
 const REVIEW_ARTIFACTS_ROOT = resolve(
-  process.env.SKILLS_MANAGER_REVIEW_ARTIFACTS_DIR?.trim() ||
-    join(SKILLS_MANAGER_HOME, "reviews"),
+  resolveUserPath(
+    process.env.SKILLS_MANAGER_REVIEW_ARTIFACTS_DIR ||
+      DEFAULT_REVIEW_ARTIFACTS_DIR,
+  ),
 );
 
 export async function reviewSkill(

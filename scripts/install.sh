@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_URL="${SKILLS_MANAGER_REPO_URL:-https://github.com/razbakov/skills-manager.git}"
-INSTALL_DIR="${SKILLS_MANAGER_HOME:-$HOME/.skills-manager}"
+INSTALL_DIR="${SKILLS_MANAGER_HOME:-$HOME/.local/opt/skills-manager}"
 BRANCH="${SKILLS_MANAGER_BRANCH:-main}"
 BUN_INSTALL_SCRIPT_URL="${SKILLS_MANAGER_BUN_INSTALL_SCRIPT_URL:-https://bun.sh/install}"
 
@@ -30,6 +30,20 @@ bun_root_dir() {
 
 bun_bin_dir() {
   printf "%s/bin\n" "$(bun_root_dir)"
+}
+
+global_bin_dir() {
+  if [ -n "${SKILLS_MANAGER_GLOBAL_BIN_DIR:-}" ]; then
+    printf "%s\n" "${SKILLS_MANAGER_GLOBAL_BIN_DIR%/}"
+    return
+  fi
+
+  if [ -n "${BUN_INSTALL:-}" ]; then
+    printf "%s/bin\n" "${BUN_INSTALL%/}"
+    return
+  fi
+
+  printf "%s\n" "$HOME/.bun/bin"
 }
 
 resolve_bun_cmd() {
@@ -155,7 +169,7 @@ echo "Installing dependencies and global command"
   "$BUN_CMD" src/index.ts --install
 )
 
-SKILLS_BIN_DIR="$(bun_bin_dir)"
+SKILLS_BIN_DIR="$(global_bin_dir)"
 SKILLS_CMD_PATH="$SKILLS_BIN_DIR/skills"
 ensure_path_contains_dir "$SKILLS_BIN_DIR"
 

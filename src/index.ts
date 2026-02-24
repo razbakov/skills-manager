@@ -92,6 +92,11 @@ interface InstallCommandResult {
 }
 
 function resolveGlobalBinDir(): string {
+  const globalBinDirOverride = process.env.SKILLS_MANAGER_GLOBAL_BIN_DIR?.trim();
+  if (globalBinDirOverride) {
+    return resolve(expandTilde(globalBinDirOverride));
+  }
+
   const bunInstall = process.env.BUN_INSTALL?.trim();
   if (bunInstall) {
     return resolve(bunInstall, "bin");

@@ -1,5 +1,5 @@
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from "fs";
-import { isAbsolute, join, relative, resolve } from "path";
+import { dirname, isAbsolute, join, relative, resolve } from "path";
 import { homedir } from "os";
 import yaml from "js-yaml";
 import type { Config, Source } from "./types";
@@ -61,9 +61,17 @@ export const SUPPORTED_IDES: SupportedIde[] = [
   { name: "OpenCode", path: "~/.config/opencode/skills" },
 ];
 
-const CONFIG_DIR = join(homedir(), ".config", "skills-manager");
-const CONFIG_PATH = join(CONFIG_DIR, "config.yaml");
-const DEFAULT_SOURCES_ROOT_PATH = join(homedir(), ".skills-manager", "sources");
+const DEFAULT_CONFIG_PATH = join(homedir(), ".config", "skills-manager", "config.yaml");
+const CONFIG_PATH = resolve(
+  expandTilde(process.env.SKILLS_MANAGER_CONFIG_PATH?.trim() || DEFAULT_CONFIG_PATH),
+);
+const CONFIG_DIR = dirname(CONFIG_PATH);
+const DEFAULT_SOURCES_ROOT_PATH = resolve(
+  expandTilde(
+    process.env.SKILLS_MANAGER_SOURCES_ROOT_PATH?.trim() ||
+      join(homedir(), ".local", "share", "skills-manager", "sources"),
+  ),
+);
 
 function normalizePathForMatch(path: string): string {
   return expandTilde(path).replace(/\/+$/g, "").toLowerCase();

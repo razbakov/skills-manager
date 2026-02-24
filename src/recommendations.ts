@@ -148,7 +148,24 @@ const CODEX_SESSIONS_ROOT = join(homedir(), ".codex", "sessions");
 const AGENT_CLI_BIN = process.env.SKILLS_MANAGER_RECOMMENDATION_AGENT_BIN?.trim() || "agent";
 const AGENT_MODEL = process.env.SKILLS_MANAGER_RECOMMENDATION_AGENT_MODEL?.trim() || "auto";
 const AGENT_TIMEOUT_MS = Number(process.env.SKILLS_MANAGER_RECOMMENDATION_TIMEOUT_MS || "120000");
-const AGENT_ARTIFACTS_DIR = ".skills-manager/recommendations";
+const DEFAULT_RECOMMENDATION_ARTIFACTS_DIR = join(
+  homedir(),
+  ".local",
+  "state",
+  "skills-manager",
+  "recommendations",
+);
+
+function resolveUserPath(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed === "~") return homedir();
+  if (trimmed.startsWith("~/")) return join(homedir(), trimmed.slice(2));
+  return resolve(trimmed);
+}
+
+const AGENT_ARTIFACTS_DIR = resolveUserPath(
+  process.env.SKILLS_MANAGER_RECOMMENDATION_ARTIFACTS_DIR || DEFAULT_RECOMMENDATION_ARTIFACTS_DIR,
+);
 
 const MAX_CURSOR_FILES_ALL = 900;
 const MAX_CURSOR_FILES_PROJECT = 320;
@@ -400,7 +417,7 @@ async function requestRecommendationsFromAgent(input: {
 }
 
 function recommendationArtifactsDir(): string {
-  return resolve(process.cwd(), AGENT_ARTIFACTS_DIR);
+  return AGENT_ARTIFACTS_DIR;
 }
 
 function recommendationContextPath(runId: string): string {
