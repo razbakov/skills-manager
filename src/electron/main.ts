@@ -75,6 +75,7 @@ import {
   normalizeSkillGroups,
   planSkillGroupToggle,
 } from "../skill-groups";
+import { syncCollectionToRepo, removeCollectionFile } from "../collection-sync";
 import { scan } from "../scanner";
 import {
   extractSkillSetRequestFromArgv,
@@ -1471,6 +1472,8 @@ async function createSkillGroup(payload: CreateSkillGroupPayload): Promise<{
   writeSkillGroupState(config, updatedGroups, activeGroups);
   saveConfig(config);
 
+  syncCollectionToRepo(config.personalSkillsRepo, groupName, [], "add");
+
   const created = findSkillGroupByName(updatedGroups, groupName);
   const snapshot = await createSnapshot(config);
   return {
@@ -1595,6 +1598,17 @@ async function renameSkillGroup(payload: RenameSkillGroupPayload): Promise<{
 
   writeSkillGroupState(config, updatedGroups, activeGroups);
   saveConfig(config);
+
+  if (config.personalSkillsRepo) {
+    removeCollectionFile(config.personalSkillsRepo, selectedGroup.name);
+    syncCollectionToRepo(
+      config.personalSkillsRepo,
+      renamed.name,
+      renamed.skillIds,
+      "rename",
+    );
+  }
+
   return {
     snapshot: await createSnapshot(config),
     groupName: renamed.name,
@@ -1629,6 +1643,17 @@ async function deleteSkillGroup(payload: DeleteSkillGroupPayload): Promise<{
 
   writeSkillGroupState(config, updatedGroups, activeGroups);
   saveConfig(config);
+
+  if (config.personalSkillsRepo) {
+    removeCollectionFile(config.personalSkillsRepo, selectedGroup.name);
+    syncCollectionToRepo(
+      config.personalSkillsRepo,
+      selectedGroup.name,
+      [],
+      "remove",
+    );
+  }
+
   return {
     snapshot: await createSnapshot(config),
     deletedGroup: selectedGroup.name,
@@ -1713,6 +1738,17 @@ async function updateSkillGroupMembership(
 
   writeSkillGroupState(config, updatedGroups, normalizedActive);
   saveConfig(config);
+
+  const updatedGroup = findSkillGroupByName(updatedGroups, selectedGroup.name);
+  if (updatedGroup) {
+    syncCollectionToRepo(
+      config.personalSkillsRepo,
+      updatedGroup.name,
+      updatedGroup.skillIds,
+      "update",
+    );
+  }
+
   return {
     snapshot: await createSnapshot(config),
     groupName: selectedGroup.name,
