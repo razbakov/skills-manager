@@ -80,6 +80,7 @@ import { scan } from "../scanner";
 import {
   extractSkillSetRequestFromArgv,
   normalizeSkillSetSource,
+  parseSkillSetSource,
   readCollectionSkillNames,
   selectSkillsForInstall,
   type SkillSetRequest,
@@ -235,6 +236,7 @@ interface AddSourcePreviewResponse {
   sourcePath: string;
   skills: AddSourcePreviewSkill[];
   defaultSelectedIndexes: number[];
+  collectionFile?: string;
 }
 
 interface PrepareSkillSetInstallPayload {
@@ -475,6 +477,7 @@ interface ResolvedSourcePreviewInput {
   specificSkillPath?: string;
   specificSkillHint?: string;
   cleanupPath?: string;
+  collectionFile?: string;
 }
 
 interface ResolvedSourceApplyInput {
@@ -675,7 +678,9 @@ async function resolveSourcePreviewInput(
   const local = detectLocalSourceInput(rawInput);
   if (local) return local;
 
-  const parsedRepo = await resolveGitHubRepoUrl(rawInput);
+  const skillSetSource = parseSkillSetSource(rawInput);
+  const resolveUrl = skillSetSource.collectionFile ? skillSetSource.source : rawInput;
+  const parsedRepo = await resolveGitHubRepoUrl(resolveUrl);
   if (!parsedRepo) {
     throw new Error("Enter a valid skill path, repository URL, or marketplace URL.");
   }
@@ -691,6 +696,7 @@ async function resolveSourcePreviewInput(
       sourcePath: resolve(existingSource.path),
       sourceUrl: parsedRepo.canonicalUrl,
       specificSkillHint: inferSpecificSkillHint(rawInput),
+      ...(skillSetSource.collectionFile ? { collectionFile: skillSetSource.collectionFile } : {}),
     };
   }
 
@@ -711,6 +717,7 @@ async function resolveSourcePreviewInput(
     sourceUrl: parsedRepo.canonicalUrl,
     specificSkillHint: inferSpecificSkillHint(rawInput),
     cleanupPath: previewRoot,
+    ...(skillSetSource.collectionFile ? { collectionFile: skillSetSource.collectionFile } : {}),
   };
 }
 
@@ -761,6 +768,7 @@ async function buildSourcePreview(
       sourcePath: resolvedInput.sourcePath,
       skills,
       defaultSelectedIndexes,
+      ...(resolvedInput.collectionFile ? { collectionFile: resolvedInput.collectionFile } : {}),
     };
   } finally {
     if (resolvedInput.cleanupPath) {

@@ -511,17 +511,34 @@ async function previewAddSourceInput() {
     addSourcePreview.sourceName = preview?.sourceName ?? "";
     addSourcePreview.sourcePath = preview?.sourcePath ?? "";
     addSourcePreview.skills = skills;
-    const defaultIndexes = Array.isArray(preview?.defaultSelectedIndexes)
-      ? preview.defaultSelectedIndexes
-      : skills.map((skill) => skill.index);
-    addSourcePreview.selectedIndexes = new Set(
-      defaultIndexes
-        .map((value: any) => Number(value))
-        .filter(
-          (value: number) =>
-            Number.isInteger(value) && value >= 0 && value < skills.length,
-        ),
-    );
+
+    const collectionFile: string | undefined = preview?.collectionFile;
+    let collectionSkillNames: string[] | null = null;
+    if (collectionFile && preview?.sourceName) {
+      try {
+        const sourceUrl = `https://github.com/${preview.sourceName}`;
+        collectionSkillNames = await api.readCollectionSkillNames(sourceUrl, collectionFile);
+      } catch {
+        // Collection file may not exist yet; fall through to default selection.
+      }
+    }
+
+    if (collectionSkillNames && collectionSkillNames.length > 0) {
+      const selection = selectAddSourceIndexesByRequestedSkills(skills, collectionSkillNames);
+      addSourcePreview.selectedIndexes = selection.selectedIndexes;
+    } else {
+      const defaultIndexes = Array.isArray(preview?.defaultSelectedIndexes)
+        ? preview.defaultSelectedIndexes
+        : skills.map((skill) => skill.index);
+      addSourcePreview.selectedIndexes = new Set(
+        defaultIndexes
+          .map((value: any) => Number(value))
+          .filter(
+            (value: number) =>
+              Number.isInteger(value) && value >= 0 && value < skills.length,
+          ),
+      );
+    }
   } catch (err: any) {
     addToast(err?.message ?? "Could not load skills for this input.", "error", 5000);
   } finally {
