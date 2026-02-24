@@ -35,6 +35,7 @@ interface SkillsApi {
   prepareSkillSetInstall: (request: any) => Promise<any>;
   applySkillSetInstall: (request: any) => Promise<any>;
   readCollectionSkillNames: (sourceUrl: string, collectionFile: string) => Promise<string[]>;
+  installCollectionSkills: (skillEntries: Array<{ name: string; description: string; repoUrl?: string; skillPath?: string }>) => Promise<{ snapshot: any; installedCount: number; alreadyInstalledCount: number; failedCount: number }>;
   disableSource: (sourceId: string) => Promise<any>;
   enableSource: (sourceId: string) => Promise<any>;
   removeSource: (sourceId: string) => Promise<any>;

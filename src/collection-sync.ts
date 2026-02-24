@@ -17,10 +17,18 @@ export interface SyncResult {
 
 export type CollectionAction = "add" | "update" | "remove" | "rename";
 
+export interface CollectionSkillEntry {
+  name: string;
+  description: string;
+  repoUrl?: string;
+  skillPath?: string;
+}
+
 export interface CollectionPreview {
   name: string;
   file: string;
   skillNames: string[];
+  skills: CollectionSkillEntry[];
 }
 
 export function listCollectionFiles(sourcePath: string): CollectionPreview[] {
@@ -40,14 +48,24 @@ export function listCollectionFiles(sourcePath: string): CollectionPreview[] {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       if (parsed.schemaVersion !== 3 || !Array.isArray(parsed.installedSkills)) continue;
 
-      const skillNames = (parsed.installedSkills as Array<Record<string, unknown>>)
-        .map((s) => (typeof s.name === "string" ? s.name : ""))
-        .filter(Boolean);
+      const skills: CollectionSkillEntry[] = [];
+      for (const s of parsed.installedSkills as Array<Record<string, unknown>>) {
+        const name = typeof s.name === "string" ? s.name : "";
+        if (!name) continue;
+        const install = s.install as Record<string, unknown> | undefined;
+        skills.push({
+          name,
+          description: typeof s.description === "string" ? s.description : "",
+          ...(typeof install?.repoUrl === "string" ? { repoUrl: install.repoUrl } : {}),
+          ...(typeof install?.skillPath === "string" ? { skillPath: install.skillPath } : {}),
+        });
+      }
 
       entries.push({
         name: basename(file, ".json"),
         file,
-        skillNames,
+        skillNames: skills.map((s) => s.name),
+        skills,
       });
     } catch {
       continue;

@@ -69,10 +69,18 @@ const importPreview = reactive({
   selectedIndexes: new Set<number>(),
 });
 
+interface CollectionSkillItem {
+  name: string;
+  description: string;
+  repoUrl?: string;
+  skillPath?: string;
+}
+
 interface CollectionPreviewItem {
   name: string;
   file: string;
   skillNames: string[];
+  skills: CollectionSkillItem[];
 }
 
 const addSourcePreview = reactive({
@@ -563,9 +571,14 @@ async function previewAddSourceInput() {
     addSourcePreview.skills = skills;
 
     const collections: CollectionPreviewItem[] = Array.isArray(preview?.collections)
-      ? preview.collections.filter(
-          (c: any) => c?.name && Array.isArray(c?.skillNames),
-        )
+      ? preview.collections
+          .filter((c: any) => c?.name && Array.isArray(c?.skillNames))
+          .map((c: any) => ({
+            name: c.name as string,
+            file: c.file as string,
+            skillNames: c.skillNames as string[],
+            skills: Array.isArray(c.skills) ? c.skills : [],
+          }))
       : [];
     addSourcePreview.collections = collections;
 
@@ -614,6 +627,34 @@ async function addSourceFromPreview() {
         return `Added ${sourceName}: installed ${installed}, already installed ${already}.`;
       }
       return `Added ${sourceName}: installed ${installed} skill${installed === 1 ? "" : "s"}.`;
+    },
+  );
+
+  if (result.ok) {
+    closeAddSourcePreview();
+  }
+}
+
+async function installCollectionSkills(
+  skills: Array<{ name: string; description: string; repoUrl?: string; skillPath?: string }>,
+) {
+  if (!skills.length) {
+    addToast("Select at least one skill.", "error", 5000);
+    return;
+  }
+
+  const result = await runTask(
+    () => api.installCollectionSkills(skills),
+    `Installing ${skills.length} skill${skills.length === 1 ? "" : "s"} from collection...`,
+    (response: any) => {
+      const installed = Number(response?.installedCount ?? 0);
+      const already = Number(response?.alreadyInstalledCount ?? 0);
+      const failed = Number(response?.failedCount ?? 0);
+      const parts: string[] = [];
+      if (installed > 0) parts.push(`installed ${installed}`);
+      if (already > 0) parts.push(`already installed ${already}`);
+      if (failed > 0) parts.push(`${failed} not found`);
+      return parts.length > 0 ? parts.join(", ") + "." : "Done.";
     },
   );
 
@@ -1257,6 +1298,7 @@ export function useSkills() {
     previewAddSourceInput,
     applyCollectionTab,
     addSourceFromPreview,
+    installCollectionSkills,
     removeSource,
     disableSource,
     enableSource,

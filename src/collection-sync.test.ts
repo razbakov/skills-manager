@@ -300,6 +300,9 @@ describe("listCollectionFiles", () => {
     expect(collections[0].name).toBe("ommax-dev");
     expect(collections[0].file).toBe("ommax-dev.json");
     expect(collections[0].skillNames).toEqual(["atlassian", "estimation"]);
+    expect(collections[0].skills).toHaveLength(2);
+    expect(collections[0].skills[0].name).toBe("atlassian");
+    expect(collections[0].skills[0].description).toBe("");
   });
 
   it("ignores non-manifest JSON files", () => {

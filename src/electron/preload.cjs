@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld("skillsApi", {
     ipcRenderer.invoke("skills:applySkillSetInstall", request),
   readCollectionSkillNames: (sourceUrl, collectionFile) =>
     ipcRenderer.invoke("skills:readCollectionSkillNames", sourceUrl, collectionFile),
+  installCollectionSkills: (skillEntries) =>
+    ipcRenderer.invoke("skills:installCollectionSkills", skillEntries),
   disableSource: (sourceId) => ipcRenderer.invoke("skills:disableSource", sourceId),
   enableSource: (sourceId) => ipcRenderer.invoke("skills:enableSource", sourceId),
   removeSource: (sourceId) => ipcRenderer.invoke("skills:removeSource", sourceId),

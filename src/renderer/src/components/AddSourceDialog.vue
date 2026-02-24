@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { useSkills } from "@/composables/useSkills";
 import {
   Dialog,
@@ -17,31 +17,75 @@ const store = useSkills();
 
 const activeTab = computed(() => store.addSourcePreview.activeCollectionTab);
 
+const activeCollection = computed(() => {
+  if (!activeTab.value) return null;
+  return store.addSourcePreview.collections.find(
+    (c) => c.name === activeTab.value,
+  ) ?? null;
+});
+
 const displayedSkills = computed(() => {
   const all = store.addSourcePreview.skills;
   if (!activeTab.value) return all;
 
-  const collection = store.addSourcePreview.collections.find(
-    (c) => c.name === activeTab.value,
-  );
+  const collection = activeCollection.value;
   if (!collection) return all;
 
   const nameSet = new Set(collection.skillNames.map((n) => n.toLowerCase()));
   return all.filter((skill) => nameSet.has(skill.name.toLowerCase()));
 });
 
-const selectedCount = computed(() => store.addSourcePreview.selectedIndexes.size);
-const totalCount = computed(() => store.addSourcePreview.skills.length);
+const isExternalCollection = computed(
+  () => activeCollection.value !== null && displayedSkills.value.length === 0,
+);
 
-const visibleCollections = computed(() => {
-  const allSkillNames = new Set(
-    store.addSourcePreview.skills.map((s) => s.name.toLowerCase()),
+const externalSelectedNames = ref(new Set<string>());
+
+function toggleExternalSkill(name: string) {
+  const next = new Set(externalSelectedNames.value);
+  if (next.has(name)) {
+    next.delete(name);
+  } else {
+    next.add(name);
+  }
+  externalSelectedNames.value = next;
+}
+
+watch(
+  () => [activeCollection.value, isExternalCollection.value] as const,
+  ([col, isExternal]) => {
+    if (isExternal && col) {
+      externalSelectedNames.value = new Set(col.skillNames);
+    } else {
+      externalSelectedNames.value = new Set();
+    }
+  },
+);
+
+function selectAllExternal() {
+  if (!activeCollection.value) return;
+  externalSelectedNames.value = new Set(activeCollection.value.skillNames);
+}
+
+function selectNoneExternal() {
+  externalSelectedNames.value = new Set();
+}
+
+function installExternalCollection() {
+  if (!activeCollection.value) return;
+  const selected = activeCollection.value.skills.filter((s) =>
+    externalSelectedNames.value.has(s.name),
   );
-  return store.addSourcePreview.collections.filter((col) =>
-    col.skillNames.some((n) => allSkillNames.has(n.toLowerCase())),
-  );
-});
-const hasCollections = computed(() => visibleCollections.value.length > 0);
+  store.installCollectionSkills(selected);
+}
+
+const selectedCount = computed(() =>
+  isExternalCollection.value
+    ? externalSelectedNames.value.size
+    : store.addSourcePreview.selectedIndexes.size,
+);
+const totalCount = computed(() => store.addSourcePreview.skills.length);
+const hasCollections = computed(() => store.addSourcePreview.collections.length > 0);
 
 function toggleSkill(index: number) {
   if (store.addSourcePreview.selectedIndexes.has(index)) {
@@ -102,9 +146,9 @@ function selectNone() {
         {{ store.addSourcePreview.sourceName }} · {{ store.addSourcePreview.sourcePath }}
       </p>
 
-      <div v-if="hasCollections && totalCount > 0" class="flex gap-1 border-b">
+      <div v-if="hasCollections && totalCount > 0" class="flex gap-1 border-b overflow-x-auto">
         <button
-          class="px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px"
+          class="px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px whitespace-nowrap"
           :class="
             activeTab === null
               ? 'border-primary text-foreground'
@@ -115,9 +159,9 @@ function selectNone() {
           Skills
         </button>
         <button
-          v-for="col in visibleCollections"
+          v-for="col in store.addSourcePreview.collections"
           :key="col.name"
-          class="px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px"
+          class="px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px whitespace-nowrap"
           :class="
             activeTab === col.name
               ? 'border-primary text-foreground'
@@ -129,60 +173,114 @@ function selectNone() {
         </button>
       </div>
 
-      <div v-if="totalCount > 0" class="flex gap-2 my-1">
-        <Button variant="outline" size="sm" @click="selectAll">Select All</Button>
-        <Button variant="outline" size="sm" @click="selectNone">Select None</Button>
-        <span class="text-xs text-muted-foreground self-center">
-          {{ selectedCount }} selected
-        </span>
-      </div>
-
-      <ScrollArea class="flex-1 min-h-0 max-h-[50vh] border rounded-lg">
-        <div
-          v-if="totalCount === 0"
-          class="px-4 py-8 text-center text-sm text-muted-foreground"
-        >
-          Load skills to choose what to add.
+      <!-- External collection: skills from other repos -->
+      <template v-if="isExternalCollection && activeCollection">
+        <div class="flex gap-2 my-1">
+          <Button variant="outline" size="sm" @click="selectAllExternal">Select All</Button>
+          <Button variant="outline" size="sm" @click="selectNoneExternal">Select None</Button>
+          <span class="text-xs text-muted-foreground self-center">
+            {{ externalSelectedNames.size }} of {{ activeCollection.skills.length }} selected
+          </span>
         </div>
 
-        <label
-          v-for="skill in displayedSkills"
-          :key="skill.index"
-          class="flex items-start gap-3 px-4 py-3 border-b border-border/50 cursor-pointer hover:bg-accent/50 transition-colors"
-        >
-          <input
-            type="checkbox"
-            :checked="store.addSourcePreview.selectedIndexes.has(skill.index)"
-            class="mt-1 cursor-pointer"
-            @change="toggleSkill(skill.index)"
-          />
-          <div class="min-w-0">
-            <p class="text-sm font-medium">{{ skill.name || "(unnamed)" }}</p>
-            <p class="text-xs text-muted-foreground">
-              {{ skill.description || "(no description)" }}
-            </p>
-            <p class="text-[11px] text-muted-foreground/70 mt-0.5">
-              {{ skill.skillPath }}
-            </p>
-          </div>
-        </label>
-      </ScrollArea>
+        <ScrollArea class="flex-1 min-h-0 max-h-[50vh] border rounded-lg">
+          <label
+            v-for="skill in activeCollection.skills"
+            :key="skill.name"
+            class="flex items-start gap-3 px-4 py-3 border-b border-border/50 cursor-pointer hover:bg-accent/50 transition-colors"
+          >
+            <input
+              type="checkbox"
+              :checked="externalSelectedNames.has(skill.name)"
+              class="mt-1 cursor-pointer"
+              @change="toggleExternalSkill(skill.name)"
+            />
+            <div class="min-w-0">
+              <p class="text-sm font-medium">{{ skill.name }}</p>
+              <p class="text-xs text-muted-foreground">
+                {{ skill.description || "(no description)" }}
+              </p>
+              <p v-if="skill.repoUrl" class="text-[11px] text-muted-foreground/70 mt-0.5">
+                {{ skill.repoUrl }}
+              </p>
+            </div>
+          </label>
+        </ScrollArea>
 
-      <DialogFooter class="mt-3">
-        <Button
-          variant="outline"
-          :disabled="store.busy.value"
-          @click="store.closeAddSourcePreview()"
-        >
-          Cancel
-        </Button>
-        <Button
-          :disabled="store.busy.value || selectedCount === 0"
-          @click="store.addSourceFromPreview()"
-        >
-          Add {{ selectedCount }} Skill{{ selectedCount === 1 ? "" : "s" }}
-        </Button>
-      </DialogFooter>
+        <DialogFooter class="mt-3">
+          <Button
+            variant="outline"
+            :disabled="store.busy.value"
+            @click="store.closeAddSourcePreview()"
+          >
+            Cancel
+          </Button>
+          <Button
+            :disabled="store.busy.value || externalSelectedNames.size === 0"
+            @click="installExternalCollection()"
+          >
+            Add {{ externalSelectedNames.size }} Skill{{ externalSelectedNames.size === 1 ? "" : "s" }}
+          </Button>
+        </DialogFooter>
+      </template>
+
+      <!-- Normal source skills (or filtered by collection) -->
+      <template v-else>
+        <div v-if="totalCount > 0 || displayedSkills.length > 0" class="flex gap-2 my-1">
+          <Button variant="outline" size="sm" @click="selectAll">Select All</Button>
+          <Button variant="outline" size="sm" @click="selectNone">Select None</Button>
+          <span class="text-xs text-muted-foreground self-center">
+            {{ store.addSourcePreview.selectedIndexes.size }} selected
+          </span>
+        </div>
+
+        <ScrollArea class="flex-1 min-h-0 max-h-[50vh] border rounded-lg">
+          <div
+            v-if="totalCount === 0"
+            class="px-4 py-8 text-center text-sm text-muted-foreground"
+          >
+            Load skills to choose what to add.
+          </div>
+
+          <label
+            v-for="skill in displayedSkills"
+            :key="skill.index"
+            class="flex items-start gap-3 px-4 py-3 border-b border-border/50 cursor-pointer hover:bg-accent/50 transition-colors"
+          >
+            <input
+              type="checkbox"
+              :checked="store.addSourcePreview.selectedIndexes.has(skill.index)"
+              class="mt-1 cursor-pointer"
+              @change="toggleSkill(skill.index)"
+            />
+            <div class="min-w-0">
+              <p class="text-sm font-medium">{{ skill.name || "(unnamed)" }}</p>
+              <p class="text-xs text-muted-foreground">
+                {{ skill.description || "(no description)" }}
+              </p>
+              <p class="text-[11px] text-muted-foreground/70 mt-0.5">
+                {{ skill.skillPath }}
+              </p>
+            </div>
+          </label>
+        </ScrollArea>
+
+        <DialogFooter class="mt-3">
+          <Button
+            variant="outline"
+            :disabled="store.busy.value"
+            @click="store.closeAddSourcePreview()"
+          >
+            Cancel
+          </Button>
+          <Button
+            :disabled="store.busy.value || store.addSourcePreview.selectedIndexes.size === 0"
+            @click="store.addSourceFromPreview()"
+          >
+            Add {{ store.addSourcePreview.selectedIndexes.size }} Skill{{ store.addSourcePreview.selectedIndexes.size === 1 ? "" : "s" }}
+          </Button>
+        </DialogFooter>
+      </template>
     </DialogContent>
   </Dialog>
 </template>

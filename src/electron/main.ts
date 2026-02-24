@@ -76,7 +76,7 @@ import {
   planSkillGroupToggle,
 } from "../skill-groups";
 import { syncCollectionToRepo, removeCollectionFile, syncPersonalRepo, listCollectionFiles } from "../collection-sync";
-import type { CollectionPreview } from "../collection-sync";
+import type { CollectionPreview, CollectionSkillEntry } from "../collection-sync";
 import { scan } from "../scanner";
 import {
   extractSkillSetRequestFromArgv,
@@ -2202,6 +2202,78 @@ function registerIpcHandlers(): void {
         throw new Error("Source not found. Add it first.");
       }
       return readCollectionSkillNames(source.path, collectionFile.trim());
+    },
+  );
+
+  ipcMain.handle(
+    "skills:installCollectionSkills",
+    async (
+      _event,
+      skillEntries: unknown,
+    ): Promise<{
+      snapshot: Snapshot;
+      installedCount: number;
+      alreadyInstalledCount: number;
+      failedCount: number;
+    }> => {
+      if (!Array.isArray(skillEntries) || skillEntries.length === 0) {
+        throw new Error("No skills to install.");
+      }
+
+      const entries = skillEntries as CollectionSkillEntry[];
+      const config = loadConfig();
+
+      const repoUrls = [
+        ...new Set(
+          entries
+            .map((e) => e.repoUrl)
+            .filter((url): url is string => !!url),
+        ),
+      ];
+
+      for (const repoUrl of repoUrls) {
+        const existing = await findExistingGitHubSource(config, repoUrl);
+        if (existing) continue;
+        try {
+          const source = await addGitHubSource(repoUrl, config);
+          config.sources.push(source);
+          saveConfig(config);
+        } catch {
+          // Source may already exist by path; continue
+        }
+      }
+
+      const allSkills = await scan(config);
+
+      let installedCount = 0;
+      let alreadyInstalledCount = 0;
+      let failedCount = 0;
+
+      for (const entry of entries) {
+        const match = allSkills.find((skill) => {
+          if (skill.name.toLowerCase() !== entry.name.toLowerCase()) return false;
+          if (entry.skillPath) {
+            return skill.sourcePath.includes(entry.skillPath);
+          }
+          return true;
+        });
+
+        if (!match) {
+          failedCount += 1;
+          continue;
+        }
+
+        if (match.installed) {
+          alreadyInstalledCount += 1;
+          continue;
+        }
+
+        installSkill(match, config);
+        installedCount += 1;
+      }
+
+      const snapshot = await createSnapshot(config);
+      return { snapshot, installedCount, alreadyInstalledCount, failedCount };
     },
   );
 
