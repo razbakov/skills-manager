@@ -40,6 +40,20 @@ export function removeCollectionFile(repoPath: string, name: string): void {
   }
 }
 
+function cleanGitEnv(): Record<string, string> {
+  const env = { ...process.env } as Record<string, string>;
+  delete env.GIT_ASKPASS;
+  delete env.GIT_TERMINAL_PROMPT;
+  delete env.ELECTRON_RUN_AS_NODE;
+  delete env.VSCODE_GIT_ASKPASS_MAIN;
+  delete env.VSCODE_GIT_ASKPASS_NODE;
+  delete env.VSCODE_GIT_ASKPASS_EXTRA_ARGS;
+  delete env.VSCODE_GIT_IPC_HANDLE;
+  return env;
+}
+
+const SSH_REWRITE_CONFIG = "url.git@github.com:.insteadOf=https://github.com/";
+
 function formatGitFailure(result: ReturnType<typeof spawnSync>): string {
   const stderr = result.stderr?.toString().trim();
   const stdout = result.stdout?.toString().trim();
@@ -123,10 +137,13 @@ export function syncCollectionToRepo(
 }
 
 export function syncPersonalRepo(repoPath: string): SyncResult {
+  const env = cleanGitEnv();
+  const opts = { encoding: "utf-8" as const, env };
+
   const pullResult = spawnSync(
     "git",
-    ["-C", repoPath, "pull", "--rebase"],
-    { encoding: "utf-8" },
+    ["-C", repoPath, "-c", SSH_REWRITE_CONFIG, "pull", "--rebase"],
+    opts,
   );
   if (pullResult.error || pullResult.status !== 0) {
     return {
@@ -138,8 +155,8 @@ export function syncPersonalRepo(repoPath: string): SyncResult {
 
   const pushResult = spawnSync(
     "git",
-    ["-C", repoPath, "push"],
-    { encoding: "utf-8" },
+    ["-C", repoPath, "-c", SSH_REWRITE_CONFIG, "push"],
+    opts,
   );
   if (pushResult.error || pushResult.status !== 0) {
     return {
