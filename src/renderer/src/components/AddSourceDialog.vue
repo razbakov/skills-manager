@@ -32,7 +32,16 @@ const displayedSkills = computed(() => {
 
 const selectedCount = computed(() => store.addSourcePreview.selectedIndexes.size);
 const totalCount = computed(() => store.addSourcePreview.skills.length);
-const hasCollections = computed(() => store.addSourcePreview.collections.length > 0);
+
+const visibleCollections = computed(() => {
+  const allSkillNames = new Set(
+    store.addSourcePreview.skills.map((s) => s.name.toLowerCase()),
+  );
+  return store.addSourcePreview.collections.filter((col) =>
+    col.skillNames.some((n) => allSkillNames.has(n.toLowerCase())),
+  );
+});
+const hasCollections = computed(() => visibleCollections.value.length > 0);
 
 function toggleSkill(index: number) {
   if (store.addSourcePreview.selectedIndexes.has(index)) {
@@ -106,7 +115,7 @@ function selectNone() {
           Skills
         </button>
         <button
-          v-for="col in store.addSourcePreview.collections"
+          v-for="col in visibleCollections"
           :key="col.name"
           class="px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px"
           :class="
