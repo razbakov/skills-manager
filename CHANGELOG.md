@@ -1,5 +1,21 @@
 # Releases
 
+## v0.6.0 — 2026-02-25
+
+### Feedback: Report Wrong AI Responses from Sessions
+
+You can now report bad AI responses directly from a skill's detail page, using real chat history as evidence.
+
+- **Report issue button** — Every skill now has a "Report issue" action that opens a dedicated feedback workspace.
+- **Session list** — The workspace shows all Cursor and Codex sessions where the selected skill was used, so you can find the conversation with the bad response.
+- **Dialogue view** — Opening a session shows the full user/AI conversation. Messages before the first skill invocation are collapsed by default to keep focus on what the agent actually did; a toggle reveals earlier context.
+- **Skill invocation badges** — Skill invocations appear as labelled badges rather than raw SKILL.md file paths.
+- **Mark wrong response** — Select any AI message to mark it as wrong. Then describe what was wrong and what the correct behaviour should have been. An optional suggested rule can be included.
+- **AI analysis** — After filling in the expected behaviour, the app runs an AI analysis of the issue: likely cause, whether a rule fix is feasible, any contradictions with existing guidance, and a suggested rule patch.
+- **Local draft + GitHub issue** — Reports are saved locally first as "Pending sync". A separate "Submit report" action creates a GitHub issue in the skill's repository with the full report attached.
+
+---
+
 ## v0.5.0 — 2026-02-25
 
 ### Collection Sharing & Install Reliability
