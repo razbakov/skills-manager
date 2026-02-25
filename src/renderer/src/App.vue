@@ -25,6 +25,7 @@ import InstalledView from "@/views/InstalledView.vue";
 import SourcesView from "@/views/SourcesView.vue";
 import RecommendationsView from "@/views/RecommendationsView.vue";
 import SettingsView from "@/views/SettingsView.vue";
+import FeedbackView from "@/views/FeedbackView.vue";
 import ImportDialog from "@/components/ImportDialog.vue";
 import AddSourceDialog from "@/components/AddSourceDialog.vue";
 import SyncSetupDialog from "@/components/SyncSetupDialog.vue";
@@ -114,7 +115,7 @@ function triggerPrimaryAction() {
 
 useKeyboard({
   getActiveTab: () => store.activeTab.value,
-  setActiveTab: (tab) => { store.activeTab.value = tab; },
+  setActiveTab: (tab) => { store.setActiveTab(tab); },
   focusSearch: () => {
     const el = document.querySelector<HTMLInputElement>('[data-search-input]');
     if (el) { el.focus(); el.select(); }
@@ -135,7 +136,10 @@ onUnmounted(() => store.unsubscribeFromProgress());
   <TooltipProvider>
     <div class="h-screen flex flex-col bg-background overflow-hidden">
       <!-- Top bar -->
-      <header class="flex items-center justify-between px-5 py-3 border-b bg-background/80 backdrop-blur-sm">
+      <header
+        v-if="store.activeTab.value !== 'feedback'"
+        class="flex items-center justify-between px-5 py-3 border-b bg-background/80 backdrop-blur-sm"
+      >
         <div class="flex items-center gap-3">
           <h1 class="text-base font-semibold tracking-tight">Skills Manager</h1>
         </div>
@@ -182,7 +186,10 @@ onUnmounted(() => store.unsubscribeFromProgress());
 
       <div class="flex flex-1 min-h-0">
         <!-- Sidebar -->
-        <nav class="w-48 border-r bg-sidebar-background flex flex-col py-2 shrink-0">
+        <nav
+          v-if="store.activeTab.value !== 'feedback'"
+          class="w-48 border-r bg-sidebar-background flex flex-col py-2 shrink-0"
+        >
           <button
             v-for="item in navItems"
             :key="item.id"
@@ -192,7 +199,7 @@ onUnmounted(() => store.unsubscribeFromProgress());
                 ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
                 : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
             "
-            @click="store.activeTab.value = item.id"
+            @click="store.setActiveTab(item.id)"
           >
             <component :is="item.icon" class="h-4 w-4 shrink-0" />
             <span class="truncate">{{ item.label }}</span>
@@ -213,6 +220,7 @@ onUnmounted(() => store.unsubscribeFromProgress());
           <SourcesView v-else-if="store.activeTab.value === 'sources'" />
           <RecommendationsView v-else-if="store.activeTab.value === 'recommendations'" />
           <SettingsView v-else-if="store.activeTab.value === 'settings'" />
+          <FeedbackView v-else-if="store.activeTab.value === 'feedback'" />
         </main>
       </div>
 

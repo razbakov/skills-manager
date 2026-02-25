@@ -14,6 +14,27 @@ interface SkillsApi {
   getRecommendations: (request: any) => Promise<any>;
   reviewSkill: (skillId: string) => Promise<any>;
   getSkillReview: (skillId: string) => Promise<any>;
+  getFeedbackSessions: (payload: { skillId: string }) => Promise<any[]>;
+  getFeedbackSession: (payload: { sessionId: string }) => Promise<any>;
+  analyzeFeedbackReport: (payload: {
+    skillId: string;
+    sessionId: string;
+    messageId: string;
+    whatWasWrong: string;
+    expectedBehavior: string;
+    suggestedRule: string;
+  }) => Promise<any>;
+  saveFeedbackReport: (payload: {
+    reportId?: string;
+    skillId: string;
+    sessionId: string;
+    messageId: string;
+    whatWasWrong: string;
+    expectedBehavior: string;
+    suggestedRule: string;
+    analysis: any;
+  }) => Promise<any>;
+  submitFeedbackReport: (payload: { reportId: string }) => Promise<any>;
   onRecommendationProgress: (listener: (payload: any) => void) => () => void;
   installSkill: (skillId: string) => Promise<any>;
   disableSkill: (skillId: string) => Promise<any>;

@@ -66,6 +66,13 @@ import {
   buildRecommendations,
   type RecommendationProgressEvent,
 } from "../recommendations";
+import {
+  analyzeFeedbackReport,
+  getFeedbackSessionById,
+  listFeedbackSessionsForSkill,
+  saveFeedbackReportDraft,
+  submitFeedbackReportDraft,
+} from "../feedback-report";
 import { loadSavedSkillReview, reviewSkill } from "../skill-review";
 import { inferSpecificSkillHint } from "../input-hints";
 import {
@@ -254,6 +261,38 @@ interface ApplySkillSetInstallPayload {
   skillIds?: unknown;
 }
 
+interface GetFeedbackSessionPayload {
+  skillId?: unknown;
+}
+
+interface GetFeedbackSessionDetailPayload {
+  sessionId?: unknown;
+}
+
+interface AnalyzeFeedbackReportPayload {
+  skillId?: unknown;
+  sessionId?: unknown;
+  messageId?: unknown;
+  whatWasWrong?: unknown;
+  expectedBehavior?: unknown;
+  suggestedRule?: unknown;
+}
+
+interface SaveFeedbackReportPayload {
+  reportId?: unknown;
+  skillId?: unknown;
+  sessionId?: unknown;
+  messageId?: unknown;
+  whatWasWrong?: unknown;
+  expectedBehavior?: unknown;
+  suggestedRule?: unknown;
+  analysis?: unknown;
+}
+
+interface SubmitFeedbackReportPayload {
+  reportId?: unknown;
+}
+
 const TARGET_NAME_MAP = new Map<string, string>(
   SUPPORTED_IDES.map((ide) => [expandTilde(ide.path), ide.name]),
 );
@@ -357,6 +396,12 @@ function normalizeRepoUrl(raw: string): string {
 function parseGitHubSourceName(raw: string): string | null {
   const parsed = parseGitHubRepoUrl(raw);
   return parsed ? parsed.sourceName : null;
+}
+
+function parseGitHubRepoSlug(raw: string): string | null {
+  const parsed = parseGitHubRepoUrl(raw);
+  if (!parsed) return null;
+  return `${parsed.owner}/${parsed.repo}`;
 }
 
 function dedupeCaseInsensitive(values: string[]): string[] {
@@ -1391,6 +1436,39 @@ function parseRecommendationLimit(value: unknown): number | undefined {
   return Math.max(3, Math.min(Math.round(value), 15));
 }
 
+function parseRequiredString(value: unknown, errorMessage: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(errorMessage);
+  }
+  return value.trim();
+}
+
+function parseOptionalString(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.trim();
+}
+
+function getPersonalRepoSlug(config: Config): string {
+  const repoPath = config.personalSkillsRepo
+    ? resolve(config.personalSkillsRepo)
+    : "";
+  if (!repoPath) {
+    throw new Error("No personal repository configured.");
+  }
+
+  const repoUrl = getRepoUrl(repoPath);
+  if (!repoUrl) {
+    throw new Error("Could not resolve GitHub repository URL for personal repo.");
+  }
+
+  const slug = parseGitHubRepoSlug(repoUrl);
+  if (!slug) {
+    throw new Error("Personal repository must point to a GitHub remote.");
+  }
+
+  return slug;
+}
+
 function parseSkillGroupName(value: unknown): string {
   if (typeof value !== "string") return "";
   return normalizeSkillGroupName(value);
@@ -2060,6 +2138,187 @@ function registerIpcHandlers(): void {
 
     return loadSavedSkillReview(resolvedSkillId);
   });
+
+  ipcMain.handle(
+    "skills:getFeedbackSessions",
+    async (_event, payload: GetFeedbackSessionPayload) => {
+      const skillId = parseRequiredString(
+        payload?.skillId,
+        "Missing skill identifier.",
+      );
+
+      const config = loadConfig();
+      const skills = await scan(config);
+      const skill = findSkillById(skills, skillId);
+      if (!skill) {
+        throw new Error("Skill not found. Refresh and try again.");
+      }
+
+      return listFeedbackSessionsForSkill(skill, {
+        projectPath: process.cwd(),
+      });
+    },
+  );
+
+  ipcMain.handle(
+    "skills:getFeedbackSession",
+    async (_event, payload: GetFeedbackSessionDetailPayload) => {
+      const sessionId = parseRequiredString(
+        payload?.sessionId,
+        "Missing session identifier.",
+      );
+
+      const session = getFeedbackSessionById(sessionId, {
+        projectPath: process.cwd(),
+      });
+      if (!session) {
+        throw new Error("Session not found.");
+      }
+
+      return session;
+    },
+  );
+
+  ipcMain.handle(
+    "skills:analyzeFeedbackReport",
+    async (_event, payload: AnalyzeFeedbackReportPayload) => {
+      const skillId = parseRequiredString(
+        payload?.skillId,
+        "Missing skill identifier.",
+      );
+      const sessionId = parseRequiredString(
+        payload?.sessionId,
+        "Missing session identifier.",
+      );
+      const messageId = parseRequiredString(
+        payload?.messageId,
+        "Missing message identifier.",
+      );
+      const whatWasWrong = parseRequiredString(
+        payload?.whatWasWrong,
+        "Describe what was wrong.",
+      );
+      const expectedBehavior = parseRequiredString(
+        payload?.expectedBehavior,
+        "Describe expected behavior.",
+      );
+      const suggestedRule = parseOptionalString(payload?.suggestedRule);
+
+      const config = loadConfig();
+      const skills = await scan(config);
+      const skill = findSkillById(skills, skillId);
+      if (!skill) {
+        throw new Error("Skill not found. Refresh and try again.");
+      }
+
+      const session = getFeedbackSessionById(sessionId, {
+        projectPath: process.cwd(),
+      });
+      if (!session) {
+        throw new Error("Session not found.");
+      }
+
+      const selectedMessage = session.messages.find(
+        (message) => message.id === messageId,
+      );
+      if (!selectedMessage || selectedMessage.role !== "assistant") {
+        throw new Error("Select an AI response to report.");
+      }
+
+      return analyzeFeedbackReport({
+        skillName: skill.name,
+        session,
+        selectedMessage,
+        whatWasWrong,
+        expectedBehavior,
+        suggestedRule,
+        projectPath: process.cwd(),
+      });
+    },
+  );
+
+  ipcMain.handle(
+    "skills:saveFeedbackReport",
+    async (_event, payload: SaveFeedbackReportPayload) => {
+      const skillId = parseRequiredString(
+        payload?.skillId,
+        "Missing skill identifier.",
+      );
+      const sessionId = parseRequiredString(
+        payload?.sessionId,
+        "Missing session identifier.",
+      );
+      const messageId = parseRequiredString(
+        payload?.messageId,
+        "Missing message identifier.",
+      );
+      const whatWasWrong = parseRequiredString(
+        payload?.whatWasWrong,
+        "Describe what was wrong.",
+      );
+      const expectedBehavior = parseRequiredString(
+        payload?.expectedBehavior,
+        "Describe expected behavior.",
+      );
+      const suggestedRule = parseOptionalString(payload?.suggestedRule);
+      if (!payload?.analysis || typeof payload.analysis !== "object") {
+        throw new Error("Run AI analysis before saving the report.");
+      }
+
+      const config = loadConfig();
+      const skills = await scan(config);
+      const skill = findSkillById(skills, skillId);
+      if (!skill) {
+        throw new Error("Skill not found. Refresh and try again.");
+      }
+
+      const session = getFeedbackSessionById(sessionId, {
+        projectPath: process.cwd(),
+      });
+      if (!session) {
+        throw new Error("Session not found.");
+      }
+
+      const selectedMessage = session.messages.find(
+        (message) => message.id === messageId,
+      );
+      if (!selectedMessage || selectedMessage.role !== "assistant") {
+        throw new Error("Select an AI response to report.");
+      }
+
+      return saveFeedbackReportDraft({
+        reportId:
+          typeof payload?.reportId === "string" && payload.reportId.trim()
+            ? payload.reportId.trim()
+            : undefined,
+        skillId: resolve(skill.sourcePath),
+        skillName: skill.name,
+        session,
+        selectedMessage,
+        whatWasWrong,
+        expectedBehavior,
+        suggestedRule,
+        analysis: payload.analysis as any,
+      });
+    },
+  );
+
+  ipcMain.handle(
+    "skills:submitFeedbackReport",
+    async (_event, payload: SubmitFeedbackReportPayload) => {
+      const reportId = parseRequiredString(
+        payload?.reportId,
+        "Missing report identifier.",
+      );
+
+      const config = loadConfig();
+      const repository = getPersonalRepoSlug(config);
+      return submitFeedbackReportDraft({
+        reportId,
+        repository,
+      });
+    },
+  );
 
   ipcMain.handle("skills:install", async (_event, skillId: unknown) =>
     mutateSkill(skillId, (skill, config) => installSkill(skill, config)),

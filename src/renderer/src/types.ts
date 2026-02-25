@@ -211,6 +211,63 @@ export interface SkillReviewSnapshot {
   dimensions: SkillReviewDimension[];
 }
 
+export type FeedbackSessionSource = "Codex" | "Cursor";
+export type FeedbackMessageRole = "user" | "assistant";
+export type FeedbackRuleFit = "compatible" | "conflicting" | "unknown";
+
+export interface FeedbackMessage {
+  id: string;
+  role: FeedbackMessageRole;
+  text: string;
+  timestamp: string;
+}
+
+export interface FeedbackSessionSummary {
+  id: string;
+  source: FeedbackSessionSource;
+  projectName: string;
+  sessionId: string;
+  title: string;
+  timestamp: string;
+  messageCount: number;
+}
+
+export interface FeedbackSessionDetail extends FeedbackSessionSummary {
+  messages: FeedbackMessage[];
+}
+
+export interface FeedbackReportAnalysis {
+  summary: string;
+  likelyCause: string;
+  ruleFit: FeedbackRuleFit;
+  contradiction: string | null;
+  suggestedPatch: string;
+}
+
+export interface FeedbackReportDraft {
+  id: string;
+  status: "pending_sync" | "synced";
+  createdAt: string;
+  updatedAt: string;
+  skillId: string;
+  skillName: string;
+  session: {
+    id: string;
+    source: FeedbackSessionSource;
+    sessionId: string;
+    title: string;
+    timestamp: string;
+  };
+  selectedMessage: FeedbackMessage;
+  whatWasWrong: string;
+  expectedBehavior: string;
+  suggestedRule: string;
+  analysis: FeedbackReportAnalysis;
+  issueUrl: string | null;
+  issueNumber: number | null;
+  syncedAt: string | null;
+}
+
 export interface ImportPreviewSkill {
   index: number;
   name: string;
@@ -247,4 +304,5 @@ export type TabId =
   | "collections"
   | "sources"
   | "recommendations"
-  | "settings";
+  | "settings"
+  | "feedback";

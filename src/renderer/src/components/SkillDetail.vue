@@ -17,6 +17,7 @@ import {
   FileText,
   Gauge,
   Share2,
+  Bug,
 } from "lucide-vue-next";
 import type {
   SkillViewModel,
@@ -240,6 +241,10 @@ function removeCurrentSkillFromGroup(skillId: string, groupName: string) {
           <Button variant="outline" size="sm" @click="shareDialogOpen = true">
             <Share2 class="h-3.5 w-3.5" />
             Share
+          </Button>
+          <Button variant="outline" size="sm" @click="store.openFeedbackForSkill(skill.id)">
+            <Bug class="h-3.5 w-3.5" />
+            Report issue
           </Button>
 
           <template v-if="mode === 'installed'">

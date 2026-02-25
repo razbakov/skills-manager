@@ -15,6 +15,10 @@ import type {
   SkillSetLaunchRequest,
   SkillSetPreviewSkill,
   RuntimeAvailability,
+  FeedbackSessionSummary,
+  FeedbackSessionDetail,
+  FeedbackReportAnalysis,
+  FeedbackReportDraft,
 } from "@/types";
 import {
   filterSkillLibrary,
@@ -28,6 +32,7 @@ const api = window.skillsApi;
 // ── Singleton state ──
 const snapshot = ref<Snapshot | null>(null);
 const activeTab = ref<TabId>("skills");
+const lastNonFeedbackTab = ref<TabId>("skills");
 const busy = ref(false);
 const syncing = ref(false);
 const syncSetupOpen = ref(false);
@@ -45,6 +50,7 @@ const selected = reactive({
   source: null as string | null,
   recommendation: null as string | null,
   setting: null as string | null,
+  feedbackSkill: null as string | null,
 });
 
 const toasts = ref<{ id: number; message: string; type: string }[]>([]);
@@ -190,6 +196,13 @@ const selectedSetting = computed<SettingViewModel | null>(() =>
   settings.value.find((s) => s.id === selected.setting) ?? null,
 );
 
+const selectedFeedbackSkill = computed<SkillViewModel | null>(() => {
+  if (!snapshot.value) return null;
+  const feedbackSkillId = selected.feedbackSkill;
+  if (!feedbackSkillId) return null;
+  return snapshot.value.skills.find((skill) => skill.id === feedbackSkillId) ?? null;
+});
+
 const selectedRecommendation = computed<RecommendationItem | null>(() => {
   const items = recommendations.data?.items ?? [];
   return items.find((i) => i.skillId === selected.recommendation) ?? null;
@@ -265,6 +278,12 @@ function ensureSelection() {
   }
   if (!settings.value.find((s) => s.id === selected.setting)) {
     selected.setting = settings.value[0]?.id ?? null;
+  }
+  if (!allSkills.find((skill) => skill.id === selected.feedbackSkill)) {
+    selected.feedbackSkill = allSkills[0]?.id ?? null;
+    if (activeTab.value === "feedback" && !selected.feedbackSkill) {
+      activeTab.value = "skills";
+    }
   }
   if (
     libraryFilters.sourceName &&
@@ -1151,6 +1170,46 @@ async function getRuntimeAvailability(): Promise<RuntimeAvailability> {
   }
 }
 
+async function getFeedbackSessions(skillId: string): Promise<FeedbackSessionSummary[]> {
+  const result = await api.getFeedbackSessions({ skillId });
+  if (!Array.isArray(result)) return [];
+  return result as FeedbackSessionSummary[];
+}
+
+async function getFeedbackSession(sessionId: string): Promise<FeedbackSessionDetail | null> {
+  const result = await api.getFeedbackSession({ sessionId });
+  if (!result || typeof result !== "object") return null;
+  return result as FeedbackSessionDetail;
+}
+
+async function analyzeFeedbackReport(input: {
+  skillId: string;
+  sessionId: string;
+  messageId: string;
+  whatWasWrong: string;
+  expectedBehavior: string;
+  suggestedRule: string;
+}): Promise<FeedbackReportAnalysis> {
+  return (await api.analyzeFeedbackReport(input)) as FeedbackReportAnalysis;
+}
+
+async function saveFeedbackReport(input: {
+  reportId?: string;
+  skillId: string;
+  sessionId: string;
+  messageId: string;
+  whatWasWrong: string;
+  expectedBehavior: string;
+  suggestedRule: string;
+  analysis: FeedbackReportAnalysis;
+}): Promise<FeedbackReportDraft> {
+  return (await api.saveFeedbackReport(input)) as FeedbackReportDraft;
+}
+
+async function submitFeedbackReport(reportId: string): Promise<FeedbackReportDraft> {
+  return (await api.submitFeedbackReport({ reportId })) as FeedbackReportDraft;
+}
+
 // ── Recommendations ──
 function setRecommendationProgress(progress: any) {
   if (!progress || typeof progress !== "object") return;
@@ -1244,7 +1303,35 @@ function jumpToSkill(skillId: string) {
   const skill = snapshot.value.skills.find((s) => s.id === skillId);
   if (!skill) return;
   selectSkill(skill.id);
-  activeTab.value = "skills";
+  setActiveTab("skills");
+}
+
+function setActiveTab(tab: TabId) {
+  if (tab !== "feedback") {
+    lastNonFeedbackTab.value = tab;
+  }
+  activeTab.value = tab;
+}
+
+function openFeedbackForSkill(skillId: string) {
+  if (!snapshot.value) return;
+  const skill = snapshot.value.skills.find((entry) => entry.id === skillId);
+  if (!skill) return;
+
+  selectSkill(skillId);
+  selected.feedbackSkill = skillId;
+  if (activeTab.value !== "feedback") {
+    lastNonFeedbackTab.value = activeTab.value;
+  }
+  activeTab.value = "feedback";
+}
+
+function closeFeedback() {
+  const fallback =
+    lastNonFeedbackTab.value && lastNonFeedbackTab.value !== "feedback"
+      ? lastNonFeedbackTab.value
+      : "skills";
+  activeTab.value = fallback;
 }
 
 // ── Init ──
@@ -1290,6 +1377,7 @@ export function useSkills() {
     selectedAvailableSkill,
     selectedSource,
     selectedSetting,
+    selectedFeedbackSkill,
     selectedRecommendation,
     configuredTargetCount,
     activeBudgetSummary,
@@ -1301,7 +1389,10 @@ export function useSkills() {
     // Actions
     init,
     refresh,
+    setActiveTab,
     selectSkill,
+    openFeedbackForSkill,
+    closeFeedback,
     installSkill,
     uninstallSkill,
     disableSkill,
@@ -1343,6 +1434,11 @@ export function useSkills() {
     openPath,
     openExternal,
     getRuntimeAvailability,
+    getFeedbackSessions,
+    getFeedbackSession,
+    analyzeFeedbackReport,
+    saveFeedbackReport,
+    submitFeedbackReport,
     loadRecommendations,
     jumpToSkill,
     unsubscribeFromProgress,

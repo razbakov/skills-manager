@@ -19,6 +19,16 @@ contextBridge.exposeInMainWorld("skillsApi", {
   getRecommendations: (request) => ipcRenderer.invoke("skills:getRecommendations", request),
   reviewSkill: (skillId) => ipcRenderer.invoke("skills:reviewSkill", skillId),
   getSkillReview: (skillId) => ipcRenderer.invoke("skills:getSkillReview", skillId),
+  getFeedbackSessions: (payload) =>
+    ipcRenderer.invoke("skills:getFeedbackSessions", payload),
+  getFeedbackSession: (payload) =>
+    ipcRenderer.invoke("skills:getFeedbackSession", payload),
+  analyzeFeedbackReport: (payload) =>
+    ipcRenderer.invoke("skills:analyzeFeedbackReport", payload),
+  saveFeedbackReport: (payload) =>
+    ipcRenderer.invoke("skills:saveFeedbackReport", payload),
+  submitFeedbackReport: (payload) =>
+    ipcRenderer.invoke("skills:submitFeedbackReport", payload),
   onRecommendationProgress: (listener) => {
     if (typeof listener !== "function") {
       return () => { };
