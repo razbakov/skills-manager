@@ -19,6 +19,32 @@ require_cmd() {
   fi
 }
 
+is_windows_shell() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_wsl() {
+  if [ -n "${WSL_DISTRO_NAME:-}" ] || [ -n "${WSL_INTEROP:-}" ]; then
+    return 0
+  fi
+
+  if [ -r /proc/version ] && grep -qiE "(microsoft|wsl)" /proc/version; then
+    return 0
+  fi
+
+  return 1
+}
+
+ensure_supported_platform() {
+  if is_windows_shell && ! is_wsl; then
+    echo "Native Windows shell detected. Please run this installer from WSL." >&2
+    exit 1
+  fi
+}
+
 bun_root_dir() {
   if [ -n "${BUN_INSTALL:-}" ]; then
     printf "%s\n" "${BUN_INSTALL%/}"
@@ -134,6 +160,7 @@ check_install_dir() {
   fi
 }
 
+ensure_supported_platform
 require_cmd git
 ensure_bun
 check_install_dir

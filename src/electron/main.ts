@@ -67,6 +67,7 @@ import {
   type RecommendationProgressEvent,
 } from "../recommendations";
 import { loadSavedSkillReview, reviewSkill } from "../skill-review";
+import { inferSpecificSkillHint } from "../input-hints";
 import {
   findSkillGroupByName,
   getSkillGroupNamesForSkillId,
@@ -101,6 +102,7 @@ interface SkillViewModel {
   description: string;
   sourcePath: string;
   sourceName: string;
+  repoUrl?: string;
   pathLabel: string;
   installName: string;
   installed: boolean;
@@ -512,54 +514,6 @@ function cloneRepository(repoUrl: string, clonePath: string): void {
   }
 }
 
-function inferSpecificSkillHint(rawInput: string): string | undefined {
-  const trimmed = rawInput.trim();
-  if (!trimmed) return undefined;
-
-  try {
-    const parsed = new URL(trimmed);
-    const host = parsed.hostname.toLowerCase();
-    const segments = parsed.pathname
-      .replace(/^\/+|\/+$/g, "")
-      .split("/")
-      .filter(Boolean);
-    if (segments.length === 0) return undefined;
-
-    if (host === "skills.sh" || host === "www.skills.sh") {
-      if (segments.length >= 3) {
-        return decodeURIComponent(segments[segments.length - 1]);
-      }
-      return undefined;
-    }
-
-    if (host !== "github.com" && host !== "www.github.com") {
-      return undefined;
-    }
-
-    if (segments.length >= 5 && (segments[2] === "tree" || segments[2] === "blob")) {
-      const tail = segments.slice(4);
-      if (tail.length === 0) return undefined;
-      const last = decodeURIComponent(tail[tail.length - 1]);
-      if (/^skill\.md$/i.test(last) && tail.length >= 2) {
-        return decodeURIComponent(tail[tail.length - 2]);
-      }
-      return last;
-    }
-
-    if (segments.length > 2) {
-      const last = decodeURIComponent(segments[segments.length - 1]);
-      if (/^skill\.md$/i.test(last) && segments.length >= 2) {
-        return decodeURIComponent(segments[segments.length - 2]);
-      }
-      return last;
-    }
-  } catch {
-    return undefined;
-  }
-
-  return undefined;
-}
-
 function buildSourceSelectionEntries(
   skills: Skill[],
   sourceRoot: string,
@@ -969,6 +923,19 @@ function getRepoUrl(sourcePath: string): string | null {
   return normalizeRepoUrl(rawUrl);
 }
 
+function isCommandAvailable(commandName: string): boolean {
+  const trimmed = commandName.trim();
+  if (!trimmed) return false;
+
+  const locator = process.platform === "win32" ? "where" : "which";
+  const result = spawnSync(locator, [trimmed], { encoding: "utf-8" });
+  if (result.error || result.status !== 0) {
+    return false;
+  }
+
+  return Boolean(result.stdout?.toString().trim());
+}
+
 function isPathWithin(path: string, root: string): boolean {
   const rel = relative(root, path);
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
@@ -1275,6 +1242,15 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
           toSkillViewModel(skill, config, resolvedSourcesRoot, groups),
       )
       .filter((skill): skill is SkillViewModel => !!skill);
+
+    if (source.repoUrl) {
+      const normalizedRepoUrl = normalizeRepoUrl(source.repoUrl);
+      for (const skill of sourceSkills) {
+        if (!skill.repoUrl) {
+          skill.repoUrl = normalizedRepoUrl;
+        }
+      }
+    }
 
     const installedCount = sourceSkills.filter(
       (skill) => skill.installed,
@@ -2166,6 +2142,15 @@ function registerIpcHandlers(): void {
 
     const config = loadConfig();
     return buildSourcePreview(input, config);
+  });
+
+  ipcMain.handle("skills:getRuntimeAvailability", async () => {
+    return {
+      npm: isCommandAvailable("npm"),
+      npx: isCommandAvailable("npx"),
+      bunx: isCommandAvailable("bunx"),
+      git: isCommandAvailable("git"),
+    };
   });
 
   ipcMain.handle(

@@ -29,6 +29,7 @@ interface SkillsApi {
   adoptSkill: (skillId: string) => Promise<any>;
   addSource: (repoUrl: string) => Promise<any>;
   previewAddSourceInput: (input: string) => Promise<any>;
+  getRuntimeAvailability: () => Promise<{ npm: boolean; npx: boolean; bunx: boolean; git: boolean }>;
   addSourceFromInput: (
     request: { input: string; selectedIndexes: number[] },
   ) => Promise<any>;

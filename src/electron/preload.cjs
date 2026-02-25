@@ -43,6 +43,8 @@ contextBridge.exposeInMainWorld("skillsApi", {
   addSource: (repoUrl) => ipcRenderer.invoke("skills:addSource", repoUrl),
   previewAddSourceInput: (input) =>
     ipcRenderer.invoke("skills:previewAddSourceInput", input),
+  getRuntimeAvailability: () =>
+    ipcRenderer.invoke("skills:getRuntimeAvailability"),
   addSourceFromInput: (payload) =>
     ipcRenderer.invoke("skills:addSourceFromInput", payload),
   prepareSkillSetInstall: (request) =>

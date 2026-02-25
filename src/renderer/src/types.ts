@@ -9,6 +9,7 @@ export interface SkillViewModel {
   description: string;
   sourcePath: string;
   sourceName: string;
+  repoUrl?: string;
   pathLabel: string;
   installName: string;
   installed: boolean;
@@ -50,6 +51,13 @@ export interface PersonalRepoViewModel {
   exists: boolean;
   isGitRepo: boolean;
   repoUrl?: string;
+}
+
+export interface RuntimeAvailability {
+  npm: boolean;
+  npx: boolean;
+  bunx: boolean;
+  git: boolean;
 }
 
 export interface SkillGroupViewModel {

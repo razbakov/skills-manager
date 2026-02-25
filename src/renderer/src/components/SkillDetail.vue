@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import ShareSkillDialog from "@/components/ShareSkillDialog.vue";
 import {
   Pencil,
   Trash2,
@@ -15,6 +16,7 @@ import {
   Sparkles,
   FileText,
   Gauge,
+  Share2,
 } from "lucide-vue-next";
 import type {
   SkillViewModel,
@@ -31,12 +33,14 @@ const markdown = ref("Select a skill to preview SKILL.md.");
 const loadingMd = ref(false);
 const detailTab = ref<"preview" | "review">("preview");
 const selectedGroupToAdd = ref("");
+const shareDialogOpen = ref(false);
 
 watch(
   () => props.skill?.id,
   async (id) => {
     detailTab.value = "preview";
     selectedGroupToAdd.value = "";
+    shareDialogOpen.value = false;
     if (!id) {
       markdown.value = "Select a skill to preview SKILL.md.";
       return;
@@ -161,6 +165,17 @@ function removeCurrentSkillFromGroup(skillId: string, groupName: string) {
         <div class="grid grid-cols-[100px_1fr] gap-x-4 gap-y-2 text-sm mb-5">
           <span class="text-muted-foreground text-xs uppercase tracking-wider pt-0.5">Source</span>
           <span>{{ skill.sourceName }}</span>
+          <span class="text-muted-foreground text-xs uppercase tracking-wider pt-0.5">Origin</span>
+          <div>
+            <button
+              v-if="skill.repoUrl"
+              class="break-all text-left text-xs text-blue-700 underline underline-offset-2 transition hover:text-blue-800 cursor-pointer"
+              @click="store.openExternal(skill.repoUrl)"
+            >
+              {{ skill.repoUrl }}
+            </button>
+            <span v-else class="text-xs text-muted-foreground">No repository URL</span>
+          </div>
           <span class="text-muted-foreground text-xs uppercase tracking-wider pt-0.5">Path</span>
           <span class="break-all">{{ skill.pathLabel }}</span>
           <template v-if="mode === 'installed' && store.configuredTargetCount.value > 1">
@@ -221,6 +236,10 @@ function removeCurrentSkillFromGroup(skillId: string, groupName: string) {
           >
             <Sparkles class="h-3.5 w-3.5" />
             {{ isReviewingCurrentSkill ? 'Reviewing...' : 'Review' }}
+          </Button>
+          <Button variant="outline" size="sm" @click="shareDialogOpen = true">
+            <Share2 class="h-3.5 w-3.5" />
+            Share
           </Button>
 
           <template v-if="mode === 'installed'">
@@ -467,6 +486,12 @@ function removeCurrentSkillFromGroup(skillId: string, groupName: string) {
             </Card>
           </template>
         </template>
+
+        <ShareSkillDialog
+          :open="shareDialogOpen"
+          :skill="skill"
+          @update:open="shareDialogOpen = $event"
+        />
       </template>
     </div>
   </ScrollArea>

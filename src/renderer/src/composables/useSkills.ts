@@ -14,6 +14,7 @@ import type {
   RecommendationRunStats,
   SkillSetLaunchRequest,
   SkillSetPreviewSkill,
+  RuntimeAvailability,
 } from "@/types";
 import {
   filterSkillLibrary,
@@ -1131,6 +1132,25 @@ function openExternal(url: string) {
   api.openExternal(url);
 }
 
+async function getRuntimeAvailability(): Promise<RuntimeAvailability> {
+  try {
+    const result = await api.getRuntimeAvailability();
+    return {
+      npm: result?.npm === true,
+      npx: result?.npx === true,
+      bunx: result?.bunx === true,
+      git: result?.git === true,
+    };
+  } catch {
+    return {
+      npm: false,
+      npx: false,
+      bunx: false,
+      git: false,
+    };
+  }
+}
+
 // ── Recommendations ──
 function setRecommendationProgress(progress: any) {
   if (!progress || typeof progress !== "object") return;
@@ -1322,6 +1342,7 @@ export function useSkills() {
     editSkill,
     openPath,
     openExternal,
+    getRuntimeAvailability,
     loadRecommendations,
     jumpToSkill,
     unsubscribeFromProgress,

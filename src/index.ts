@@ -11,6 +11,7 @@ import type { Config } from "./types";
 import { updateApp, getAppVersion } from "./updater";
 import { encodeSkillSetRequestArg, parseSkillSetRequest } from "./skill-set";
 import type { SkillSetRequest } from "./skill-set";
+import { shouldUseWslForInstall } from "./platform";
 
 interface CliArgs {
   installCommand: boolean;
@@ -106,6 +107,12 @@ function resolveGlobalBinDir(): string {
 }
 
 function installGlobalCommand(): InstallCommandResult {
+  if (shouldUseWslForInstall()) {
+    throw new Error(
+      "Native Windows install is not supported yet. Run this command from WSL.",
+    );
+  }
+
   const launcherPath = resolve(fileURLToPath(new URL("../bin/skills", import.meta.url)));
   if (!existsSync(launcherPath)) {
     throw new Error(`Launcher script not found at ${launcherPath}`);
