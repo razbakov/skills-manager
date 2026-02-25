@@ -12,12 +12,6 @@ Quick install Skills Manager, open the app, and launch the skill-picker modal:
 npx -y skill-mix obra/superpowers
 ```
 
-Preselect specific skills before the modal opens:
-
-```bash
-npx -y skill-mix obra/superpowers workflow research
-```
-
 Classic installer:
 
 ```
@@ -29,10 +23,6 @@ curl -fsSL https://raw.githubusercontent.com/razbakov/skills-manager/main/script
 Run `skills` to launch application
 
 Open/focus the app and trigger the skill-picker from CLI:
-
-```bash
-skills set <owner/repo|github-url> [skill ...]
-```
 
 ![Skills Manager desktop UI](docs/images/desktop-ui.png)
 
