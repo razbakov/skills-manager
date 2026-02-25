@@ -1,5 +1,35 @@
 # Releases
 
+## v0.5.0 — 2026-02-25
+
+### Collection Sharing & Install Reliability
+
+This release makes sharing collections more streamlined and reduces setup
+failures on Windows development environments.
+
+- **Collection sharing flow** — Improved the sharing experience so users can
+  publish and reuse collection links with fewer steps.
+- **WSL install guard** — Added a safeguard for Windows Subsystem for Linux
+  setups to prevent unsupported install paths and guide users to a working
+  configuration.
+
+---
+
+## v0.4.1 — 2026-02-24
+
+### Collection Import Quality Improvements
+
+This patch release improves how collection-based installs appear and behave in
+the Add Skills flow.
+
+- **Direct collection file installs** — Add Skills now accepts
+  `owner/repo/file.json` inputs to install from a specific collection file in a
+  repository.
+- **Cleaner collection tabs** — Collection tabs that have no matching skills
+  are hidden, reducing confusion during selection.
+
+---
+
 ## v0.4.0 — 2026-02-24
 
 ### Collection Tabs in Add Skills Dialog
