@@ -1,5 +1,27 @@
 # Releases
 
+## v0.7.0 — 2026-02-27
+
+### Cross-Device Collection Sync Completion
+
+This release completes personal repo sync so switching laptops restores not only
+collection names, but also collection membership and missing skills.
+
+- **Collection import from personal repo** — Collection files from the
+  personal repository are now read back into local collection state during
+  refresh/snapshot generation.
+- **Full membership preservation** — Collection models now keep full member
+  lists instead of only currently installed members.
+- **Auto-install on sync** — After a successful pull, Sync now imports all
+  collection manifests and installs missing skills automatically.
+- **Clearer collection detail view** — Non-installed synced members appear in a
+  dedicated "Synced (Not Installed)" section with an install action when the
+  source is available locally.
+- **Sync feedback update** — Sync success toast now shows backend sync/install
+  summary details instead of a fixed message.
+
+---
+
 ## v0.6.0 — 2026-02-25
 
 ### Feedback: Report Wrong AI Responses from Sessions
