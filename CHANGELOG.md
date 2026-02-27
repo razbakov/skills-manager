@@ -1,5 +1,26 @@
 # Releases
 
+## v0.7.1 — 2026-02-27
+
+### Install Reliability Patch
+
+This patch improves setup and update reliability for users.
+
+#### Installation & Update Reliability
+
+- **Faster first-time setup** — New installs now fetch only runtime
+  dependencies, which reduces stalls during `bun install`.
+- **More predictable updates** — In-app updates now follow the same
+  runtime-only install strategy before rebuilding the UI.
+
+#### Internal & Platform
+
+- **Runtime dependency boundaries clarified** — Dependencies required
+  to run the app are now explicitly treated as runtime dependencies so setup
+  and updates behave consistently.
+
+---
+
 ## v0.7.0 — 2026-02-27
 
 ### Cross-Device Collection Sync Completion

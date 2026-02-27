@@ -36,6 +36,14 @@ interface CommandResult {
     stderr: string;
 }
 
+export function getUpdateInstallArgs(hasLockfile: boolean): string[] {
+    const args = ["install", "--production"];
+    if (hasLockfile) {
+        args.push("--frozen-lockfile");
+    }
+    return args;
+}
+
 function resolveBunBinary(): string {
     const bunInstall = process.env.BUN_INSTALL?.trim();
     if (bunInstall) {
@@ -104,7 +112,8 @@ export function updateApp(): { updated: boolean; message: string; version: strin
     }
 
     const bunBinary = resolveBunBinary();
-    runCommandOrThrow(bunBinary, ["install"], appRoot, "bun install failed");
+    const installArgs = getUpdateInstallArgs(existsSync(join(appRoot, "bun.lock")));
+    runCommandOrThrow(bunBinary, installArgs, appRoot, "bun install failed");
     runCommandOrThrow(
         bunBinary,
         ["x", "vite", "build"],
