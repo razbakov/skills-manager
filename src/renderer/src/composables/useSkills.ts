@@ -1008,7 +1008,7 @@ async function syncRepo() {
       snapshot.value = result.snapshot;
     }
     if (result?.pulled && result?.pushed) {
-      addToast("Synced with remote.", "success");
+      addToast(result?.message ?? "Synced with remote.", "success");
     } else {
       addToast(result?.message ?? "Sync failed.", "error", 5000);
     }

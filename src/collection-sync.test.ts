@@ -5,6 +5,7 @@ import {
   tryCommitCollectionChange,
   collectionFilePath,
   listCollectionFiles,
+  syncCollectionsFromRepo,
   syncPersonalRepo,
 } from "./collection-sync";
 import {
@@ -17,7 +18,7 @@ import {
 import { join } from "path";
 import { tmpdir } from "os";
 import { spawnSync } from "child_process";
-import type { Skill } from "./types";
+import type { Skill, Source } from "./types";
 
 function makeSkill(overrides: Partial<Skill> & { name: string; sourcePath: string }): Skill {
   return {
@@ -325,5 +326,173 @@ describe("listCollectionFiles", () => {
 
     const collections = listCollectionFiles(root);
     expect(collections.map((c) => c.name)).toEqual(["coding", "writing"]);
+  });
+});
+
+describe("syncCollectionsFromRepo", () => {
+  let repoRoot: string;
+
+  beforeEach(() => {
+    repoRoot = mkdtempSync(join(tmpdir(), "collection-import-"));
+  });
+
+  afterEach(() => {
+    rmSync(repoRoot, { recursive: true, force: true });
+  });
+
+  function writeCollectionManifest(
+    name: string,
+    installedSkills: Array<{
+      name: string;
+      description?: string;
+      install?: { repoUrl?: string; skillPath?: string };
+    }>,
+  ): void {
+    writeFileSync(
+      join(repoRoot, `${name}.json`),
+      `${JSON.stringify(
+        {
+          schemaVersion: 3,
+          generatedAt: "2026-02-27T00:00:00.000Z",
+          installedSkills,
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+  }
+
+  it("imports repo collections and keeps local-only groups", () => {
+    writeCollectionManifest("remote-group", [
+      {
+        name: "atlassian",
+        install: {
+          repoUrl: "https://github.com/razbakov/skills",
+          skillPath: "skills/atlassian",
+        },
+      },
+    ]);
+
+    const sourcesRoot = "/Users/test/.skills-manager/sources";
+    const skills: Skill[] = [
+      makeSkill({
+        name: "atlassian",
+        sourcePath: "/Users/test/.skills-manager/sources/skills@razbakov/skills/atlassian",
+      }),
+    ];
+    const sources: Source[] = [
+      {
+        name: "skills@razbakov",
+        path: "/Users/test/.skills-manager/sources/skills@razbakov",
+        recursive: true,
+        url: "https://github.com/razbakov/skills",
+      },
+    ];
+
+    const result = syncCollectionsFromRepo({
+      repoPath: repoRoot,
+      existingGroups: [
+        { name: "local-only", skillIds: ["/tmp/local-skill"] },
+      ],
+      skills,
+      sources,
+      sourcesRoot,
+    });
+
+    expect(result.updated).toBe(true);
+    expect(result.importedGroups).toBe(1);
+    expect(result.groups).toEqual([
+      { name: "local-only", skillIds: ["/tmp/local-skill"] },
+      {
+        name: "remote-group",
+        skillIds: [
+          "/Users/test/.skills-manager/sources/skills@razbakov/skills/atlassian",
+        ],
+      },
+    ]);
+  });
+
+  it("replaces matching local group names with repo contents", () => {
+    writeCollectionManifest("ommax-dev", [
+      {
+        name: "workflow",
+        install: {
+          repoUrl: "https://github.com/razbakov/skills",
+          skillPath: "skills/workflow",
+        },
+      },
+    ]);
+
+    const sourcesRoot = "/Users/test/.skills-manager/sources";
+    const skills: Skill[] = [
+      makeSkill({
+        name: "workflow",
+        sourcePath: "/Users/test/.skills-manager/sources/skills@razbakov/skills/workflow",
+      }),
+    ];
+
+    const result = syncCollectionsFromRepo({
+      repoPath: repoRoot,
+      existingGroups: [
+        { name: "ommax-dev", skillIds: ["/tmp/old-id"] },
+      ],
+      skills,
+      sources: [],
+      sourcesRoot,
+    });
+
+    expect(result.updated).toBe(true);
+    expect(result.groups).toEqual([
+      {
+        name: "ommax-dev",
+        skillIds: [
+          "/Users/test/.skills-manager/sources/skills@razbakov/skills/workflow",
+        ],
+      },
+    ]);
+  });
+
+  it("falls back to resolved repo path when a skill is not currently scanned", () => {
+    writeCollectionManifest("missing-skill", [
+      {
+        name: "new-skill",
+        install: {
+          repoUrl: "https://github.com/acme/team-skills",
+          skillPath: "skills/new-skill",
+        },
+      },
+    ]);
+
+    const result = syncCollectionsFromRepo({
+      repoPath: repoRoot,
+      existingGroups: [],
+      skills: [],
+      sources: [],
+      sourcesRoot: "/Users/test/.skills-manager/sources",
+    });
+
+    expect(result.updated).toBe(true);
+    expect(result.groups).toEqual([
+      {
+        name: "missing-skill",
+        skillIds: ["/Users/test/.skills-manager/sources/team-skills@acme/skills/new-skill"],
+      },
+    ]);
+  });
+
+  it("does nothing when no repo collections are present", () => {
+    const existing = [{ name: "local-only", skillIds: ["/tmp/skill"] }];
+    const result = syncCollectionsFromRepo({
+      repoPath: repoRoot,
+      existingGroups: existing,
+      skills: [],
+      sources: [],
+      sourcesRoot: "/Users/test/.skills-manager/sources",
+    });
+
+    expect(result.updated).toBe(false);
+    expect(result.importedGroups).toBe(0);
+    expect(result.groups).toEqual(existing);
   });
 });

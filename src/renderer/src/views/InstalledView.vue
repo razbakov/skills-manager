@@ -16,7 +16,7 @@ const collapsedGroups = reactive<Record<string, boolean>>({});
 
 const installedById = computed(() => {
   const byId = new Map<string, SkillViewModel>();
-  for (const skill of store.installedSkills.value) {
+  for (const skill of store.snapshot.value?.skills ?? []) {
     byId.set(skill.id, skill);
   }
   return byId;
@@ -53,8 +53,16 @@ function toggleCollapsed(groupName: string) {
 }
 
 function selectSkill(skillId: string) {
-  store.selected.installed = skillId;
-  store.selected.installedGroup = null;
+  const skill = store.snapshot.value?.skills.find((entry) => entry.id === skillId);
+  if (!skill) return;
+
+  if (skill.installed) {
+    store.selected.installed = skillId;
+    store.selected.installedGroup = null;
+    return;
+  }
+
+  store.jumpToSkill(skill.id);
 }
 
 function selectGroup(groupName: string) {

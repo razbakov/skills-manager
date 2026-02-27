@@ -1,8 +1,10 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import type { Skill } from "./types";
+import type { Skill, Source } from "./types";
 import { buildInstalledSkillsManifest } from "./export";
+import { normalizeSkillGroups, type NamedSkillGroup } from "./skill-groups";
+import { normalizedGitHubUrl, parseGitHubRepoUrl } from "./source-url";
 
 export interface CollectionCommitResult {
   committed: boolean;
@@ -29,6 +31,225 @@ export interface CollectionPreview {
   file: string;
   skillNames: string[];
   skills: CollectionSkillEntry[];
+}
+
+export interface SyncCollectionsFromRepoInput {
+  repoPath?: string;
+  existingGroups: NamedSkillGroup[];
+  skills: Skill[];
+  sources: Source[];
+  sourcesRoot: string;
+}
+
+export interface SyncCollectionsFromRepoResult {
+  groups: NamedSkillGroup[];
+  importedGroups: number;
+  updated: boolean;
+}
+
+function compareByName(a: string, b: string): number {
+  return a.localeCompare(b, undefined, {
+    sensitivity: "base",
+    numeric: true,
+  });
+}
+
+function isPathWithin(path: string, root: string): boolean {
+  const rel = relative(root, path);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+function groupsEqual(a: NamedSkillGroup[], b: NamedSkillGroup[]): boolean {
+  if (a.length !== b.length) return false;
+
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i];
+    const right = b[i];
+    if (left.name !== right.name) return false;
+    if (left.skillIds.length !== right.skillIds.length) return false;
+    for (let j = 0; j < left.skillIds.length; j += 1) {
+      if (left.skillIds[j] !== right.skillIds[j]) return false;
+    }
+  }
+
+  return true;
+}
+
+function mergeGroupsByName(
+  existingGroups: NamedSkillGroup[],
+  repoGroups: NamedSkillGroup[],
+): NamedSkillGroup[] {
+  const existing = normalizeSkillGroups(existingGroups);
+  const fromRepo = normalizeSkillGroups(repoGroups);
+  const repoByLowerName = new Map(
+    fromRepo.map((group) => [group.name.toLowerCase(), group] as const),
+  );
+  const merged: NamedSkillGroup[] = [];
+
+  for (const group of existing) {
+    const key = group.name.toLowerCase();
+    const replacement = repoByLowerName.get(key);
+    if (replacement) {
+      merged.push(replacement);
+      repoByLowerName.delete(key);
+    } else {
+      merged.push(group);
+    }
+  }
+
+  for (const group of fromRepo) {
+    const key = group.name.toLowerCase();
+    if (!repoByLowerName.has(key)) continue;
+    merged.push(group);
+    repoByLowerName.delete(key);
+  }
+
+  return normalizeSkillGroups(merged);
+}
+
+function buildRepoRootsByUrl(sources: Source[]): Map<string, string[]> {
+  const byUrl = new Map<string, string[]>();
+
+  for (const source of sources) {
+    const normalizedUrl = normalizedGitHubUrl(source.url);
+    if (!normalizedUrl) continue;
+
+    const current = byUrl.get(normalizedUrl) || [];
+    current.push(resolve(source.path));
+    byUrl.set(normalizedUrl, current);
+  }
+
+  return byUrl;
+}
+
+function candidateRepoRoots(
+  repoUrl: string | undefined,
+  byUrl: Map<string, string[]>,
+  sourcesRoot: string,
+): string[] {
+  if (!repoUrl) return [];
+
+  const roots: string[] = [];
+  const normalizedUrl = normalizedGitHubUrl(repoUrl);
+  if (normalizedUrl) {
+    roots.push(...(byUrl.get(normalizedUrl) || []));
+  }
+
+  const parsed = parseGitHubRepoUrl(repoUrl);
+  if (parsed) {
+    roots.push(resolve(join(sourcesRoot, parsed.sourceName)));
+  }
+
+  return Array.from(new Set(roots.map((root) => resolve(root))));
+}
+
+function resolveCollectionSkillId(
+  entry: CollectionSkillEntry,
+  allSkillIdsByName: Map<string, string[]>,
+  skillIdsByPath: Set<string>,
+  repoRootsByUrl: Map<string, string[]>,
+  sourcesRoot: string,
+): string | null {
+  const byRepoRoots = candidateRepoRoots(entry.repoUrl, repoRootsByUrl, sourcesRoot);
+  const normalizedSkillPath =
+    typeof entry.skillPath === "string" ? entry.skillPath.trim().replace(/^\/+/, "") : "";
+
+  if (normalizedSkillPath && byRepoRoots.length > 0) {
+    for (const root of byRepoRoots) {
+      const candidatePath = resolve(join(root, normalizedSkillPath));
+      if (!isPathWithin(candidatePath, root)) continue;
+      if (skillIdsByPath.has(candidatePath)) return candidatePath;
+    }
+
+    const fallbackPath = resolve(join(byRepoRoots[0], normalizedSkillPath));
+    if (isPathWithin(fallbackPath, byRepoRoots[0])) {
+      return fallbackPath;
+    }
+  }
+
+  const byName = allSkillIdsByName.get(entry.name.trim().toLowerCase()) || [];
+  if (byName.length === 0) return null;
+
+  if (byRepoRoots.length > 0) {
+    for (const root of byRepoRoots) {
+      const matchedByRoot = byName.find((skillId) => isPathWithin(skillId, root));
+      if (matchedByRoot) return matchedByRoot;
+    }
+  }
+
+  return byName[0];
+}
+
+export function syncCollectionsFromRepo(
+  input: SyncCollectionsFromRepoInput,
+): SyncCollectionsFromRepoResult {
+  const existingGroups = normalizeSkillGroups(input.existingGroups);
+  const repoPath = input.repoPath ? resolve(input.repoPath) : "";
+  if (!repoPath) {
+    return {
+      groups: existingGroups,
+      importedGroups: 0,
+      updated: false,
+    };
+  }
+
+  const collections = listCollectionFiles(repoPath);
+  if (collections.length === 0) {
+    return {
+      groups: existingGroups,
+      importedGroups: 0,
+      updated: false,
+    };
+  }
+
+  const sortedSkillIds = Array.from(
+    new Set(input.skills.map((skill) => resolve(skill.sourcePath))),
+  ).sort(compareByName);
+  const skillIdsByPath = new Set(sortedSkillIds);
+  const skillIdsByName = new Map<string, string[]>();
+  for (const skill of input.skills) {
+    const key = skill.name.trim().toLowerCase();
+    if (!key) continue;
+    const sourcePath = resolve(skill.sourcePath);
+    const current = skillIdsByName.get(key) || [];
+    if (!current.includes(sourcePath)) {
+      current.push(sourcePath);
+      current.sort(compareByName);
+      skillIdsByName.set(key, current);
+    }
+  }
+
+  const repoRootsByUrl = buildRepoRootsByUrl(input.sources);
+  const sourcesRoot = resolve(input.sourcesRoot);
+  const repoGroups: NamedSkillGroup[] = collections.map((collection) => {
+    const skillIds = Array.from(
+      new Set(
+        collection.skills
+          .map((entry) =>
+            resolveCollectionSkillId(
+              entry,
+              skillIdsByName,
+              skillIdsByPath,
+              repoRootsByUrl,
+              sourcesRoot,
+            ),
+          )
+          .filter((skillId): skillId is string => !!skillId),
+      ),
+    ).sort(compareByName);
+
+    return {
+      name: collection.name,
+      skillIds,
+    };
+  });
+
+  const mergedGroups = mergeGroupsByName(existingGroups, repoGroups);
+  return {
+    groups: mergedGroups,
+    importedGroups: repoGroups.length,
+    updated: !groupsEqual(existingGroups, mergedGroups),
+  };
 }
 
 export function listCollectionFiles(sourcePath: string): CollectionPreview[] {

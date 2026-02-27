@@ -83,7 +83,13 @@ import {
   normalizeSkillGroups,
   planSkillGroupToggle,
 } from "../skill-groups";
-import { syncCollectionToRepo, removeCollectionFile, syncPersonalRepo, listCollectionFiles } from "../collection-sync";
+import {
+  syncCollectionToRepo,
+  removeCollectionFile,
+  syncPersonalRepo,
+  listCollectionFiles,
+  syncCollectionsFromRepo,
+} from "../collection-sync";
 import type { CollectionPreview, CollectionSkillEntry } from "../collection-sync";
 import { scan } from "../scanner";
 import {
@@ -291,6 +297,16 @@ interface SaveFeedbackReportPayload {
 
 interface SubmitFeedbackReportPayload {
   reportId?: unknown;
+}
+
+interface PersonalCollectionInstallSummary {
+  collections: number;
+  installed: number;
+  alreadyInstalled: number;
+  addedSources: number;
+  missingRepoUrl: number;
+  unsupportedRepoUrl: number;
+  missingSkills: number;
 }
 
 const TARGET_NAME_MAP = new Map<string, string>(
@@ -1208,7 +1224,15 @@ function sortedSkillGroupModels(
 ): SkillGroupViewModel[] {
   const activeLower = new Set(activeGroups.map((name) => name.toLowerCase()));
   return groups.map((group) => {
-    const installedMembers = group.skillIds.filter((skillId) =>
+    const memberSkillIds = Array.from(
+      new Set(group.skillIds.map((skillId) => resolve(skillId))),
+    ).sort((a, b) =>
+      a.localeCompare(b, undefined, {
+        sensitivity: "base",
+        numeric: true,
+      }),
+    );
+    const installedMembers = memberSkillIds.filter((skillId) =>
       installedSkillsById.has(skillId),
     );
     const memberSkills = installedMembers
@@ -1217,9 +1241,9 @@ function sortedSkillGroupModels(
     const budget = buildGroupBudgetSummary(memberSkills);
     return {
       name: group.name,
-      skillCount: installedMembers.length,
+      skillCount: memberSkillIds.length,
       active: activeLower.has(group.name.toLowerCase()),
-      skillIds: installedMembers,
+      skillIds: memberSkillIds,
       isAuto: false,
       enabledCount: budget.enabledCount,
       estimatedTokens: budget.estimatedTokens,
@@ -1261,10 +1285,28 @@ function defaultSkillGroupExportPath(groupName: string, cwd: string = process.cw
 
 async function createSnapshot(config: Config): Promise<Snapshot> {
   const allScannedSkills = sortSkillsByName(await scan(config));
-  const skills = visibleSkillsFromScan(allScannedSkills, config);
-  const groups = normalizedGroups(config);
-  const activeGroups = normalizedActiveGroupNames(config, groups);
   const resolvedSourcesRoot = resolve(getSourcesRootPath(config));
+  const syncedGroups = syncCollectionsFromRepo({
+    repoPath: config.personalSkillsRepo
+      ? resolve(config.personalSkillsRepo)
+      : undefined,
+    existingGroups: normalizedGroups(config),
+    skills: allScannedSkills,
+    sources: config.sources,
+    sourcesRoot: resolvedSourcesRoot,
+  });
+  if (syncedGroups.updated) {
+    writeSkillGroupState(
+      config,
+      syncedGroups.groups,
+      normalizeActiveGroups(config.activeGroups || [], syncedGroups.groups),
+    );
+    saveConfig(config);
+  }
+
+  const skills = visibleSkillsFromScan(allScannedSkills, config);
+  const groups = syncedGroups.groups;
+  const activeGroups = normalizedActiveGroupNames(config, groups);
   const allSkillModels = skills.map((skill) =>
     toSkillViewModel(skill, config, resolvedSourcesRoot, groups),
   );
@@ -2024,6 +2066,37 @@ async function applySkillSetInstall(payload: ApplySkillSetInstallPayload): Promi
     alreadyInstalledCount,
     missingCount,
   };
+}
+
+async function installFromPersonalCollections(
+  config: Config,
+  repoPath: string,
+): Promise<PersonalCollectionInstallSummary> {
+  const collections = listCollectionFiles(repoPath);
+  const summary: PersonalCollectionInstallSummary = {
+    collections: collections.length,
+    installed: 0,
+    alreadyInstalled: 0,
+    addedSources: 0,
+    missingRepoUrl: 0,
+    unsupportedRepoUrl: 0,
+    missingSkills: 0,
+  };
+
+  for (const collection of collections) {
+    const result = await importInstalledSkills(
+      config,
+      join(repoPath, collection.file),
+    );
+    summary.installed += result.installed;
+    summary.alreadyInstalled += result.alreadyInstalled;
+    summary.addedSources += result.addedSources;
+    summary.missingRepoUrl += result.missingRepoUrl;
+    summary.unsupportedRepoUrl += result.unsupportedRepoUrl;
+    summary.missingSkills += result.missingSkills.length;
+  }
+
+  return summary;
 }
 
 function registerIpcHandlers(): void {
@@ -2829,8 +2902,28 @@ function registerIpcHandlers(): void {
       throw new Error("No personal repository configured.");
     }
     const result = syncPersonalRepo(repoPath);
+    const collectionInstallSummary = result.pulled
+      ? await installFromPersonalCollections(config, repoPath)
+      : {
+          collections: 0,
+          installed: 0,
+          alreadyInstalled: 0,
+          addedSources: 0,
+          missingRepoUrl: 0,
+          unsupportedRepoUrl: 0,
+          missingSkills: 0,
+        };
+    const installSuffix =
+      collectionInstallSummary.collections > 0
+        ? ` Collections: installed ${collectionInstallSummary.installed}, already installed ${collectionInstallSummary.alreadyInstalled}.`
+        : "";
     const snapshot = await createSnapshot(config);
-    return { ...result, snapshot };
+    return {
+      ...result,
+      ...(installSuffix ? { message: `${result.message}${installSuffix}` } : {}),
+      collectionInstallSummary,
+      snapshot,
+    };
   });
 
   ipcMain.handle("skills:updateApp", async () => {

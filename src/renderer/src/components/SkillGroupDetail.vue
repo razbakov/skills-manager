@@ -33,6 +33,47 @@ const installedSkills = computed(() => {
 });
 
 const memberSkillIds = computed(() => new Set(group.value?.skillIds ?? []));
+const installedSkillIds = computed(
+  () => new Set(installedSkills.value.map((skill) => skill.id)),
+);
+const allSkillsById = computed(() => {
+  const byId = new Map<string, (typeof installedSkills.value)[number]>();
+  for (const skill of store.snapshot.value?.skills ?? []) {
+    byId.set(skill.id, skill);
+  }
+  return byId;
+});
+const syncedNotInstalledMembers = computed(() => {
+  if (!group.value) return [] as Array<{
+    id: string;
+    name: string;
+    subtitle: string;
+    known: boolean;
+  }>;
+
+  return group.value.skillIds
+    .filter((skillId) => !installedSkillIds.value.has(skillId))
+    .map((skillId) => {
+      const known = allSkillsById.value.get(skillId);
+      if (known) {
+        return {
+          id: skillId,
+          name: known.name,
+          subtitle: `${known.sourceName} / ${known.pathLabel}`,
+          known: true,
+        };
+      }
+
+      const parts = skillId.split(/[\\/]/).filter(Boolean);
+      const fallback = parts[parts.length - 1] || skillId;
+      return {
+        id: skillId,
+        name: fallback,
+        subtitle: "Source not available locally",
+        known: false,
+      };
+    });
+});
 
 watch(
   () => group.value?.name,
@@ -44,8 +85,16 @@ watch(
 );
 
 function openSkill(skillId: string) {
-  store.selected.installed = skillId;
-  store.selected.installedGroup = null;
+  const skill = store.snapshot.value?.skills.find((entry) => entry.id === skillId);
+  if (!skill) return;
+
+  if (skill.installed) {
+    store.selected.installed = skillId;
+    store.selected.installedGroup = null;
+    return;
+  }
+
+  store.jumpToSkill(skillId);
 }
 
 async function saveRename() {
@@ -204,6 +253,35 @@ async function shareGroup() {
               </div>
             </label>
           </div>
+
+          <template v-if="syncedNotInstalledMembers.length > 0">
+            <div class="border-t border-border px-3 py-2 text-xs uppercase tracking-wider text-muted-foreground">
+              Synced (Not Installed)
+            </div>
+            <div class="divide-y">
+              <div
+                v-for="member in syncedNotInstalledMembers"
+                :key="`synced-${member.id}`"
+                class="flex items-center justify-between gap-3 px-3 py-2.5"
+              >
+                <div class="min-w-0 flex-1">
+                  <div class="truncate text-sm font-medium text-muted-foreground">{{ member.name }}</div>
+                  <div class="truncate text-[11px] text-muted-foreground/80">{{ member.subtitle }}</div>
+                </div>
+                <div class="shrink-0">
+                  <Button
+                    v-if="member.known"
+                    size="sm"
+                    variant="outline"
+                    :disabled="store.busy.value"
+                    @click="store.installSkill(member.id)"
+                  >
+                    Install
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
       </template>
     </div>
