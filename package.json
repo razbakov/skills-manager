@@ -1,6 +1,6 @@
 {
   "name": "skill-mix",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "main": "dist/electron/main.js",
   "type": "module",
   "bin": {
