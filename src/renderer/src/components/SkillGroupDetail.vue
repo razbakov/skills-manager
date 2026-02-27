@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { ChevronRight, Pencil, Share2, Trash2, Upload } from "lucide-vue-next";
+import { ChevronRight, Pencil, Save, Share2, Trash2, Upload, X } from "lucide-vue-next";
 import { useSkills } from "@/composables/useSkills";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,8 @@ const editingName = ref(false);
 const draftName = ref("");
 const shareOpen = ref(false);
 const collapsedOwners = ref<Record<string, boolean>>({});
+const editingMembers = ref(false);
+const draftMemberIds = ref<Set<string>>(new Set());
 
 const group = computed(() => {
   if (!props.groupName) return null;
@@ -142,6 +144,7 @@ watch(
   (name) => {
     draftName.value = name ?? "";
     editingName.value = false;
+    editingMembers.value = false;
   },
   { immediate: true },
 );
@@ -205,43 +208,6 @@ async function removeGroup() {
   }
 }
 
-function updateMembership(skillId: string, checked: boolean) {
-  if (!group.value || group.value.isAuto) return;
-  void store.updateSkillGroupMembership(group.value.name, skillId, checked);
-}
-
-function repoGroupSelectedCount(ownerGroup: OwnerRepoGroup): number {
-  return ownerGroup.skills.filter((skill) => memberSkillIds.value.has(skill.id)).length;
-}
-
-function repoGroupChecked(ownerGroup: OwnerRepoGroup): boolean {
-  return (
-    ownerGroup.skills.length > 0 &&
-    repoGroupSelectedCount(ownerGroup) === ownerGroup.skills.length
-  );
-}
-
-function repoGroupIndeterminate(ownerGroup: OwnerRepoGroup): boolean {
-  const selected = repoGroupSelectedCount(ownerGroup);
-  return selected > 0 && selected < ownerGroup.skills.length;
-}
-
-async function setOwnerGroupMembership(ownerGroup: OwnerRepoGroup, checked: boolean) {
-  if (!group.value || group.value.isAuto) return;
-
-  for (const skill of ownerGroup.skills) {
-    const member = memberSkillIds.value.has(skill.id);
-    if (member === checked) continue;
-    const result = await store.updateSkillGroupMembership(
-      group.value.name,
-      skill.id,
-      checked,
-    );
-    if (!result.ok) {
-      break;
-    }
-  }
-}
 
 function isOwnerCollapsed(ownerKey: string): boolean {
   return collapsedOwners.value[ownerKey] === true;
@@ -252,6 +218,68 @@ function toggleOwnerCollapsed(ownerKey: string) {
     ...collapsedOwners.value,
     [ownerKey]: !isOwnerCollapsed(ownerKey),
   };
+}
+
+function enterEditMembers() {
+  draftMemberIds.value = new Set(memberSkillIds.value);
+  editingMembers.value = true;
+}
+
+function cancelEditMembers() {
+  editingMembers.value = false;
+  draftMemberIds.value = new Set();
+}
+
+function toggleDraftMember(skillId: string) {
+  const next = new Set(draftMemberIds.value);
+  if (next.has(skillId)) {
+    next.delete(skillId);
+  } else {
+    next.add(skillId);
+  }
+  draftMemberIds.value = next;
+}
+
+function draftOwnerGroupChecked(ownerGroup: OwnerRepoGroup): boolean {
+  return ownerGroup.skills.length > 0 && ownerGroup.skills.every((s) => draftMemberIds.value.has(s.id));
+}
+
+function draftOwnerGroupIndeterminate(ownerGroup: OwnerRepoGroup): boolean {
+  const count = ownerGroup.skills.filter((s) => draftMemberIds.value.has(s.id)).length;
+  return count > 0 && count < ownerGroup.skills.length;
+}
+
+function toggleDraftOwnerGroup(ownerGroup: OwnerRepoGroup, checked: boolean) {
+  const next = new Set(draftMemberIds.value);
+  for (const skill of ownerGroup.skills) {
+    if (checked) {
+      next.add(skill.id);
+    } else {
+      next.delete(skill.id);
+    }
+  }
+  draftMemberIds.value = next;
+}
+
+async function saveEditMembers() {
+  if (!group.value) return;
+  const original = memberSkillIds.value;
+  const draft = draftMemberIds.value;
+
+  const toAdd = [...draft].filter((id) => !original.has(id));
+  const toRemove = [...original].filter((id) => !draft.has(id));
+
+  for (const id of toAdd) {
+    const result = await store.updateSkillGroupMembership(group.value.name, id, true);
+    if (!result.ok) return;
+  }
+  for (const id of toRemove) {
+    const result = await store.updateSkillGroupMembership(group.value.name, id, false);
+    if (!result.ok) return;
+  }
+
+  editingMembers.value = false;
+  draftMemberIds.value = new Set();
 }
 
 function exportGroup() {
@@ -355,13 +383,64 @@ async function shareGroup() {
         </div>
 
         <div class="rounded-lg border">
-          <div class="border-b px-3 py-2 text-xs uppercase tracking-wider text-muted-foreground">
-            Collection Members
+          <div class="flex items-center justify-between border-b px-3 py-2">
+            <span class="text-xs uppercase tracking-wider text-muted-foreground">Collection Members</span>
+            <div v-if="!group.isAuto" class="flex gap-2">
+              <template v-if="editingMembers">
+                <Button size="sm" :disabled="store.busy.value" @click="saveEditMembers">
+                  <Save class="h-3.5 w-3.5" />
+                  Save
+                </Button>
+                <Button variant="outline" size="sm" :disabled="store.busy.value" @click="cancelEditMembers">
+                  <X class="h-3.5 w-3.5" />
+                  Cancel
+                </Button>
+              </template>
+              <Button v-else variant="outline" size="sm" :disabled="store.busy.value" @click="enterEditMembers">
+                <Pencil class="h-3.5 w-3.5" />
+                Edit
+              </Button>
+            </div>
           </div>
-          <div>
+
+          <!-- View mode: only member skills -->
+          <template v-if="!editingMembers">
+            <div v-if="memberSkillIds.size === 0" class="px-4 py-6 text-center text-sm text-muted-foreground">
+              No skills in this collection.
+            </div>
+            <div v-else>
+              <template v-for="ownerGroup in installedSkillsByOwnerRepo" :key="`view-owner-${ownerGroup.key}`">
+                <template v-if="ownerGroup.skills.some((s) => memberSkillIds.has(s.id))">
+                  <div class="border-b border-border/70 last:border-b-0">
+                    <div class="px-3 py-2 text-xs font-semibold text-muted-foreground">{{ ownerGroup.label }}</div>
+                    <div class="mx-3 mb-2 overflow-hidden rounded-md border border-border/60 bg-muted/20">
+                      <template v-for="skill in ownerGroup.skills" :key="skill.id">
+                        <div
+                          v-if="memberSkillIds.has(skill.id)"
+                          class="flex items-start gap-3 border-b border-border/50 px-3 py-2 last:border-b-0"
+                        >
+                          <div class="min-w-0 flex-1">
+                            <button class="text-left text-sm font-medium hover:text-foreground" @click="openSkill(skill.id)">
+                              {{ skill.name }}
+                            </button>
+                            <div class="whitespace-pre-wrap break-words text-xs text-muted-foreground">
+                              {{ skill.description || "(no description)" }}
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </template>
+            </div>
+          </template>
+
+          <!-- Edit mode: all skills with checkboxes -->
+          <template v-else>
             <div
               v-for="ownerGroup in installedSkillsByOwnerRepo"
-              :key="`owner-${ownerGroup.key}`"
+              :key="`edit-owner-${ownerGroup.key}`"
               class="border-b border-border/70 last:border-b-0"
             >
               <div class="flex items-center gap-2 px-3 py-2.5">
@@ -378,19 +457,17 @@ async function shareGroup() {
                 <input
                   type="checkbox"
                   class="h-4 w-4 rounded border-border"
-                  :checked="repoGroupChecked(ownerGroup)"
-                  :indeterminate.prop="repoGroupIndeterminate(ownerGroup)"
-                  :disabled="store.busy.value || group.isAuto || ownerGroup.skills.length === 0"
+                  :checked="draftOwnerGroupChecked(ownerGroup)"
+                  :indeterminate.prop="draftOwnerGroupIndeterminate(ownerGroup)"
+                  :disabled="store.busy.value || ownerGroup.skills.length === 0"
                   @click.stop
-                  @change="setOwnerGroupMembership(ownerGroup, ($event.target as HTMLInputElement).checked)"
+                  @change="toggleDraftOwnerGroup(ownerGroup, ($event.target as HTMLInputElement).checked)"
                 />
                 <div class="min-w-0 flex-1">
-                  <div class="truncate text-xs font-semibold text-muted-foreground">
-                    {{ ownerGroup.label }}
-                  </div>
+                  <div class="truncate text-xs font-semibold text-muted-foreground">{{ ownerGroup.label }}</div>
                 </div>
                 <Badge variant="secondary" class="text-[10px]">
-                  {{ repoGroupSelectedCount(ownerGroup) }}/{{ ownerGroup.skills.length }}
+                  {{ ownerGroup.skills.filter((s) => draftMemberIds.has(s.id)).length }}/{{ ownerGroup.skills.length }}
                 </Badge>
               </div>
 
@@ -406,15 +483,12 @@ async function shareGroup() {
                   <input
                     type="checkbox"
                     class="mt-0.5 h-4 w-4 rounded border-border"
-                    :checked="memberSkillIds.has(skill.id)"
-                    :disabled="store.busy.value || group.isAuto"
-                    @change="updateMembership(skill.id, ($event.target as HTMLInputElement).checked)"
+                    :checked="draftMemberIds.has(skill.id)"
+                    :disabled="store.busy.value"
+                    @change="toggleDraftMember(skill.id)"
                   />
                   <div class="min-w-0 flex-1">
-                    <button
-                      class="text-left text-sm font-medium hover:text-foreground"
-                      @click.prevent="openSkill(skill.id)"
-                    >
+                    <button class="text-left text-sm font-medium hover:text-foreground" @click.prevent="openSkill(skill.id)">
                       {{ skill.name }}
                     </button>
                     <div class="whitespace-pre-wrap break-words text-xs text-muted-foreground">
@@ -424,7 +498,7 @@ async function shareGroup() {
                 </label>
               </div>
             </div>
-          </div>
+          </template>
 
           <template v-if="syncedNotInstalledMembers.length > 0">
             <div class="border-t border-border px-3 py-2 text-xs uppercase tracking-wider text-muted-foreground">

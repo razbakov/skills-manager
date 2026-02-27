@@ -268,7 +268,7 @@ function ensureSelection() {
     selected.installed = inst[0]?.id ?? null;
   }
   if (!groups.find((group) => group.name === selected.installedGroup)) {
-    selected.installedGroup = null;
+    selected.installedGroup = groups[0]?.name ?? null;
   }
   if (!avail.find((s) => s.id === selected.available)) {
     selected.available = avail[0]?.id ?? null;

@@ -45,7 +45,7 @@ const hasVisibleSkills = computed(() =>
 );
 
 function isCollapsed(groupName: string): boolean {
-  return collapsedGroups[groupName] === true;
+  return collapsedGroups[groupName] !== false;
 }
 
 function toggleCollapsed(groupName: string) {
