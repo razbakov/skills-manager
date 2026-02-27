@@ -31,8 +31,8 @@ const api = window.skillsApi;
 
 // ── Singleton state ──
 const snapshot = ref<Snapshot | null>(null);
-const activeTab = ref<TabId>("skills");
-const lastNonFeedbackTab = ref<TabId>("skills");
+const activeTab = ref<TabId>("collections");
+const lastNonFeedbackTab = ref<TabId>("collections");
 const busy = ref(false);
 const syncing = ref(false);
 const syncSetupOpen = ref(false);

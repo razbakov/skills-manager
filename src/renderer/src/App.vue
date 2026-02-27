@@ -33,8 +33,8 @@ import SyncSetupDialog from "@/components/SyncSetupDialog.vue";
 const store = useSkills();
 
 const navItems = [
-  { id: "skills" as const, label: "Skills", icon: Package },
   { id: "collections" as const, label: "Collections", icon: FolderOpen },
+  { id: "skills" as const, label: "Skills", icon: Package },
   { id: "sources" as const, label: "Sources", icon: FolderGit2 },
   { id: "recommendations" as const, label: "Recommend", icon: Sparkles },
   { id: "settings" as const, label: "Settings", icon: Settings },
