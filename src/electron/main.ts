@@ -82,6 +82,7 @@ import {
   normalizeSkillGroupName,
   normalizeSkillGroups,
   planSkillGroupToggle,
+  upsertSkillGroupMembers,
 } from "../skill-groups";
 import {
   syncCollectionToRepo,
@@ -209,6 +210,7 @@ interface ImportInstalledPayload {
 interface AddSourceFromInputPayload {
   input?: unknown;
   selectedIndexes?: unknown;
+  saveToCollectionName?: unknown;
 }
 
 interface ExportSkillGroupPayload {
@@ -265,6 +267,12 @@ interface PrepareSkillSetInstallPayload {
 interface ApplySkillSetInstallPayload {
   sourceId?: unknown;
   skillIds?: unknown;
+  saveToCollectionName?: unknown;
+}
+
+interface InstallCollectionSkillsPayload {
+  skillEntries?: unknown;
+  saveToCollectionName?: unknown;
 }
 
 interface GetFeedbackSessionPayload {
@@ -909,6 +917,7 @@ async function addSourceFromInput(
   selectedCount: number;
   installedCount: number;
   alreadyInstalledCount: number;
+  savedCollectionName?: string;
 }> {
   const rawInput =
     typeof payload?.input === "string" ? payload.input.trim() : "";
@@ -916,6 +925,9 @@ async function addSourceFromInput(
     throw new Error("Enter a valid skill path, repository URL, or marketplace URL.");
   }
 
+  const saveToCollectionName = parseOptionalSkillGroupName(
+    payload?.saveToCollectionName,
+  );
   const config = loadConfig();
   const preview = await buildSourcePreview(rawInput, config);
   const selectedIndexes = parseSelectedIndexes(
@@ -944,9 +956,11 @@ async function addSourceFromInput(
 
   let installedCount = 0;
   let alreadyInstalledCount = 0;
+  const selectedSkillIds: string[] = [];
   for (let index = 0; index < entries.length; index += 1) {
     if (!selectedSet.has(index)) continue;
     const skill = entries[index].skill;
+    selectedSkillIds.push(resolve(skill.sourcePath));
     if (skill.installed) {
       alreadyInstalledCount += 1;
       continue;
@@ -955,6 +969,15 @@ async function addSourceFromInput(
     installedCount += 1;
   }
 
+  const savedCollectionName = saveToCollectionName
+    ? saveInstalledSkillsToCollection(
+        config,
+        scannedSkills,
+        saveToCollectionName,
+        selectedSkillIds,
+      )
+    : null;
+
   const snapshot = await createSnapshot(config);
   return {
     snapshot,
@@ -962,6 +985,7 @@ async function addSourceFromInput(
     selectedCount: selectedIndexes.length,
     installedCount,
     alreadyInstalledCount,
+    ...(savedCollectionName ? { savedCollectionName } : {}),
   };
 }
 
@@ -1516,6 +1540,20 @@ function parseSkillGroupName(value: unknown): string {
   return normalizeSkillGroupName(value);
 }
 
+function parseOptionalSkillGroupName(value: unknown): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw new Error("Invalid collection name.");
+  }
+  const normalized = parseSkillGroupName(value);
+  if (!normalized) {
+    throw new Error("Enter a collection name.");
+  }
+  return normalized;
+}
+
 function writeSkillGroupState(
   config: Config,
   groups: { name: string; skillIds: string[] }[],
@@ -1565,6 +1603,80 @@ function isSkillCoveredByActiveGroups(
       activeLower.has(group.name.toLowerCase()) &&
       group.skillIds.includes(skillId),
   );
+}
+
+function saveInstalledSkillsToCollection(
+  config: Config,
+  allSkills: Skill[],
+  requestedGroupName: string,
+  skillIds: string[],
+): string | null {
+  const normalizedGroupName = parseSkillGroupName(requestedGroupName);
+  if (!normalizedGroupName) {
+    throw new Error("Enter a collection name.");
+  }
+  if (isInstalledAutoGroupName(normalizedGroupName)) {
+    throw new Error(`"${INSTALLED_GROUP_NAME}" is reserved.`);
+  }
+
+  const normalizedSkillIds = Array.from(
+    new Set(skillIds.map((skillId) => resolve(skillId))),
+  );
+  if (normalizedSkillIds.length === 0) {
+    return null;
+  }
+
+  const groupsBefore = normalizedGroups(config);
+  const activeGroupsBefore = normalizedActiveGroupNames(config, groupsBefore);
+  const upserted = upsertSkillGroupMembers(
+    groupsBefore,
+    normalizedGroupName,
+    normalizedSkillIds,
+  );
+
+  if (!upserted.created && upserted.addedSkillIds.length === 0) {
+    return upserted.groupName;
+  }
+
+  const activeGroupsAfter = normalizeActiveGroups(
+    activeGroupsBefore,
+    upserted.groups,
+  );
+
+  for (const skillId of upserted.addedSkillIds) {
+    const coveredBefore = isSkillCoveredByActiveGroups(
+      groupsBefore,
+      activeGroupsBefore,
+      skillId,
+    );
+    const coveredAfter = isSkillCoveredByActiveGroups(
+      upserted.groups,
+      activeGroupsAfter,
+      skillId,
+    );
+    if (!coveredBefore && coveredAfter) {
+      const skill = findSkillById(allSkills, skillId);
+      if (skill?.installed && skill.disabled) {
+        enableSkill(skill, config);
+      }
+    }
+  }
+
+  writeSkillGroupState(config, upserted.groups, activeGroupsAfter);
+  saveConfig(config);
+
+  const updatedGroup = findSkillGroupByName(upserted.groups, upserted.groupName);
+  if (updatedGroup) {
+    const groupSkills = resolveGroupSkills(allSkills, updatedGroup.skillIds);
+    syncCollectionToRepo(
+      config.personalSkillsRepo,
+      updatedGroup.name,
+      groupSkills,
+      upserted.created ? "add" : "update",
+    );
+  }
+
+  return upserted.groupName;
 }
 
 async function createSkillGroup(payload: CreateSkillGroupPayload): Promise<{
@@ -2005,6 +2117,7 @@ async function applySkillSetInstall(payload: ApplySkillSetInstallPayload): Promi
   enabledCount: number;
   alreadyInstalledCount: number;
   missingCount: number;
+  savedCollectionName?: string;
 }> {
   const rawSkillIds = Array.isArray(payload?.skillIds)
     ? payload.skillIds
@@ -2020,6 +2133,9 @@ async function applySkillSetInstall(payload: ApplySkillSetInstallPayload): Promi
     typeof payload?.sourceId === "string" && payload.sourceId.trim()
       ? resolve(payload.sourceId)
       : null;
+  const saveToCollectionName = parseOptionalSkillGroupName(
+    payload?.saveToCollectionName,
+  );
 
   const config = loadConfig();
   const skills = await scan(config);
@@ -2029,6 +2145,7 @@ async function applySkillSetInstall(payload: ApplySkillSetInstallPayload): Promi
   let enabledCount = 0;
   let alreadyInstalledCount = 0;
   let missingCount = 0;
+  const matchedSkillIds: string[] = [];
 
   for (const skillId of skillIds) {
     const skill = skillById.get(skillId);
@@ -2041,6 +2158,7 @@ async function applySkillSetInstall(payload: ApplySkillSetInstallPayload): Promi
       missingCount += 1;
       continue;
     }
+    matchedSkillIds.push(skillId);
 
     if (!skill.installed) {
       installSkill(skill, config);
@@ -2057,6 +2175,15 @@ async function applySkillSetInstall(payload: ApplySkillSetInstallPayload): Promi
     alreadyInstalledCount += 1;
   }
 
+  const savedCollectionName = saveToCollectionName
+    ? saveInstalledSkillsToCollection(
+        config,
+        skills,
+        saveToCollectionName,
+        matchedSkillIds,
+      )
+    : null;
+
   const snapshot = await createSnapshot(config);
   return {
     snapshot,
@@ -2065,6 +2192,7 @@ async function applySkillSetInstall(payload: ApplySkillSetInstallPayload): Promi
     enabledCount,
     alreadyInstalledCount,
     missingCount,
+    ...(savedCollectionName ? { savedCollectionName } : {}),
   };
 }
 
@@ -2526,13 +2654,26 @@ function registerIpcHandlers(): void {
     "skills:installCollectionSkills",
     async (
       _event,
-      skillEntries: unknown,
+      payload: unknown,
     ): Promise<{
       snapshot: Snapshot;
       installedCount: number;
       alreadyInstalledCount: number;
       failedCount: number;
+      savedCollectionName?: string;
     }> => {
+      const skillEntries = Array.isArray(payload)
+        ? payload
+        : payload && typeof payload === "object"
+          ? (payload as InstallCollectionSkillsPayload).skillEntries
+          : null;
+      const saveToCollectionName =
+        payload && typeof payload === "object" && !Array.isArray(payload)
+          ? parseOptionalSkillGroupName(
+              (payload as InstallCollectionSkillsPayload).saveToCollectionName,
+            )
+          : null;
+
       if (!Array.isArray(skillEntries) || skillEntries.length === 0) {
         throw new Error("No skills to install.");
       }
@@ -2565,6 +2706,7 @@ function registerIpcHandlers(): void {
       let installedCount = 0;
       let alreadyInstalledCount = 0;
       let failedCount = 0;
+      const matchedSkillIds: string[] = [];
 
       for (const entry of entries) {
         const match = allSkills.find((skill) => {
@@ -2579,6 +2721,7 @@ function registerIpcHandlers(): void {
           failedCount += 1;
           continue;
         }
+        matchedSkillIds.push(resolve(match.sourcePath));
 
         if (match.installed) {
           alreadyInstalledCount += 1;
@@ -2589,8 +2732,23 @@ function registerIpcHandlers(): void {
         installedCount += 1;
       }
 
+      const savedCollectionName = saveToCollectionName
+        ? saveInstalledSkillsToCollection(
+            config,
+            allSkills,
+            saveToCollectionName,
+            matchedSkillIds,
+          )
+        : null;
+
       const snapshot = await createSnapshot(config);
-      return { snapshot, installedCount, alreadyInstalledCount, failedCount };
+      return {
+        snapshot,
+        installedCount,
+        alreadyInstalledCount,
+        failedCount,
+        ...(savedCollectionName ? { savedCollectionName } : {}),
+      };
     },
   );
 

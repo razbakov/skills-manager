@@ -19,6 +19,13 @@ export interface SkillGroupTogglePlan {
   missingSkillIds: string[];
 }
 
+export interface UpsertSkillGroupMembersResult {
+  groups: NamedSkillGroup[];
+  groupName: string;
+  created: boolean;
+  addedSkillIds: string[];
+}
+
 function compareByName(a: string, b: string): number {
   return a.localeCompare(b, undefined, {
     sensitivity: "base",
@@ -305,4 +312,64 @@ export function getSkillGroupNamesForSkillId(
     .filter((group) => group.skillIds.includes(resolvedSkillId))
     .map((group) => group.name)
     .sort(compareByName);
+}
+
+export function upsertSkillGroupMembers(
+  groups: NamedSkillGroup[],
+  rawName: string,
+  skillIds: string[],
+): UpsertSkillGroupMembersResult {
+  const normalizedName = normalizeSkillGroupName(rawName);
+  if (!normalizedName) {
+    throw new Error("Collection name is required.");
+  }
+
+  const normalizedGroups = normalizeSkillGroups(groups);
+  const targetGroup = findSkillGroupByName(normalizedGroups, normalizedName);
+  const normalizedSkillIds = Array.from(
+    new Set(
+      skillIds
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .map(normalizeSkillId),
+    ),
+  ).sort(compareByName);
+
+  if (!targetGroup) {
+    const updatedGroups = normalizeSkillGroups([
+      ...normalizedGroups,
+      {
+        name: normalizedName,
+        skillIds: normalizedSkillIds,
+      },
+    ]);
+    const createdGroup = findSkillGroupByName(updatedGroups, normalizedName);
+    return {
+      groups: updatedGroups,
+      groupName: createdGroup ? createdGroup.name : normalizedName,
+      created: true,
+      addedSkillIds: normalizedSkillIds,
+    };
+  }
+
+  const existingIds = new Set(targetGroup.skillIds);
+  const addedSkillIds = normalizedSkillIds.filter((skillId) => !existingIds.has(skillId));
+  const mergedIds = Array.from(new Set([...targetGroup.skillIds, ...normalizedSkillIds])).sort(
+    compareByName,
+  );
+
+  const updatedGroups = normalizeSkillGroups(
+    normalizedGroups.map((group) =>
+      group.name.toLowerCase() === targetGroup.name.toLowerCase()
+        ? { name: group.name, skillIds: mergedIds }
+        : group,
+    ),
+  );
+
+  return {
+    groups: updatedGroups,
+    groupName: targetGroup.name,
+    created: false,
+    addedSkillIds,
+  };
 }

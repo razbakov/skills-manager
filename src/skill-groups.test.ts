@@ -5,6 +5,7 @@ import {
   normalizeActiveGroups,
   planSkillGroupToggle,
   resolveSkillGroupsFromConfig,
+  upsertSkillGroupMembers,
   type NamedSkillGroup,
 } from "./skill-groups";
 import type { Skill } from "./types";
@@ -162,5 +163,33 @@ describe("planSkillGroupToggle", () => {
     const plan = planSkillGroupToggle(skills, definedGroups, [], "Writing", true);
 
     expect(plan.missingSkillIds).toEqual(["/skills/missing"]);
+  });
+});
+
+describe("upsertSkillGroupMembers", () => {
+  it("creates a new collection with normalized name and members", () => {
+    const result = upsertSkillGroupMembers([], "  My   Collection  ", ["/a", "/a", " /b "]);
+
+    expect(result).toEqual({
+      groups: [{ name: "My Collection", skillIds: ["/a", "/b"] }],
+      groupName: "My Collection",
+      created: true,
+      addedSkillIds: ["/a", "/b"],
+    });
+  });
+
+  it("adds only missing members when collection already exists", () => {
+    const result = upsertSkillGroupMembers(
+      [{ name: "Team Set", skillIds: ["/a"] }],
+      "team set",
+      ["/a", "/b", "/c"],
+    );
+
+    expect(result).toEqual({
+      groups: [{ name: "Team Set", skillIds: ["/a", "/b", "/c"] }],
+      groupName: "Team Set",
+      created: false,
+      addedSkillIds: ["/b", "/c"],
+    });
   });
 });

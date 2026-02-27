@@ -620,7 +620,7 @@ async function previewAddSourceInput() {
   }
 }
 
-async function addSourceFromPreview() {
+async function addSourceFromPreview(saveToCollectionName?: string) {
   const input = addSourcePreview.input.trim();
   const indexes = Array.from(addSourcePreview.selectedIndexes).sort((a, b) => a - b);
   if (!input) {
@@ -637,16 +637,26 @@ async function addSourceFromPreview() {
       api.addSourceFromInput({
         input,
         selectedIndexes: indexes,
+        ...(saveToCollectionName ? { saveToCollectionName } : {}),
       }),
     `Adding ${indexes.length} skill${indexes.length === 1 ? "" : "s"}...`,
     (response: any) => {
       const sourceName = response?.sourceName ?? "source";
       const installed = Number(response?.installedCount ?? 0);
       const already = Number(response?.alreadyInstalledCount ?? 0);
+      const savedCollectionName =
+        typeof response?.savedCollectionName === "string" &&
+        response.savedCollectionName.trim()
+          ? response.savedCollectionName.trim()
+          : "";
       if (already > 0) {
-        return `Added ${sourceName}: installed ${installed}, already installed ${already}.`;
+        return savedCollectionName
+          ? `Added ${sourceName}: installed ${installed}, already installed ${already}, saved to ${savedCollectionName}.`
+          : `Added ${sourceName}: installed ${installed}, already installed ${already}.`;
       }
-      return `Added ${sourceName}: installed ${installed} skill${installed === 1 ? "" : "s"}.`;
+      return savedCollectionName
+        ? `Added ${sourceName}: installed ${installed} skill${installed === 1 ? "" : "s"}, saved to ${savedCollectionName}.`
+        : `Added ${sourceName}: installed ${installed} skill${installed === 1 ? "" : "s"}.`;
     },
   );
 
@@ -657,6 +667,7 @@ async function addSourceFromPreview() {
 
 async function installCollectionSkills(
   skills: Array<{ name: string; description: string; repoUrl?: string; skillPath?: string }>,
+  saveToCollectionName?: string,
 ) {
   if (!skills.length) {
     addToast("Select at least one skill.", "error", 5000);
@@ -664,16 +675,26 @@ async function installCollectionSkills(
   }
 
   const result = await runTask(
-    () => api.installCollectionSkills(skills),
+    () =>
+      api.installCollectionSkills({
+        skillEntries: skills,
+        ...(saveToCollectionName ? { saveToCollectionName } : {}),
+      }),
     `Installing ${skills.length} skill${skills.length === 1 ? "" : "s"} from collection...`,
     (response: any) => {
       const installed = Number(response?.installedCount ?? 0);
       const already = Number(response?.alreadyInstalledCount ?? 0);
       const failed = Number(response?.failedCount ?? 0);
+      const savedCollectionName =
+        typeof response?.savedCollectionName === "string" &&
+        response.savedCollectionName.trim()
+          ? response.savedCollectionName.trim()
+          : "";
       const parts: string[] = [];
       if (installed > 0) parts.push(`installed ${installed}`);
       if (already > 0) parts.push(`already installed ${already}`);
       if (failed > 0) parts.push(`${failed} not found`);
+      if (savedCollectionName) parts.push(`saved to ${savedCollectionName}`);
       return parts.length > 0 ? parts.join(", ") + "." : "Done.";
     },
   );

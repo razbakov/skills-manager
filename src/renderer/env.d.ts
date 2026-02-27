@@ -52,12 +52,25 @@ interface SkillsApi {
   previewAddSourceInput: (input: string) => Promise<any>;
   getRuntimeAvailability: () => Promise<{ npm: boolean; npx: boolean; bunx: boolean; git: boolean }>;
   addSourceFromInput: (
-    request: { input: string; selectedIndexes: number[] },
+    request: {
+      input: string;
+      selectedIndexes: number[];
+      saveToCollectionName?: string;
+    },
   ) => Promise<any>;
   prepareSkillSetInstall: (request: any) => Promise<any>;
   applySkillSetInstall: (request: any) => Promise<any>;
   readCollectionSkillNames: (sourceUrl: string, collectionFile: string) => Promise<string[]>;
-  installCollectionSkills: (skillEntries: Array<{ name: string; description: string; repoUrl?: string; skillPath?: string }>) => Promise<{ snapshot: any; installedCount: number; alreadyInstalledCount: number; failedCount: number }>;
+  installCollectionSkills: (request: {
+    skillEntries: Array<{ name: string; description: string; repoUrl?: string; skillPath?: string }>;
+    saveToCollectionName?: string;
+  }) => Promise<{
+    snapshot: any;
+    installedCount: number;
+    alreadyInstalledCount: number;
+    failedCount: number;
+    savedCollectionName?: string;
+  }>;
   disableSource: (sourceId: string) => Promise<any>;
   enableSource: (sourceId: string) => Promise<any>;
   removeSource: (sourceId: string) => Promise<any>;

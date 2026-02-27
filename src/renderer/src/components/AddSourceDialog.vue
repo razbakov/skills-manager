@@ -40,6 +40,9 @@ const isExternalCollection = computed(
 );
 
 const externalSelectedNames = ref(new Set<string>());
+const saveToCollection = ref(true);
+const saveCollectionName = ref("");
+const normalizedSaveCollectionName = computed(() => saveCollectionName.value.trim());
 
 function toggleExternalSkill(name: string) {
   const next = new Set(externalSelectedNames.value);
@@ -59,6 +62,13 @@ watch(
     } else {
       externalSelectedNames.value = new Set();
     }
+
+    if (col) {
+      saveCollectionName.value = col.name;
+    } else {
+      saveCollectionName.value = "";
+    }
+    saveToCollection.value = true;
   },
 );
 
@@ -76,7 +86,24 @@ function installExternalCollection() {
   const selected = activeCollection.value.skills.filter((s) =>
     externalSelectedNames.value.has(s.name),
   );
-  store.installCollectionSkills(selected);
+  if (saveToCollection.value && !normalizedSaveCollectionName.value) {
+    store.addToast("Enter a collection name or skip saving.", "error", 5000);
+    return;
+  }
+  store.installCollectionSkills(
+    selected,
+    saveToCollection.value ? normalizedSaveCollectionName.value : undefined,
+  );
+}
+
+function installFromLoadedSource() {
+  if (saveToCollection.value && !normalizedSaveCollectionName.value) {
+    store.addToast("Enter a collection name or skip saving.", "error", 5000);
+    return;
+  }
+  store.addSourceFromPreview(
+    saveToCollection.value ? normalizedSaveCollectionName.value : undefined,
+  );
 }
 
 const selectedCount = computed(() =>
@@ -182,6 +209,25 @@ function selectNone() {
             {{ externalSelectedNames.size }} of {{ activeCollection.skills.length }} selected
           </span>
         </div>
+        <div class="mb-2 rounded-lg border border-border/70 bg-muted/30 px-3 py-2">
+          <label class="flex items-center gap-2 text-xs">
+            <input
+              v-model="saveToCollection"
+              type="checkbox"
+              class="cursor-pointer"
+            />
+            Save installed skills to a local collection
+          </label>
+          <Input
+            v-model="saveCollectionName"
+            class="mt-2 h-8 text-xs"
+            :disabled="!saveToCollection"
+            placeholder="Collection name"
+          />
+          <p class="mt-1 text-[11px] text-muted-foreground">
+            Default: {{ activeCollection.name }}. Uncheck to skip.
+          </p>
+        </div>
 
         <ScrollArea class="flex-1 min-h-0 max-h-[50vh] border rounded-lg">
           <label
@@ -233,6 +279,28 @@ function selectNone() {
             {{ store.addSourcePreview.selectedIndexes.size }} selected
           </span>
         </div>
+        <div
+          v-if="activeCollection"
+          class="mb-2 rounded-lg border border-border/70 bg-muted/30 px-3 py-2"
+        >
+          <label class="flex items-center gap-2 text-xs">
+            <input
+              v-model="saveToCollection"
+              type="checkbox"
+              class="cursor-pointer"
+            />
+            Save installed skills to a local collection
+          </label>
+          <Input
+            v-model="saveCollectionName"
+            class="mt-2 h-8 text-xs"
+            :disabled="!saveToCollection"
+            placeholder="Collection name"
+          />
+          <p class="mt-1 text-[11px] text-muted-foreground">
+            Default: {{ activeCollection.name }}. Uncheck to skip.
+          </p>
+        </div>
 
         <ScrollArea class="flex-1 min-h-0 max-h-[50vh] border rounded-lg">
           <div
@@ -275,7 +343,7 @@ function selectNone() {
           </Button>
           <Button
             :disabled="store.busy.value || store.addSourcePreview.selectedIndexes.size === 0"
-            @click="store.addSourceFromPreview()"
+            @click="installFromLoadedSource()"
           >
             Add {{ store.addSourcePreview.selectedIndexes.size }} Skill{{ store.addSourcePreview.selectedIndexes.size === 1 ? "" : "s" }}
           </Button>
