@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { Pencil, Share2, Trash2, Upload } from "lucide-vue-next";
+import { ChevronRight, Pencil, Share2, Trash2, Upload } from "lucide-vue-next";
 import { useSkills } from "@/composables/useSkills";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ const store = useSkills();
 const editingName = ref(false);
 const draftName = ref("");
 const shareOpen = ref(false);
+const collapsedOwners = ref<Record<string, boolean>>({});
 
 const group = computed(() => {
   if (!props.groupName) return null;
@@ -30,6 +31,67 @@ const installedSkills = computed(() => {
       numeric: true,
     }),
   );
+});
+
+interface OwnerRepoGroup {
+  key: string;
+  label: string;
+  skills: Array<(typeof installedSkills.value)[number]>;
+}
+
+function ownerRepoFromSkill(skill: (typeof installedSkills.value)[number]): string {
+  const repoUrl = (skill.repoUrl || "").trim();
+  if (repoUrl) {
+    const normalized = repoUrl.replace(/\.git$/i, "");
+    const match = normalized.match(/github\.com[:/]([^/]+)\/([^/#]+)/i);
+    if (match) {
+      return `${match[1]}/${match[2]}`;
+    }
+  }
+
+  const sourceName = (skill.sourceName || "").trim();
+  if (!sourceName) return "Unknown source";
+  const parts = sourceName.split("/").filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0]}/${parts[1]}`;
+  }
+  return sourceName;
+}
+
+const installedSkillsByOwnerRepo = computed<OwnerRepoGroup[]>(() => {
+  const grouped = new Map<string, OwnerRepoGroup>();
+  for (const skill of installedSkills.value) {
+    const ownerRepo = ownerRepoFromSkill(skill);
+    const key = ownerRepo.toLowerCase();
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.skills.push(skill);
+      continue;
+    }
+    grouped.set(key, {
+      key,
+      label: ownerRepo,
+      skills: [skill],
+    });
+  }
+
+  const groups = Array.from(grouped.values()).sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, {
+      sensitivity: "base",
+      numeric: true,
+    }),
+  );
+
+  for (const entry of groups) {
+    entry.skills.sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "", undefined, {
+        sensitivity: "base",
+        numeric: true,
+      }),
+    );
+  }
+
+  return groups;
 });
 
 const memberSkillIds = computed(() => new Set(group.value?.skillIds ?? []));
@@ -47,7 +109,7 @@ const syncedNotInstalledMembers = computed(() => {
   if (!group.value) return [] as Array<{
     id: string;
     name: string;
-    subtitle: string;
+    description: string;
     known: boolean;
   }>;
 
@@ -59,7 +121,7 @@ const syncedNotInstalledMembers = computed(() => {
         return {
           id: skillId,
           name: known.name,
-          subtitle: `${known.sourceName} / ${known.pathLabel}`,
+          description: known.description || "",
           known: true,
         };
       }
@@ -69,7 +131,7 @@ const syncedNotInstalledMembers = computed(() => {
       return {
         id: skillId,
         name: fallback,
-        subtitle: "Source not available locally",
+        description: "",
         known: false,
       };
     });
@@ -80,6 +142,29 @@ watch(
   (name) => {
     draftName.value = name ?? "";
     editingName.value = false;
+  },
+  { immediate: true },
+);
+
+watch(
+  () => installedSkillsByOwnerRepo.value.map((entry) => entry.key),
+  (keys) => {
+    const keySet = new Set(keys);
+    const next: Record<string, boolean> = {};
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(collapsedOwners.value, key)) {
+        next[key] = collapsedOwners.value[key] === true;
+      } else {
+        next[key] = true;
+      }
+    }
+    for (const key of Object.keys(collapsedOwners.value)) {
+      if (!keySet.has(key)) continue;
+      if (!(key in next)) {
+        next[key] = collapsedOwners.value[key];
+      }
+    }
+    collapsedOwners.value = next;
   },
   { immediate: true },
 );
@@ -123,6 +208,50 @@ async function removeGroup() {
 function updateMembership(skillId: string, checked: boolean) {
   if (!group.value || group.value.isAuto) return;
   void store.updateSkillGroupMembership(group.value.name, skillId, checked);
+}
+
+function repoGroupSelectedCount(ownerGroup: OwnerRepoGroup): number {
+  return ownerGroup.skills.filter((skill) => memberSkillIds.value.has(skill.id)).length;
+}
+
+function repoGroupChecked(ownerGroup: OwnerRepoGroup): boolean {
+  return (
+    ownerGroup.skills.length > 0 &&
+    repoGroupSelectedCount(ownerGroup) === ownerGroup.skills.length
+  );
+}
+
+function repoGroupIndeterminate(ownerGroup: OwnerRepoGroup): boolean {
+  const selected = repoGroupSelectedCount(ownerGroup);
+  return selected > 0 && selected < ownerGroup.skills.length;
+}
+
+async function setOwnerGroupMembership(ownerGroup: OwnerRepoGroup, checked: boolean) {
+  if (!group.value || group.value.isAuto) return;
+
+  for (const skill of ownerGroup.skills) {
+    const member = memberSkillIds.value.has(skill.id);
+    if (member === checked) continue;
+    const result = await store.updateSkillGroupMembership(
+      group.value.name,
+      skill.id,
+      checked,
+    );
+    if (!result.ok) {
+      break;
+    }
+  }
+}
+
+function isOwnerCollapsed(ownerKey: string): boolean {
+  return collapsedOwners.value[ownerKey] === true;
+}
+
+function toggleOwnerCollapsed(ownerKey: string) {
+  collapsedOwners.value = {
+    ...collapsedOwners.value,
+    [ownerKey]: !isOwnerCollapsed(ownerKey),
+  };
 }
 
 function exportGroup() {
@@ -229,29 +358,72 @@ async function shareGroup() {
           <div class="border-b px-3 py-2 text-xs uppercase tracking-wider text-muted-foreground">
             Collection Members
           </div>
-          <div class="divide-y">
-            <label
-              v-for="skill in installedSkills"
-              :key="skill.id"
-              class="flex cursor-pointer items-start gap-3 px-3 py-2.5"
+          <div>
+            <div
+              v-for="ownerGroup in installedSkillsByOwnerRepo"
+              :key="`owner-${ownerGroup.key}`"
+              class="border-b border-border/70 last:border-b-0"
             >
-              <input
-                type="checkbox"
-                class="mt-0.5 h-4 w-4 rounded border-border"
-                :checked="memberSkillIds.has(skill.id)"
-                :disabled="store.busy.value || group.isAuto"
-                @change="updateMembership(skill.id, ($event.target as HTMLInputElement).checked)"
-              />
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-medium">{{ skill.name }}</div>
+              <div class="flex items-center gap-2 px-3 py-2.5">
                 <button
-                  class="truncate text-left text-[11px] text-muted-foreground hover:text-foreground"
-                  @click.prevent="openSkill(skill.id)"
+                  class="inline-flex h-5 w-5 items-center justify-center rounded hover:bg-accent"
+                  :aria-label="isOwnerCollapsed(ownerGroup.key) ? `Expand ${ownerGroup.label}` : `Collapse ${ownerGroup.label}`"
+                  @click="toggleOwnerCollapsed(ownerGroup.key)"
                 >
-                  {{ skill.sourceName }} / {{ skill.pathLabel }}
+                  <ChevronRight
+                    class="h-3.5 w-3.5 transition-transform"
+                    :class="isOwnerCollapsed(ownerGroup.key) ? '' : 'rotate-90'"
+                  />
                 </button>
+                <input
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-border"
+                  :checked="repoGroupChecked(ownerGroup)"
+                  :indeterminate.prop="repoGroupIndeterminate(ownerGroup)"
+                  :disabled="store.busy.value || group.isAuto || ownerGroup.skills.length === 0"
+                  @click.stop
+                  @change="setOwnerGroupMembership(ownerGroup, ($event.target as HTMLInputElement).checked)"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="truncate text-xs font-semibold text-muted-foreground">
+                    {{ ownerGroup.label }}
+                  </div>
+                </div>
+                <Badge variant="secondary" class="text-[10px]">
+                  {{ repoGroupSelectedCount(ownerGroup) }}/{{ ownerGroup.skills.length }}
+                </Badge>
               </div>
-            </label>
+
+              <div
+                v-if="!isOwnerCollapsed(ownerGroup.key)"
+                class="mx-3 mb-2 ml-11 overflow-hidden rounded-md border border-border/60 bg-muted/20"
+              >
+                <label
+                  v-for="skill in ownerGroup.skills"
+                  :key="skill.id"
+                  class="flex cursor-pointer items-start gap-3 border-b border-border/50 px-3 py-2 last:border-b-0"
+                >
+                  <input
+                    type="checkbox"
+                    class="mt-0.5 h-4 w-4 rounded border-border"
+                    :checked="memberSkillIds.has(skill.id)"
+                    :disabled="store.busy.value || group.isAuto"
+                    @change="updateMembership(skill.id, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <button
+                      class="text-left text-sm font-medium hover:text-foreground"
+                      @click.prevent="openSkill(skill.id)"
+                    >
+                      {{ skill.name }}
+                    </button>
+                    <div class="whitespace-pre-wrap break-words text-xs text-muted-foreground">
+                      {{ skill.description || "(no description)" }}
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
           </div>
 
           <template v-if="syncedNotInstalledMembers.length > 0">
@@ -265,8 +437,10 @@ async function shareGroup() {
                 class="flex items-center justify-between gap-3 px-3 py-2.5"
               >
                 <div class="min-w-0 flex-1">
-                  <div class="truncate text-sm font-medium text-muted-foreground">{{ member.name }}</div>
-                  <div class="truncate text-[11px] text-muted-foreground/80">{{ member.subtitle }}</div>
+                  <div class="text-sm font-medium text-muted-foreground">{{ member.name }}</div>
+                  <div class="whitespace-pre-wrap break-words text-xs text-muted-foreground/90">
+                    {{ member.description || "(no description)" }}
+                  </div>
                 </div>
                 <div class="shrink-0">
                   <Button
