@@ -92,7 +92,15 @@ import {
   syncCollectionsFromRepo,
 } from "../collection-sync";
 import type { CollectionPreview, CollectionSkillEntry } from "../collection-sync";
-import { scan } from "../scanner";
+import { scan, loadScanCache, sourceCacheKey } from "../scanner";
+import {
+  findConfiguredSource,
+  getAheadBehind,
+  getPendingCommitCount,
+  getRepoLastCommitAt,
+  readLastUpdatedAt,
+  writeLastUpdatedAt,
+} from "../source-sync";
 import {
   extractSkillSetRequestFromArgv,
   normalizeSkillSetSource,
@@ -376,12 +384,24 @@ function buildPersonalRepoViewModel(config: Config): PersonalRepoViewModel {
   const isGitRepo = Boolean(repoRoot && resolve(repoRoot) === repoPath);
   const repoUrl = isGitRepo ? getRepoUrl(repoPath) : null;
 
+  let syncAhead: number | undefined;
+  let syncBehind: number | undefined;
+  if (isGitRepo) {
+    const status = getAheadBehind(repoPath);
+    if (status) {
+      if (status.ahead > 0) syncAhead = status.ahead;
+      if (status.behind > 0) syncBehind = status.behind;
+    }
+  }
+
   return {
     configured: true,
     path: repoPath,
     exists,
     isGitRepo,
     ...(repoUrl ? { repoUrl: normalizeRepoUrl(repoUrl) } : {}),
+    ...(syncAhead !== undefined ? { syncAhead } : {}),
+    ...(syncBehind !== undefined ? { syncBehind } : {}),
   };
 }
 
@@ -1309,6 +1329,7 @@ function defaultSkillGroupExportPath(groupName: string, cwd: string = process.cw
 
 async function createSnapshot(config: Config): Promise<Snapshot> {
   const allScannedSkills = sortSkillsByName(await scan(config));
+  const scanCache = loadScanCache();
   const resolvedSourcesRoot = resolve(getSourcesRootPath(config));
   const syncedGroups = syncCollectionsFromRepo({
     repoPath: config.personalSkillsRepo
@@ -1366,6 +1387,22 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
     const installedCount = sourceSkills.filter(
       (skill) => skill.installed,
     ).length;
+
+    const cacheEntry = scanCache.sources[sourceCacheKey(source)];
+    const lastScannedAt = cacheEntry?.updatedAt;
+
+    let repoLastCommitAt: string | undefined;
+    let lastPulledAt: string | undefined;
+    if (source.repoUrl) {
+      const resolvedPath = resolve(source.path);
+      repoLastCommitAt = getRepoLastCommitAt(resolvedPath);
+      lastPulledAt = readLastUpdatedAt(resolvedPath);
+    }
+
+    const pendingCommits = source.repoUrl
+      ? getPendingCommitCount(resolve(source.path))
+      : undefined;
+
     return {
       id: resolve(source.path),
       name: source.name,
@@ -1375,6 +1412,10 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
       enabled,
       installedCount,
       totalCount: sourceSkills.length,
+      ...(lastScannedAt ? { lastScannedAt } : {}),
+      ...(lastPulledAt ? { lastPulledAt } : {}),
+      ...(repoLastCommitAt ? { repoLastCommitAt } : {}),
+      ...(pendingCommits !== undefined ? { pendingCommits } : {}),
       skills: sourceSkills,
     };
   });
@@ -2777,6 +2818,33 @@ function registerIpcHandlers(): void {
     const config = loadConfig();
     const skills = await scan(config);
     removeSource(sourceId, config, skills);
+    return createSnapshot(config);
+  });
+
+  ipcMain.handle("skills:updateSource", async (_event, sourceId: unknown) => {
+    if (typeof sourceId !== "string" || !sourceId.trim()) {
+      throw new Error("Missing source identifier.");
+    }
+    const config = loadConfig();
+    const sourcePath = resolve(sourceId);
+    const source = findConfiguredSource(sourcePath, config.sources);
+    if (!source) {
+      throw new Error("Unknown source identifier.");
+    }
+    const resolvedSourcePath = resolve(source.path);
+    const result = spawnSync(
+      "git",
+      ["-C", resolvedSourcePath, "pull", "--ff-only"],
+      { encoding: "utf-8", timeout: 30000 },
+    );
+    if (result.error || result.status !== 0) {
+      const detail =
+        result.error?.message ||
+        result.stderr?.trim() ||
+        result.stdout?.trim();
+      throw new Error(detail ? `Update failed: ${detail}` : "Update failed.");
+    }
+    writeLastUpdatedAt(resolvedSourcePath, new Date().toISOString());
     return createSnapshot(config);
   });
 

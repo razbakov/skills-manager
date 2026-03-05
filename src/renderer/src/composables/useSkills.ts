@@ -168,6 +168,19 @@ const personalRepo = computed(() => snapshot.value?.personalRepo ?? null);
 const skillGroups = computed(() => snapshot.value?.skillGroups ?? []);
 const activeGroups = computed(() => snapshot.value?.activeGroups ?? []);
 
+const totalPendingCommits = computed(() =>
+  sources.value.reduce((sum, s) => sum + (s.pendingCommits ?? 0), 0),
+);
+
+const syncStatus = computed(() => {
+  const repo = personalRepo.value;
+  if (!repo?.configured) return null;
+  const ahead = repo.syncAhead ?? 0;
+  const behind = repo.syncBehind ?? 0;
+  if (ahead === 0 && behind === 0) return null;
+  return { ahead, behind };
+});
+
 const selectedSkill = computed<SkillViewModel | null>(() => {
   const list = librarySkills.value;
   if (!list.length) return null;
@@ -728,6 +741,15 @@ async function enableSource(sourceId: string) {
     () => api.enableSource(sourceId),
     `Enabling ${name}...`,
     () => `Enabled ${name}.`,
+  );
+}
+
+async function updateSource(sourceId: string) {
+  const name = sources.value.find((s) => s.id === sourceId)?.name ?? "source";
+  await runTask(
+    () => api.updateSource(sourceId),
+    `Updating ${name}...`,
+    () => `Updated ${name}.`,
   );
 }
 
@@ -1402,6 +1424,8 @@ export function useSkills() {
     selectedRecommendation,
     configuredTargetCount,
     activeBudgetSummary,
+    totalPendingCommits,
+    syncStatus,
 
     // Toast
     addToast,
@@ -1434,6 +1458,7 @@ export function useSkills() {
     removeSource,
     disableSource,
     enableSource,
+    updateSource,
     toggleTarget,
     exportInstalled,
     exportSkillGroup,
