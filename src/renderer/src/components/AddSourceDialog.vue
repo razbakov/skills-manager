@@ -65,10 +65,11 @@ watch(
 
     if (col) {
       saveCollectionName.value = col.name;
+      saveToCollection.value = true;
     } else {
       saveCollectionName.value = "";
+      saveToCollection.value = false;
     }
-    saveToCollection.value = true;
   },
 );
 
@@ -280,7 +281,7 @@ function selectNone() {
           </span>
         </div>
         <div
-          v-if="activeCollection"
+          v-if="totalCount > 0"
           class="mb-2 rounded-lg border border-border/70 bg-muted/30 px-3 py-2"
         >
           <label class="flex items-center gap-2 text-xs">
@@ -297,7 +298,7 @@ function selectNone() {
             :disabled="!saveToCollection"
             placeholder="Collection name"
           />
-          <p class="mt-1 text-[11px] text-muted-foreground">
+          <p v-if="activeCollection" class="mt-1 text-[11px] text-muted-foreground">
             Default: {{ activeCollection.name }}. Uncheck to skip.
           </p>
         </div>
