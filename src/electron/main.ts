@@ -94,6 +94,14 @@ import {
 import type { CollectionPreview, CollectionSkillEntry } from "../collection-sync";
 import { scan, loadScanCache, sourceCacheKey } from "../scanner";
 import {
+  findConfiguredSource,
+  getAheadBehind,
+  getPendingCommitCount,
+  getRepoLastCommitAt,
+  readLastUpdatedAt,
+  writeLastUpdatedAt,
+} from "../source-sync";
+import {
   extractSkillSetRequestFromArgv,
   normalizeSkillSetSource,
   parseSkillSetSource,
@@ -379,23 +387,10 @@ function buildPersonalRepoViewModel(config: Config): PersonalRepoViewModel {
   let syncAhead: number | undefined;
   let syncBehind: number | undefined;
   if (isGitRepo) {
-    try {
-      spawnSync("git", ["-C", repoPath, "fetch", "--quiet"], {
-        encoding: "utf-8",
-        timeout: 10000,
-      });
-      const revResult = spawnSync(
-        "git",
-        ["-C", repoPath, "rev-list", "--left-right", "--count", "HEAD...@{u}"],
-        { encoding: "utf-8", timeout: 5000 },
-      );
-      if (revResult.status === 0 && revResult.stdout.trim()) {
-        const [ahead, behind] = revResult.stdout.trim().split(/\s+/).map(Number);
-        if (ahead > 0) syncAhead = ahead;
-        if (behind > 0) syncBehind = behind;
-      }
-    } catch {
-      // ignore git errors
+    const status = getAheadBehind(repoPath);
+    if (status) {
+      if (status.ahead > 0) syncAhead = status.ahead;
+      if (status.behind > 0) syncBehind = status.behind;
     }
   }
 
@@ -1334,6 +1329,7 @@ function defaultSkillGroupExportPath(groupName: string, cwd: string = process.cw
 
 async function createSnapshot(config: Config): Promise<Snapshot> {
   const allScannedSkills = sortSkillsByName(await scan(config));
+  const scanCache = loadScanCache();
   const resolvedSourcesRoot = resolve(getSourcesRootPath(config));
   const syncedGroups = syncCollectionsFromRepo({
     repoPath: config.personalSkillsRepo
@@ -1392,7 +1388,6 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
       (skill) => skill.installed,
     ).length;
 
-    const scanCache = loadScanCache();
     const cacheEntry = scanCache.sources[sourceCacheKey(source)];
     const lastScannedAt = cacheEntry?.updatedAt;
 
@@ -1400,49 +1395,13 @@ async function createSnapshot(config: Config): Promise<Snapshot> {
     let lastPulledAt: string | undefined;
     if (source.repoUrl) {
       const resolvedPath = resolve(source.path);
-      try {
-        const result = spawnSync(
-          "git",
-          ["-C", resolvedPath, "log", "-1", "--format=%cI"],
-          { encoding: "utf-8", timeout: 5000 },
-        );
-        if (result.status === 0 && result.stdout.trim()) {
-          repoLastCommitAt = result.stdout.trim();
-        }
-      } catch {
-        // ignore git errors
-      }
-      try {
-        const fetchHeadPath = join(resolvedPath, ".git", "FETCH_HEAD");
-        if (existsSync(fetchHeadPath)) {
-          lastPulledAt = new Date(statSync(fetchHeadPath).mtimeMs).toISOString();
-        }
-      } catch {
-        // ignore stat errors
-      }
+      repoLastCommitAt = getRepoLastCommitAt(resolvedPath);
+      lastPulledAt = readLastUpdatedAt(resolvedPath);
     }
 
-    let pendingCommits: number | undefined;
-    if (source.repoUrl) {
-      try {
-        // Fetch silently to check for new commits
-        spawnSync("git", ["-C", resolve(source.path), "fetch", "--quiet"], {
-          encoding: "utf-8",
-          timeout: 10000,
-        });
-        const revResult = spawnSync(
-          "git",
-          ["-C", resolve(source.path), "rev-list", "--count", "HEAD..@{u}"],
-          { encoding: "utf-8", timeout: 5000 },
-        );
-        if (revResult.status === 0 && revResult.stdout.trim()) {
-          const count = parseInt(revResult.stdout.trim(), 10);
-          if (count > 0) pendingCommits = count;
-        }
-      } catch {
-        // ignore git errors
-      }
-    }
+    const pendingCommits = source.repoUrl
+      ? getPendingCommitCount(resolve(source.path))
+      : undefined;
 
     return {
       id: resolve(source.path),
@@ -2866,10 +2825,16 @@ function registerIpcHandlers(): void {
     if (typeof sourceId !== "string" || !sourceId.trim()) {
       throw new Error("Missing source identifier.");
     }
+    const config = loadConfig();
     const sourcePath = resolve(sourceId);
+    const source = findConfiguredSource(sourcePath, config.sources);
+    if (!source) {
+      throw new Error("Unknown source identifier.");
+    }
+    const resolvedSourcePath = resolve(source.path);
     const result = spawnSync(
       "git",
-      ["-C", sourcePath, "pull", "--ff-only"],
+      ["-C", resolvedSourcePath, "pull", "--ff-only"],
       { encoding: "utf-8", timeout: 30000 },
     );
     if (result.error || result.status !== 0) {
@@ -2879,7 +2844,7 @@ function registerIpcHandlers(): void {
         result.stdout?.trim();
       throw new Error(detail ? `Update failed: ${detail}` : "Update failed.");
     }
-    const config = loadConfig();
+    writeLastUpdatedAt(resolvedSourcePath, new Date().toISOString());
     return createSnapshot(config);
   });
 
