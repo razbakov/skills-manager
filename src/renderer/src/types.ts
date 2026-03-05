@@ -29,6 +29,10 @@ export interface SourceViewModel {
   enabled: boolean;
   installedCount: number;
   totalCount: number;
+  lastScannedAt?: string;
+  lastPulledAt?: string;
+  repoLastCommitAt?: string;
+  pendingCommits?: number;
   skills: SkillViewModel[];
 }
 
@@ -51,6 +55,8 @@ export interface PersonalRepoViewModel {
   exists: boolean;
   isGitRepo: boolean;
   repoUrl?: string;
+  syncAhead?: number;
+  syncBehind?: number;
 }
 
 export interface RuntimeAvailability {

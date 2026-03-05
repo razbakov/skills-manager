@@ -5,9 +5,21 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { FolderOpen, ExternalLink, Trash2, Power, PowerOff } from "lucide-vue-next";
+import { FolderOpen, ExternalLink, Trash2, Power, PowerOff, RefreshCw } from "lucide-vue-next";
 
 const store = useSkills();
+
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
 </script>
 
 <template>
@@ -59,9 +71,21 @@ const store = useSkills();
                 ({{ store.selectedSource.value.installedCount }}/{{ store.selectedSource.value.totalCount }})
               </span>
             </h2>
-            <p class="text-sm text-muted-foreground mb-4 break-all">
+            <p class="text-sm text-muted-foreground mb-2 break-all">
               {{ store.selectedSource.value.repoUrl || store.selectedSource.value.path }}
             </p>
+
+            <div class="flex flex-wrap gap-3 text-xs text-muted-foreground mb-4">
+              <span v-if="store.selectedSource.value.lastPulledAt">
+                Updated {{ formatRelativeTime(store.selectedSource.value.lastPulledAt) }}
+              </span>
+              <span v-if="store.selectedSource.value.repoLastCommitAt">
+                Last commit {{ formatRelativeTime(store.selectedSource.value.repoLastCommitAt) }}
+              </span>
+              <Badge v-if="store.selectedSource.value.pendingCommits" variant="secondary" class="text-[10px]">
+                {{ store.selectedSource.value.pendingCommits }} new commit{{ store.selectedSource.value.pendingCommits === 1 ? '' : 's' }}
+              </Badge>
+            </div>
 
             <div class="flex flex-wrap gap-2 mb-5">
               <Button variant="outline" size="sm" @click="store.openPath(store.selectedSource.value!.path)">
@@ -76,6 +100,16 @@ const store = useSkills();
               >
                 <ExternalLink class="h-3.5 w-3.5" />
                 Open Repo
+              </Button>
+              <Button
+                v-if="store.selectedSource.value.repoUrl"
+                variant="outline"
+                size="sm"
+                :disabled="store.busy.value"
+                @click="store.updateSource(store.selectedSource.value!.id)"
+              >
+                <RefreshCw class="h-3.5 w-3.5" />
+                Update
               </Button>
               <Button
                 variant="outline"

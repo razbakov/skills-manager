@@ -74,6 +74,7 @@ interface SkillsApi {
   disableSource: (sourceId: string) => Promise<any>;
   enableSource: (sourceId: string) => Promise<any>;
   removeSource: (sourceId: string) => Promise<any>;
+  updateSource: (sourceId: string) => Promise<any>;
   pickImportBundle: () => Promise<any>;
   exportInstalled: () => Promise<any>;
   exportSkillGroup: (request: { name: string }) => Promise<any>;

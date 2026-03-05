@@ -102,7 +102,7 @@ function emptyScanCache(): ScanCache {
   };
 }
 
-function loadScanCache(): ScanCache {
+export function loadScanCache(): ScanCache {
   if (!existsSync(SCAN_CACHE_PATH)) return emptyScanCache();
 
   try {
@@ -128,7 +128,7 @@ function saveScanCache(cache: ScanCache): void {
   }
 }
 
-function sourceCacheKey(source: Source): string {
+export function sourceCacheKey(source: Source): string {
   return `${source.name}::${resolve(source.path)}::${source.recursive ? "1" : "0"}`;
 }
 

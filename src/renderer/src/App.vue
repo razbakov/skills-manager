@@ -153,6 +153,11 @@ onUnmounted(() => store.unsubscribeFromProgress());
           >
             <CloudUpload class="h-4 w-4" :class="{ 'animate-spin': store.syncing.value }" />
             Sync
+            <Badge v-if="store.syncStatus.value" variant="secondary" class="ml-1 text-[10px] px-1 py-0 h-4">
+              <template v-if="store.syncStatus.value.behind">&#8595;{{ store.syncStatus.value.behind }}</template>
+              <template v-if="store.syncStatus.value.ahead && store.syncStatus.value.behind">/</template>
+              <template v-if="store.syncStatus.value.ahead">&#8593;{{ store.syncStatus.value.ahead }}</template>
+            </Badge>
           </Button>
           <Button
             v-else
@@ -209,6 +214,13 @@ onUnmounted(() => store.unsubscribeFromProgress());
               class="ml-auto text-[10px] px-1.5 py-0 h-5 min-w-5 justify-center"
             >
               {{ getTabCount(item.id) }}
+            </Badge>
+            <Badge
+              v-if="item.id === 'sources' && store.totalPendingCommits.value > 0"
+              variant="default"
+              class="text-[10px] px-1.5 py-0 h-5 min-w-5 justify-center"
+            >
+              {{ store.totalPendingCommits.value }}
             </Badge>
           </button>
         </nav>

@@ -68,6 +68,7 @@ contextBridge.exposeInMainWorld("skillsApi", {
   disableSource: (sourceId) => ipcRenderer.invoke("skills:disableSource", sourceId),
   enableSource: (sourceId) => ipcRenderer.invoke("skills:enableSource", sourceId),
   removeSource: (sourceId) => ipcRenderer.invoke("skills:removeSource", sourceId),
+  updateSource: (sourceId) => ipcRenderer.invoke("skills:updateSource", sourceId),
   pickImportBundle: () => ipcRenderer.invoke("skills:pickImportBundle"),
   exportInstalled: () => ipcRenderer.invoke("skills:exportInstalled"),
   exportSkillGroup: (request) => ipcRenderer.invoke("skills:exportSkillGroup", request),
