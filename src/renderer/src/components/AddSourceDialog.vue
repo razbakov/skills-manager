@@ -36,7 +36,7 @@ const displayedSkills = computed(() => {
 });
 
 const isExternalCollection = computed(
-  () => activeCollection.value !== null && displayedSkills.value.length === 0,
+  () => activeCollection.value !== null,
 );
 
 const externalSelectedNames = ref(new Set<string>());
