@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { ChevronRight, Pencil, Save, Share2, Trash2, Upload, X } from "lucide-vue-next";
+import { ChevronRight, KeyRound, Pencil, Save, Share2, Trash2, Upload, X } from "lucide-vue-next";
 import { useSkills } from "@/composables/useSkills";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -171,6 +171,26 @@ watch(
   },
   { immediate: true },
 );
+
+const collectionEnvVars = computed(() => {
+  if (!group.value) return [];
+  const envMap = new Map<string, { description: string; skills: string[] }>();
+  for (const skillId of group.value.skillIds) {
+    const skill = allSkillsById.value.get(skillId);
+    if (!skill?.env?.length) continue;
+    for (const e of skill.env) {
+      const existing = envMap.get(e.name);
+      if (existing) {
+        existing.skills.push(skill.name);
+      } else {
+        envMap.set(e.name, { description: e.description, skills: [skill.name] });
+      }
+    }
+  }
+  return Array.from(envMap.entries())
+    .map(([name, info]) => ({ name, ...info }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+});
 
 function openSkill(skillId: string) {
   const skill = store.snapshot.value?.skills.find((entry) => entry.id === skillId);
@@ -379,6 +399,27 @@ async function shareGroup() {
               <Trash2 class="h-3.5 w-3.5" />
               Delete Collection
             </Button>
+          </div>
+        </div>
+
+        <div v-if="collectionEnvVars.length" class="mb-5 rounded-lg border bg-muted/20">
+          <div class="flex items-center gap-1.5 border-b px-3 py-2">
+            <KeyRound class="h-3.5 w-3.5 text-muted-foreground" />
+            <span class="text-xs uppercase tracking-wider text-muted-foreground">
+              Required Environment Variables
+            </span>
+            <Badge variant="secondary" class="ml-auto text-[10px]">{{ collectionEnvVars.length }}</Badge>
+          </div>
+          <div class="divide-y divide-border/50">
+            <div v-for="envVar in collectionEnvVars" :key="envVar.name" class="px-3 py-2">
+              <div class="flex items-center gap-2">
+                <code class="text-xs bg-muted px-1.5 py-0.5 rounded font-medium">{{ envVar.name }}</code>
+                <span class="text-[11px] text-muted-foreground/70">
+                  {{ envVar.skills.length === 1 ? envVar.skills[0] : `${envVar.skills.length} skills` }}
+                </span>
+              </div>
+              <p class="text-xs text-muted-foreground mt-0.5">{{ envVar.description }}</p>
+            </div>
           </div>
         </div>
 

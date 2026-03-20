@@ -1,7 +1,7 @@
 import { spawnSync } from "child_process";
 import { mkdirSync, writeFileSync } from "fs";
 import { dirname, relative, resolve } from "path";
-import type { Skill } from "./types";
+import type { Skill, SkillEnvRequirement } from "./types";
 
 export interface SkillInstallExport {
   repoUrl?: string;
@@ -12,6 +12,8 @@ export interface InstalledSkillExport {
   name: string;
   description: string;
   install: SkillInstallExport;
+  env?: SkillEnvRequirement[];
+  installScript?: string;
 }
 
 export interface InstalledSkillsManifest {
@@ -93,6 +95,8 @@ export function buildInstalledSkillsManifest(skills: Skill[]): InstalledSkillsMa
       name: skill.name,
       description: skill.description,
       install: buildInstallExport(skill),
+      ...(skill.env?.length ? { env: skill.env } : {}),
+      ...(skill.installScript ? { installScript: skill.installScript } : {}),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 

@@ -12,7 +12,7 @@ import { readFile, stat } from "fs/promises";
 import { homedir } from "os";
 import { join, basename, resolve, dirname } from "path";
 import matter from "gray-matter";
-import type { Config, Skill, Source } from "./types";
+import type { Config, Skill, SkillEnvRequirement, Source } from "./types";
 
 interface RawSkill {
   name: string;
@@ -20,6 +20,8 @@ interface RawSkill {
   sourcePath: string;
   sourceName: string;
   installName: string;
+  env?: SkillEnvRequirement[];
+  installScript?: string;
 }
 
 interface SkillMeta {
@@ -40,6 +42,8 @@ interface CachedSkillFile {
   description: string;
   mtimeMs: number;
   size: number;
+  env?: SkillEnvRequirement[];
+  installScript?: string;
 }
 
 interface CachedSourceScan {
@@ -72,7 +76,7 @@ interface SourceScanResult {
   cacheEntry: CachedSourceScan;
 }
 
-const SCAN_CACHE_VERSION = 2;
+const SCAN_CACHE_VERSION = 3;
 const DEFAULT_SCAN_CACHE_PATH = join(
   homedir(),
   ".cache",
@@ -277,7 +281,23 @@ function rawSkillFromCachedFile(cachedFile: CachedSkillFile, source: Source): Ra
     sourcePath: cachedFile.sourcePath,
     sourceName: source.name,
     installName: cachedFile.installName,
+    ...(cachedFile.env ? { env: cachedFile.env } : {}),
+    ...(cachedFile.installScript ? { installScript: cachedFile.installScript } : {}),
   };
+}
+
+function parseMetadataEnv(metadata: Record<string, unknown> | undefined): SkillEnvRequirement[] | undefined {
+  if (!metadata || typeof metadata !== "object") return undefined;
+  const env = metadata.env;
+  if (!env || typeof env !== "object") return undefined;
+
+  const entries = Object.entries(env as Record<string, unknown>);
+  if (entries.length === 0) return undefined;
+
+  return entries.map(([name, description]) => ({
+    name,
+    description: typeof description === "string" ? description : "",
+  }));
 }
 
 async function parseSkillMdWithStat(
@@ -289,12 +309,17 @@ async function parseSkillMdWithStat(
     const content = await readFile(skillMdPath, "utf-8");
     const { data } = matter(content);
     const skillDir = resolve(dirname(skillMdPath));
+    const metadata = data.metadata as Record<string, unknown> | undefined;
+    const env = parseMetadataEnv(metadata);
+    const installScript = metadata?.install as string | undefined;
     const rawSkill: RawSkill = {
       name: (data.name as string) || basename(skillDir),
       description: (data.description as string) || "",
       sourcePath: skillDir,
       sourceName: source.name,
       installName: basename(skillDir),
+      ...(env ? { env } : {}),
+      ...(installScript ? { installScript } : {}),
     };
     return {
       rawSkill,
@@ -306,6 +331,8 @@ async function parseSkillMdWithStat(
         description: rawSkill.description,
         mtimeMs: fileStat.mtimeMs,
         size: fileStat.size,
+        ...(env ? { env } : {}),
+        ...(installScript ? { installScript } : {}),
       },
     };
   } catch {
@@ -574,6 +601,8 @@ export async function scan(config: Config): Promise<Skill[]> {
       disabled: anyInstalled && allDisabled,
       unmanaged: isInsideAnyTarget(raw.sourcePath, config.targets),
       targetStatus,
+      ...(raw.env ? { env: raw.env } : {}),
+      ...(raw.installScript ? { installScript: raw.installScript } : {}),
     });
   }
 

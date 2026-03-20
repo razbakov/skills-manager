@@ -2,6 +2,7 @@
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { KeyRound } from "lucide-vue-next";
 import type { SkillViewModel } from "@/types";
 
 defineProps<{
@@ -55,7 +56,10 @@ function getStatusBadge(skill: SkillViewModel): { label: string; variant: "defau
         @click="$emit('select', skill.id)"
       >
         <div class="flex items-center justify-between gap-2">
-          <span class="text-sm font-medium truncate">{{ skill.name }}</span>
+          <div class="flex items-center gap-1.5 min-w-0">
+            <span class="text-sm font-medium truncate">{{ skill.name }}</span>
+            <KeyRound v-if="skill.env?.length" class="h-3 w-3 shrink-0 text-muted-foreground/60" title="Requires env vars" />
+          </div>
           <Badge :variant="getStatusBadge(skill).variant" class="text-[10px] shrink-0">
             {{ getStatusBadge(skill).label }}
           </Badge>

@@ -20,6 +20,11 @@ export interface Config {
   activeGroups?: string[];
 }
 
+export interface SkillEnvRequirement {
+  name: string;
+  description: string;
+}
+
 export interface Skill {
   name: string;
   description: string;
@@ -30,4 +35,6 @@ export interface Skill {
   disabled: boolean;
   unmanaged: boolean;
   targetStatus: Record<string, "installed" | "disabled" | "not-installed">;
+  env?: SkillEnvRequirement[];
+  installScript?: string;
 }
