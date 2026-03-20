@@ -3,6 +3,11 @@ export interface TargetLabel {
   status: "installed" | "disabled";
 }
 
+export interface SkillEnvRequirementViewModel {
+  name: string;
+  description: string;
+}
+
 export interface SkillViewModel {
   id: string;
   name: string;
@@ -18,6 +23,8 @@ export interface SkillViewModel {
   unmanaged: boolean;
   targetLabels: TargetLabel[];
   groupNames: string[];
+  env?: SkillEnvRequirementViewModel[];
+  installScript?: string;
 }
 
 export interface SourceViewModel {
