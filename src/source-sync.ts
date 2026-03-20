@@ -17,7 +17,7 @@ const SOURCE_UPDATE_STATE_VERSION = 1;
 const DEFAULT_SOURCE_UPDATE_STATE_PATH = join(
   homedir(),
   ".cache",
-  "skills-manager",
+  "skill-mix",
   "source-update-state.json",
 );
 

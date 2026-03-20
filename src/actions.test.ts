@@ -64,7 +64,7 @@ describe("actions.ts testing (issue 003)", () => {
 
     describe("cleanupBrokenTargetSymlinks", () => {
         it("should remove broken symlinks from targets and .disabled", () => {
-            const root = mkdtempSync(join(tmpdir(), "skills-manager-actions-"));
+            const root = mkdtempSync(join(tmpdir(), "skill-mix-actions-"));
             try {
                 const targetPath = join(root, "target");
                 const disabledPath = join(targetPath, ".disabled");
@@ -116,7 +116,7 @@ describe("actions.ts testing (issue 003)", () => {
 
     describe("cleanupInvalidSourceEntries", () => {
         it("should remove missing, broken, and non-directory sources", () => {
-            const root = mkdtempSync(join(tmpdir(), "skills-manager-sources-"));
+            const root = mkdtempSync(join(tmpdir(), "skill-mix-sources-"));
             try {
                 const validSource = join(root, "valid-source");
                 const validSourceTarget = join(root, "valid-target");
@@ -160,7 +160,7 @@ describe("actions.ts testing (issue 003)", () => {
         });
 
         it("should leave valid entries unchanged", () => {
-            const root = mkdtempSync(join(tmpdir(), "skills-manager-sources-"));
+            const root = mkdtempSync(join(tmpdir(), "skill-mix-sources-"));
             try {
                 const sourcePath = join(root, "source");
                 mkdirSync(sourcePath, { recursive: true });

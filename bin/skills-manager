@@ -38,5 +38,5 @@ if command -v skills >/dev/null 2>&1; then
   exec "$(command -v skills)" set "$@"
 fi
 
-echo "Skills Manager was installed, but 'skills' command is unavailable." >&2
+echo "Skill Mix was installed, but 'skills' command is unavailable." >&2
 exit 1

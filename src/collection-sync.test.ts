@@ -374,17 +374,17 @@ describe("syncCollectionsFromRepo", () => {
       },
     ]);
 
-    const sourcesRoot = "/Users/test/.skills-manager/sources";
+    const sourcesRoot = "/Users/test/.skill-mix/sources";
     const skills: Skill[] = [
       makeSkill({
         name: "atlassian",
-        sourcePath: "/Users/test/.skills-manager/sources/skills@razbakov/skills/atlassian",
+        sourcePath: "/Users/test/.skill-mix/sources/skills@razbakov/skills/atlassian",
       }),
     ];
     const sources: Source[] = [
       {
         name: "skills@razbakov",
-        path: "/Users/test/.skills-manager/sources/skills@razbakov",
+        path: "/Users/test/.skill-mix/sources/skills@razbakov",
         recursive: true,
         url: "https://github.com/razbakov/skills",
       },
@@ -407,7 +407,7 @@ describe("syncCollectionsFromRepo", () => {
       {
         name: "remote-group",
         skillIds: [
-          "/Users/test/.skills-manager/sources/skills@razbakov/skills/atlassian",
+          "/Users/test/.skill-mix/sources/skills@razbakov/skills/atlassian",
         ],
       },
     ]);
@@ -424,11 +424,11 @@ describe("syncCollectionsFromRepo", () => {
       },
     ]);
 
-    const sourcesRoot = "/Users/test/.skills-manager/sources";
+    const sourcesRoot = "/Users/test/.skill-mix/sources";
     const skills: Skill[] = [
       makeSkill({
         name: "workflow",
-        sourcePath: "/Users/test/.skills-manager/sources/skills@razbakov/skills/workflow",
+        sourcePath: "/Users/test/.skill-mix/sources/skills@razbakov/skills/workflow",
       }),
     ];
 
@@ -447,7 +447,7 @@ describe("syncCollectionsFromRepo", () => {
       {
         name: "ommax-dev",
         skillIds: [
-          "/Users/test/.skills-manager/sources/skills@razbakov/skills/workflow",
+          "/Users/test/.skill-mix/sources/skills@razbakov/skills/workflow",
         ],
       },
     ]);
@@ -469,14 +469,14 @@ describe("syncCollectionsFromRepo", () => {
       existingGroups: [],
       skills: [],
       sources: [],
-      sourcesRoot: "/Users/test/.skills-manager/sources",
+      sourcesRoot: "/Users/test/.skill-mix/sources",
     });
 
     expect(result.updated).toBe(true);
     expect(result.groups).toEqual([
       {
         name: "missing-skill",
-        skillIds: ["/Users/test/.skills-manager/sources/team-skills@acme/skills/new-skill"],
+        skillIds: ["/Users/test/.skill-mix/sources/team-skills@acme/skills/new-skill"],
       },
     ]);
   });
@@ -488,7 +488,7 @@ describe("syncCollectionsFromRepo", () => {
       existingGroups: existing,
       skills: [],
       sources: [],
-      sourcesRoot: "/Users/test/.skills-manager/sources",
+      sourcesRoot: "/Users/test/.skill-mix/sources",
     });
 
     expect(result.updated).toBe(false);

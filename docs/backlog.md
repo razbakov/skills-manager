@@ -1,6 +1,6 @@
 # Feature Backlog
 
-Prioritized feature backlog for the Skills Manager, with traceability to documented problems and competitive gaps.
+Prioritized feature backlog for Skill Mix, with traceability to documented problems and competitive gaps.
 
 ## Prioritization Method
 
@@ -203,7 +203,7 @@ Record where every skill came from and how it got to the current state.
 - On install: record source URL, author, version/commit, install date, installer tool
 - On update: append to provenance log (old version → new version, when, why)
 - On fork: track parent skill and divergence
-- Storage: `.skills-manager/provenance.json` per project + global
+- Storage: `.skill-mix/provenance.json` per project + global
 - Query: "where did this skill come from?" → full history
 
 ---

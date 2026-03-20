@@ -133,7 +133,7 @@ const DEFAULT_REPORTS_ROOT = join(
   homedir(),
   ".local",
   "state",
-  "skills-manager",
+  "skill-mix",
   "feedback-reports",
 );
 const DEFAULT_ANALYSIS_TIMEOUT_MS = Number(

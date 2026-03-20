@@ -140,7 +140,7 @@ Major UI and architecture updates for organizing and sharing skills.
 
 ### Initial Release
 
-First public release of Skills Manager — a desktop application for discovering, installing, and managing AI agent skills across Cursor, Codex, and Claude Code.
+First public release of Skill Mix — a desktop application for discovering, installing, and managing AI agent skills across Cursor, Codex, and Claude Code.
 
 - **Desktop app** — Electron-based GUI for browsing and managing installed skills.
 - **Skill discovery** — Install skills from GitHub repositories using `owner/repo` shorthand or full URLs.

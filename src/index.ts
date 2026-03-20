@@ -283,7 +283,7 @@ async function main() {
     }
 
     if (args.updateCommand) {
-      console.log(`[Skills Manager v${getAppVersion()}] Updating...`);
+      console.log(`[Skill Mix v${getAppVersion()}] Updating...`);
       const result = updateApp();
       console.log(result.message);
       if (result.updated) {
@@ -320,7 +320,7 @@ async function main() {
       }
 
       launchElectronUi(args.skillSetRequest);
-      console.log("Opened Skills Manager and queued skill set selection.");
+      console.log("Opened Skill Mix and queued skill set selection.");
       return;
     }
 

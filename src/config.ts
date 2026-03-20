@@ -61,7 +61,7 @@ export const SUPPORTED_IDES: SupportedIde[] = [
   { name: "OpenCode", path: "~/.config/opencode/skills" },
 ];
 
-const DEFAULT_CONFIG_PATH = join(homedir(), ".config", "skills-manager", "config.yaml");
+const DEFAULT_CONFIG_PATH = join(homedir(), ".config", "skill-mix", "config.yaml");
 const CONFIG_PATH = resolve(
   expandTilde(process.env.SKILLS_MANAGER_CONFIG_PATH?.trim() || DEFAULT_CONFIG_PATH),
 );
@@ -69,7 +69,7 @@ const CONFIG_DIR = dirname(CONFIG_PATH);
 const DEFAULT_SOURCES_ROOT_PATH = resolve(
   expandTilde(
     process.env.SKILLS_MANAGER_SOURCES_ROOT_PATH?.trim() ||
-      join(homedir(), ".local", "share", "skills-manager", "sources"),
+      join(homedir(), ".local", "share", "skill-mix", "sources"),
   ),
 );
 

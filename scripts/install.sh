@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_URL="${SKILLS_MANAGER_REPO_URL:-https://github.com/razbakov/skills-manager.git}"
-INSTALL_DIR="${SKILLS_MANAGER_HOME:-$HOME/.local/opt/skills-manager}"
+INSTALL_DIR="${SKILL_MIX_HOME:-${SKILLS_MANAGER_HOME:-$HOME/.local/opt/skill-mix}}"
 BRANCH="${SKILLS_MANAGER_BRANCH:-main}"
 BUN_INSTALL_SCRIPT_URL="${SKILLS_MANAGER_BUN_INSTALL_SCRIPT_URL:-https://bun.sh/install}"
 
@@ -170,16 +170,16 @@ ensure_path_contains_dir "$(dirname "$BUN_CMD")"
 
 if [ -e "$INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR/.git" ]; then
   echo "Install path exists but is not a git checkout: $INSTALL_DIR" >&2
-  echo "Set SKILLS_MANAGER_HOME to another directory and retry." >&2
+  echo "Set SKILL_MIX_HOME to another directory and retry." >&2
   exit 1
 fi
 
 if [ -d "$INSTALL_DIR/.git" ]; then
-  echo "Updating skills-manager in $INSTALL_DIR"
+  echo "Updating skill-mix in $INSTALL_DIR"
   git -C "$INSTALL_DIR" fetch --depth 1 origin "$BRANCH"
   git -C "$INSTALL_DIR" checkout -B "$BRANCH" "origin/$BRANCH"
 else
-  echo "Cloning skills-manager into $INSTALL_DIR"
+  echo "Cloning skill-mix into $INSTALL_DIR"
   git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
 fi
 
