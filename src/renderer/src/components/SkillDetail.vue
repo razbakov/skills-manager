@@ -179,6 +179,19 @@ function removeCurrentSkillFromGroup(skillId: string, groupName: string) {
           </div>
           <span class="text-muted-foreground text-xs uppercase tracking-wider pt-0.5">Path</span>
           <span class="break-all">{{ skill.pathLabel }}</span>
+          <template v-if="skill.installScript">
+            <span class="text-muted-foreground text-xs uppercase tracking-wider pt-0.5">Install</span>
+            <code class="text-xs bg-muted px-1.5 py-0.5 rounded">{{ skill.installScript }}</code>
+          </template>
+          <template v-if="skill.env?.length">
+            <span class="text-muted-foreground text-xs uppercase tracking-wider pt-0.5">Env vars</span>
+            <div class="space-y-1">
+              <div v-for="e in skill.env" :key="e.name" class="text-xs">
+                <code class="bg-muted px-1 py-0.5 rounded font-medium">{{ e.name }}</code>
+                <span class="text-muted-foreground ml-1.5">{{ e.description }}</span>
+              </div>
+            </div>
+          </template>
           <template v-if="mode === 'installed' && store.configuredTargetCount.value > 1">
             <span class="text-muted-foreground text-xs uppercase tracking-wider pt-0.5">IDEs</span>
             <span>{{ formatInstalledIdes(skill) }}</span>

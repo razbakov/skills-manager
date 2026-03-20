@@ -110,6 +110,11 @@ interface TargetLabel {
   status: "installed" | "disabled";
 }
 
+interface SkillEnvRequirementViewModel {
+  name: string;
+  description: string;
+}
+
 interface SkillViewModel {
   id: string;
   name: string;
@@ -125,6 +130,8 @@ interface SkillViewModel {
   unmanaged: boolean;
   targetLabels: TargetLabel[];
   groupNames: string[];
+  env?: SkillEnvRequirementViewModel[];
+  installScript?: string;
 }
 
 interface SourceViewModel {
@@ -1192,6 +1199,8 @@ function toSkillViewModel(
     unmanaged: skill.unmanaged,
     targetLabels,
     groupNames: getSkillGroupNamesForSkillId(skillGroups, sourcePath),
+    ...(skill.env ? { env: skill.env } : {}),
+    ...(skill.installScript ? { installScript: skill.installScript } : {}),
   };
 }
 
