@@ -152,7 +152,7 @@ const DEFAULT_RECOMMENDATION_ARTIFACTS_DIR = join(
   homedir(),
   ".local",
   "state",
-  "skills-manager",
+  "skill-mix",
   "recommendations",
 );
 

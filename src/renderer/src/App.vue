@@ -141,7 +141,7 @@ onUnmounted(() => store.unsubscribeFromProgress());
         class="flex items-center justify-between px-5 py-3 border-b bg-background/80 backdrop-blur-sm"
       >
         <div class="flex items-center gap-3">
-          <h1 class="text-base font-semibold tracking-tight">Skills Manager</h1>
+          <h1 class="text-base font-semibold tracking-tight">Skill Mix</h1>
         </div>
         <div class="flex items-center gap-2">
           <Button

@@ -80,7 +80,7 @@ const SCAN_CACHE_VERSION = 3;
 const DEFAULT_SCAN_CACHE_PATH = join(
   homedir(),
   ".cache",
-  "skills-manager",
+  "skill-mix",
   "scan-cache.json",
 );
 

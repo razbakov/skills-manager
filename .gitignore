@@ -3,6 +3,7 @@ node_modules
 .cursor
 .claude
 .skills-manager
+.skill-mix
 sources
 src/renderer/dist
 dist

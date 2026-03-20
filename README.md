@@ -1,4 +1,4 @@
-# Skills Manager
+# Skill Mix
 
 A management layer for AI agent skills — discover, install, scope, rate, and update skills across Cursor, Codex, and Claude Code.
 
@@ -6,7 +6,7 @@ All three tools follow the open [Agent Skills](https://agentskills.io/) standard
 
 ## Setup
 
-Quick install Skills Manager, open the app, and launch the skill-picker modal:
+Quick install Skill Mix, open the app, and launch the skill-picker modal:
 
 ```bash
 npx -y skill-mix obra/superpowers
@@ -24,7 +24,7 @@ Run `skills` to launch application
 
 Open/focus the app and trigger the skill-picker from CLI:
 
-![Skills Manager desktop UI](docs/images/desktop-ui.png)
+![Skill Mix desktop UI](docs/images/desktop-ui.png)
 
 ## Build DMG (macOS)
 

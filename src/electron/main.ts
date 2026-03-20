@@ -337,7 +337,7 @@ const TARGET_NAME_MAP = new Map<string, string>(
 );
 const INSTALLED_GROUP_NAME = "Installed";
 const SKILL_SET_LAUNCH_CHANNEL = "skills:launchSkillSet";
-const DEFAULT_PREVIEW_TMP_DIR = join(tmpdir(), "skills-manager");
+const DEFAULT_PREVIEW_TMP_DIR = join(tmpdir(), "skill-mix");
 const PREVIEW_TMP_DIR = resolve(
   process.env.SKILLS_MANAGER_PREVIEW_TMP_DIR?.trim() || DEFAULT_PREVIEW_TMP_DIR,
 );
@@ -3179,7 +3179,7 @@ function createMainWindow(): void {
     minWidth: 980,
     minHeight: 620,
     backgroundColor: "#ffffff",
-    title: `Skills Manager v${getAppVersion()}`,
+    title: `Skill Mix v${getAppVersion()}`,
     webPreferences: {
       preload: join(currentDir, "preload.cjs"),
       contextIsolation: true,

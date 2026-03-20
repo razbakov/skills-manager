@@ -1,6 +1,6 @@
 ---
 type: Story
-title: "Skills Manager: Update App from UI and CLI"
+title: "Skill Mix: Update App from UI and CLI"
 estimation: 3
 status: completed
 ---

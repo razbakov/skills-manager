@@ -172,7 +172,7 @@ const DEFAULT_REVIEW_ARTIFACTS_DIR = join(
   homedir(),
   ".local",
   "state",
-  "skills-manager",
+  "skill-mix",
   "reviews",
 );
 
