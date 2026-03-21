@@ -99,7 +99,24 @@ export function updateApp(): { updated: boolean; message: string; version: strin
         };
     }
 
-    const pullResult = runCommandOrThrow("git", ["pull", "--ff-only"], appRoot, "Git pull failed");
+    // Stash any local changes (e.g. bun.lockb) so pull doesn't fail
+    const stashResult = runCommandOrThrow("git", ["stash", "--include-untracked"], appRoot, "Git stash failed");
+    const didStash = !stashResult.stdout.includes("No local changes to save");
+
+    let pullResult: CommandResult;
+    try {
+        pullResult = runCommandOrThrow("git", ["pull", "--ff-only"], appRoot, "Git pull failed");
+    } catch (err) {
+        if (didStash) {
+            runCommandOrThrow("git", ["stash", "pop"], appRoot, "Git stash pop failed");
+        }
+        throw err;
+    }
+
+    if (didStash) {
+        // Drop the stash — pulled changes (including lockfile) take precedence
+        runCommandOrThrow("git", ["stash", "drop"], appRoot, "Git stash drop failed");
+    }
     const pullOutput = `${pullResult.stdout}\n${pullResult.stderr}`.trim();
     const alreadyUpToDate =
         pullOutput.includes("Already up to date.") ||
