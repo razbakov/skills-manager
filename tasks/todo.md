@@ -1,5 +1,6 @@
 # TODO
 
+- [ ] Add CLAUDE.md + skills management feature (manage global/project-level CLAUDE.md, project skills, sub-agents)
 - [x] Add failing tests for source update metadata/validation behavior
 - [x] Refactor snapshot repo status collection to avoid network fetch side effects
 - [x] Track explicit source update timestamp from successful pull
